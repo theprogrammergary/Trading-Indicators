@@ -1,0 +1,342 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator('CSW Indicators', overlay=true)
+
+//Delete all Lines and labels
+allLines = line.all
+alllabels = label.all
+if barstate.islast and array.size(allLines) > 0
+	for i = 0 to array.size(allLines) - 1
+		line.delete(array.get(allLines, i))
+		
+if barstate.islast and array.size(alllabels) > 0
+	for i = 0 to array.size(alllabels) - 1
+		label.delete(array.get(alllabels, i))
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Indicators feature 8 Indicators in one to help you make better informed trading decisions.
+ \n\n1.Automatic Support / Resistance
+ \n2.Perimeter Bands
+ \n3.Regression Slope Channel
+ \n4.Colored RSI Candlesticks
+ \n5.Multi-Session VWAP Bands
+ \n6.GAP-Finder
+ \n7.Multi-timeframe Moving Average Overlay
+ \n8.MA Line"
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+		
+//Auto Support / Resistance
+show_supportresistance = input.bool(title='Power S/R', defval=false, inline='1', group='Power S/R Settings')
+supportresistance_tf = input.timeframe(defval='', title='', inline='1', group='Power S/R Settings')
+sr_length = 5
+sr_closeness = input.float(defval=5.00, step=0.25, minval=0, maxval=10, title='Spacer', inline='1', group='Power S/R Settings', tooltip = "Power S/R takes the work of plotting lines on your chart and does it for you! There are two settings you can change. 
+     \n\nBy default Power S/R plots support and resistance on whatever timeframe your chart is on. However you could choose another timeframe to show support and resistance on. 
+     For example say you are a scalper and trade off the 1 minute chart, but use the 15 minute chart to do your chart work. 
+      All you would need to do is set the timeframe to 15 minutes. \n\nThe other adjuster you have is the spacer. If the S/R lines are too close or too far apart for your liking you can change the value of the adjuster.
+      \n\nWe recommend putting the spacer on at least 5 with timeframes of 15 minutes or higher. On lower timeframes we recommend a spacer value between 2-3.")
+sr_color = input.color(color.new(color.red,0), title='S/R Color', inline='2', group='Power S/R Settings')
+sr_width = input.int(1, minval = 1, maxval = 10, title='S/R Width', inline='2', group='Power S/R Settings')
+sr_label_offset = 70
+
+//Get Pivot Boolean Function
+createLines(srcHigh, srcLow, strength) =>
+    pivotHigh = ta.pivothigh(srcHigh, strength, strength)
+    pivotLow = ta.pivotlow(srcLow, strength, strength)
+
+    levelHigh = ta.valuewhen(pivotHigh, srcHigh[strength], 0)
+    levelLow = ta.valuewhen(pivotLow, srcLow[strength], 0)
+
+    [pivotHigh, pivotLow, levelHigh, levelLow]
+    
+//  Calculate average candle size over the last n bars. 
+avg_candle(n, tf) =>
+    high_price = request.security(syminfo.tickerid, tf, high)
+    low_price = request.security(syminfo.tickerid, tf, low)
+    ta.sma(math.abs(high_price - low_price), n)
+
+//DEFEAT LEVEL CLUSTERING
+validate_proximity(y, levels, m, tf) =>
+    avg = avg_candle(100, tf) * m
+    x = 0
+    for i = 0 to array.size(levels) - 1 by 1
+        level = array.get(levels, i)
+        if math.abs(level - y) < avg
+            x := x + 1
+            x
+    x == 0
+
+[is_bear_fractal, is_bull_fractal, high_level, low_level] = request.security(syminfo.tickerid, supportresistance_tf, createLines(high, low, sr_length))
+var float[] key_levels = array.new_float(20, 0.0)
+
+if is_bear_fractal and validate_proximity(high_level, key_levels, sr_closeness, supportresistance_tf)
+    array.unshift(key_levels, high_level)
+    array.remove(key_levels, 20)
+
+if is_bull_fractal and validate_proximity(low_level, key_levels, sr_closeness, supportresistance_tf)
+    array.unshift(key_levels, low_level)
+    array.remove(key_levels, 20)
+
+drawSR(key_levels,line_color,sr_width) =>
+    for i = 0 to 19 by 1
+        line_value = array.get(key_levels,i)
+        line sr_line = line.new(x1=bar_index[1], x2=bar_index, y1=line_value, y2=line_value, xloc=xloc.bar_index, width=sr_width, color=line_color, extend=extend.both)
+        label sr_label = label.new(x=bar_index + sr_label_offset, y=line_value, xloc=xloc.bar_index, yloc=yloc.price, text=str.tostring(line_value, format.mintick), textcolor=color.new(line_color,0) ,style=label.style_none, color=color.white, textalign=text.align_right, size=size.normal)
+
+if show_supportresistance
+    drawSR(key_levels,sr_color,sr_width)
+//SR END
+
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : type == 'Perimeter' ?  ta.ema(ta.hma(src,len*2),len) : na
+    ma_value
+
+//Perimeter Bands
+show_range = input.bool(title='Perimeter Bands', defval=true, inline='1', group='Perimeter Bands Settings', tooltip = "Perimeter bands dynamically flow with price action to give users potential areas where price action has gotten too extended from its mean.\n\nWe recommend using 3.00 as the default value, but when market volatility regimes change it might be wise to adjust the value. \n\nLower to decrease band distance. \nRaise to increase band distance.") 
+range_mode = input.float(title='Band Distance', defval=3.00, minval=0.5, maxval=10.0, step=0.25, inline='2', group='Perimeter Bands Settings')
+range_upper_color = input.color(#80848c, title='Upper Color', inline='2', group='Perimeter Bands Settings')
+range_lower_color = input.color(#80848c, title='Lower Color', inline='2', group='Perimeter Bands Settings')
+
+range_atr = ta.atr(200)
+range_low1 = plot(show_range ? getMA((low), 20, 'Perimeter') - range_atr * (range_mode + 1.00) : na, color=color.new(#ffffff, 99), editable=false)
+range_high1 = plot(show_range ? getMA((high),20, 'Perimeter') + range_atr * (range_mode + 1.00) : na, color=color.new(#ffffff, 99), editable=false)
+range_low2 = plot(show_range ? getMA((low), 20, 'Perimeter') - range_atr * (range_mode + 1.75) : na, color=color.new(#ffffff, 99), editable=false)
+range_high2 = plot(show_range ? getMA((high),20, 'Perimeter') + range_atr * (range_mode + 1.75) : na, color=color.new(#ffffff, 99), editable=false)
+range_low3 = plot(show_range ? getMA((low), 20, 'Perimeter') - range_atr * (range_mode + 2.5) : na, color=color.new(#ffffff, 99), editable=false)
+range_high3 = plot(show_range ? getMA((high),20, 'Perimeter') + range_atr * (range_mode + 2.5) : na, color=color.new(#ffffff, 99), editable=false)
+
+fill(range_low1, range_low2, editable=false, color=color.new(range_lower_color, 90), title='Cloud')
+fill(range_high1, range_high2, editable=false, color=color.new(range_upper_color, 90), title='Cloud')
+fill(range_low2, range_low3, editable=false, color=color.new(range_lower_color, 85), title='Cloud')
+fill(range_high2, range_high3, editable=false, color=color.new(range_upper_color, 85), title='Cloud')
+//RANGE END
+
+//Linear Regression Channel
+show_linreg = input.bool(title='Regression Channel', defval=false, inline='1', group='Regression Channel Settings', tooltip = "The Regression Channel models the mean price (middle line) over x amount of bars. The number of bars can be set by the user by using the length input below. Once the computing of the middle line is finished we find the standard deviation of price over x amount of bars. To get the upper lines we add the standard deviation to the mean. To get the lower lines we subtract the standard deviation from the mean. You can increase or decrease the channel width by using the deviation adjuster.") 
+linreg_length = input.int(title='Length ', defval=100, inline='2', maxval = 500, minval = 10, group='Regression Channel Settings')
+linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.5, maxval=5.00, inline='2', group='Regression Channel Settings')
+linreg_bull = input.color(color.new(#27a69b, 70), title='Bull Color', inline='3', group='Regression Channel Settings')
+linreg_mid = input.color(color.new(#ffffff, 70), title='Mid Color', inline='3', group='Regression Channel Settings')
+linreg_bear = input.color(color.new(#b63632, 70), title='Bear Color', inline='3', group='Regression Channel Settings')
+
+a = ta.wma(hlc3, linreg_length)
+b = ta.sma(hlc3, linreg_length)
+A = 4 * b - 3 * a
+B = 3 * a - 2 * b
+m = (A - B) / (linreg_length - 1)
+
+d = 0.00
+for i = 0 to linreg_length - 1 by 1
+    l = B + m * i
+    d += math.pow(hlc3[i] - l, 2)
+    d
+linreg_1 = math.sqrt(d / (linreg_length - 1)) * linreg_deviation
+linreg_2 = math.sqrt(d / (linreg_length - 1)) * (linreg_deviation - 0.5)
+
+drawLinReg(color_input, k, Width) =>
+    line lr = line.new(bar_index - linreg_length + 1, A + k, bar_index + 50, -m*50 + (B + k), extend = extend.none, color = color_input, width = Width)
+    line.delete(lr[1])
+    
+if show_linreg
+    drawLinReg(linreg_mid, 0, 1)
+    drawLinReg(linreg_bear, linreg_1,2)
+    drawLinReg(linreg_bull, -linreg_1,2)
+    drawLinReg(linreg_bear, linreg_2,1)
+    drawLinReg(linreg_bull, -linreg_2,1)
+//Lin REG END
+
+//RSI Signals
+show_rsi = input.bool(title='RSI Candles', defval=true, inline='1', group='RSI Candle Settings', tooltip = "RSI (Relative Strength Index) measures the fluctions in recent price movements and tells you whether an asset is triggering overbought (OB) or oversold (OS). To save room on your charts we overlay the RSI by coloring the candles.\n\n If RSI is greater than OB (overbought) we color the OB color. \nIf RSI is less than OS (oversold) we color the OS color.")
+rsi_ob = input.int(70, minval=1, title='OB', inline='1', group='RSI Candle Settings')
+rsi_os = input.int(30, minval=1, title='OS', inline='1', group='RSI Candle Settings')
+rsi_colorOB = input.color(#4dd0e1, title='RSI OB Color', inline='2', group='RSI Candle Settings')
+rsi_colorOS = input.color(color.fuchsia, title='RSI OS Color', inline='2', group='RSI Candle Settings')
+rsi = ta.rsi(close,14)
+rsiob = rsi > rsi_ob
+rsios = rsi < rsi_os
+show_rsi2 = input.bool(title='RSI Candles 2', defval=true, inline='3', group='RSI Candle Settings', tooltip = "RSI (Relative Strength Index) measures the fluctions in recent price movements and tells you whether an asset is triggering overbought (OB) or oversold (OS). To save room on your charts we overlay the RSI by coloring the candles.\n\n If RSI is greater than OB (overbought) we color the OB color. \nIf RSI is less than OS (oversold) we color the OS color.")
+rsi_ob2 = input.int(80, minval=1, title='OB', inline='3', group='RSI Candle Settings')
+rsi_os2 = input.int(20, minval=1, title='OS', inline='3', group='RSI Candle Settings')
+rsi_colorOB2 = input.color(#1848cc, title='RSI 2 OB Color ', inline='4', group='RSI Candle Settings')
+rsi_colorOS2 = input.color(color.yellow, title='RSI 2 OS Color ', inline='4', group='RSI Candle Settings')
+rsiob2 = rsi > rsi_ob2
+rsios2 = rsi < rsi_os2
+
+barcolor(show_rsi2 and rsiob2 ? rsi_colorOB2 : na, offset=0, editable=false)
+barcolor(show_rsi2 and rsios2 ? rsi_colorOS2 : na, offset=0, editable=false)
+
+barcolor(show_rsi and rsiob ? rsi_colorOB : na, offset=0, editable=false)
+barcolor(show_rsi and rsios ? rsi_colorOS : na, offset=0, editable=false)
+
+//VWAP
+show_vwap = input.bool(title='VWAP', defval=false, inline='1', group='VWAP Settings', tooltip = "One of instituions favorite indicators. Depending on the period choosen by the user, VWAP (Volume-Weighted Average Price) calculates the average price. VWAP can be used as a gauge to whether buyers or sellers are in control, or it can be used in combination with deviation bands to find areas where price may be extended from its mean.")
+var anchor = input.string(defval='Session', title='Period', options=['Session', 'Week', 'Month', 'Quarter', 'Year', 'Decade', 'Century', 'Earnings', 'Dividends', 'Splits'], group='VWAP Settings', inline='2')
+show_vwap_dev = input.bool(title=' Show Deviation Bands', defval=false, inline='2', group='VWAP Settings')
+vwap_bull = input.color(color.new(#27a69b, 70), title='Bull Color', inline='3', group='VWAP Settings')
+vwap_mid = input.color(color.new(#ffffff, 70), title='VWAP Color', inline='3', group='VWAP Settings')
+vwap_bear = input.color(color.new(#b63632, 70), title='Bear Color', inline='3', group='VWAP Settings')
+
+//VWAP Functions
+computeVWAP(src, isNewPeriod) =>
+    var float sumSrcVol = na
+    var float sumVol = na
+    var float sumSrcSrcVol = na
+    sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+    sumVol := isNewPeriod ? volume : volume + sumVol[1]
+    // sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+    sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+    _vwap = sumSrcVol / sumVol
+    variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+    variance := variance < 0 ? 0 : variance
+    stDev = math.sqrt(variance)
+    [_vwap, stDev]
+
+timeChange(period) =>
+    ta.change(time(period))
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on)
+isNewPeriod = anchor == 'Days Back' ? true : anchor == 'Earnings' ? new_earnings : anchor == 'Dividends' ? new_dividends : anchor == 'Splits' ? new_split : na(close[1]) ? true : anchor == 'Session' ? timeChange('D') : anchor == 'Week' ? timeChange('W') : anchor == 'Month' ? timeChange('M') : anchor == 'Quarter' ? timeChange('3M') : anchor == 'Year' ? timeChange('12M') : anchor == 'Decade' ? timeChange('12M') and year % 10 == 0 : anchor == 'Century' ? timeChange('12M') and year % 100 == 0 : false
+
+//VWAP Variables
+float vwapValue = na
+float std = na
+float UpperBand1 = na
+float LowerBand1 = na
+float UpperBand2 = na
+float LowerBand2 = na
+float UpperBand3 = na
+float LowerBand3 = na
+
+[_vwap, _stddev] = computeVWAP(close, isNewPeriod)
+//VWAP Run
+if show_vwap
+    vwapValue := _vwap
+    std := _stddev
+    UpperBand1 := vwapValue + std * 2
+    LowerBand1 := vwapValue - std * 2
+    UpperBand2 := vwapValue + std * 2.5
+    LowerBand2 := vwapValue - std * 2.5
+    UpperBand3 := vwapValue + std * 3
+    LowerBand3 := vwapValue - std * 3
+
+//VWAP Plot
+plot(vwapValue, title='VWAP', color=color.new(vwap_mid, 60), editable=false)
+upperBand1 = plot(show_vwap_dev ? UpperBand1 : na, title='Upper Band', color=color.new(vwap_bear, 90), editable=false)
+lowerBand1 = plot(show_vwap_dev ? LowerBand1 : na, title='Lower Band', color=color.new(vwap_bull, 90), editable=false)
+upperBand2 = plot(show_vwap_dev ? UpperBand2 : na, title='Upper Band', color=color.new(vwap_bear, 90), editable=false)
+lowerBand2 = plot(show_vwap_dev ? LowerBand2 : na, title='Lower Band', color=color.new(vwap_bull, 90), editable=false)
+upperBand3 = plot(show_vwap_dev ? UpperBand3 : na, title='Upper Band', color=color.new(vwap_bear, 90), editable=false)
+lowerBand3 = plot(show_vwap_dev ? LowerBand3 : na, title='Lower Band', color=color.new(vwap_bull, 90), editable=false)
+fill(upperBand1, upperBand2, title='', color=show_vwap ? color.new(vwap_bear, 90) : na, editable=false)
+fill(upperBand2, upperBand3, title='', color=show_vwap ? color.new(vwap_bear, 80) : na, editable=false)
+fill(lowerBand1, lowerBand2, title='', color=show_vwap ? color.new(vwap_bull, 90) : na, editable=false)
+fill(lowerBand2, lowerBand3, title='', color=show_vwap ? color.new(vwap_bull, 80) : na, editable=false)
+//VWAP END
+
+//GAPS
+show_gaps = input.bool(title='Gaps', defval=false, inline='1', group='GAP Settings', tooltip = "Gaps in the market are created when the market takes a session break. It is defined as when the new session's open is not equal to the previous session's close. Gaps are big levels of interest for traders because the market will generally repair(revisit).")
+gap_labels = true
+color_gap = input.color(color.new(#ffffff, 90), title='Background Color', inline='2', group='GAP Settings')
+gap_bull = color.new(#27a69b, 70)
+gap_bear = color.new(#b63632, 70)
+gap_label_color = color.white
+isnewperiodgap = timeChange('D')
+yclose = request.security(syminfo.tickerid, 'D', close[1], lookahead=barmerge.lookahead_on)
+
+bool gapup = na
+bool gapdown = na
+float secondline = na
+bool gapfilled = na
+
+if isnewperiodgap and show_gaps
+    if open > yclose and low > yclose
+        gapup := true
+        secondline := low
+        gapfilled := false
+        if gap_labels
+            label.new(x=bar_index, y=yclose, xloc=xloc.bar_index, yloc=yloc.price, text='Gap Up', textcolor=gap_label_color, style=label.style_diamond, color=gap_bull, size=size.small)
+    if open < yclose and high < yclose
+        gapdown := true
+        secondline := high
+        gapfilled := false
+        if gap_labels
+            label.new(x=bar_index, y=yclose, xloc=xloc.bar_index, yloc=yloc.price, text='Gap Down', textcolor=gap_label_color, style=label.style_diamond, color=gap_bear, size=size.small)
+    gapfilled := false
+    gapfilled
+
+if not isnewperiodgap and show_gaps
+    gapup := gapup[1]
+    gapdown := gapdown[1]
+    secondline := secondline[1]
+    gapfilled := gapfilled[1]
+
+    if gapup and low < secondline[1]
+        secondline := low
+        secondline
+    if gapup and secondline < yclose
+        gapfilled := true
+        gapfilled
+    if gapdown and high > secondline[1]
+        secondline := high
+        secondline
+    if gapdown and secondline > yclose
+        gapfilled := true
+        gapfilled
+
+yc = plot(yclose, style=plot.style_circles, color=color.new(color_gap, 100), editable=false)
+sl = plot(gapfilled != true ? secondline : na, style=plot.style_circles, color=color.new(color_gap, 100), editable=false)
+
+fill(yc, sl, color=color_gap, editable=true, title='Gap Background')
+//GAPS END
+
+//group='MA Overlay Group 1 Settings')
+show_ma_line = input.bool(title='MA Line: ', defval=true, inline='1', group='MA Overlay Group Settings', tooltip = "The MA Line (Moving Average Line) tells the trader the trend direction based on MA 1 and MA 2. If the value of MA 1 is greater than the value of MA 2 then the MA Line is colored Bull. If the value of MA 1 is less than the value of MA 2 then the MA Line is colored Bear. \n\nMA 3 and MA 4 are not used in the MA Line. They are simply for users who requested to have moring Moving Averages on their charts.")
+color_up = input.color(#27a69b, title='Bull Color', inline='2', group='MA Overlay Group Settings')
+color_down = input.color(#b63632, title='Bear Color', inline='2', group='MA Overlay Group Settings')
+ma1_tf = input.timeframe(title=' ', defval='', inline='1', group='MA Overlay Group Settings')
+
+show_ma1 = input.bool(title='MA 1: ', defval=true, inline='3', group='MA Overlay Group Settings')
+ma1_length = input.int(defval=8, title=' ', minval=1, inline='3', group='MA Overlay Group Settings')
+ma1_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='3', group='MA Overlay Group Settings')
+ma1_color = input.color(color.new(#1463ff, 50), title='Color', inline='3', group='MA Overlay Group Settings')
+
+show_ma2 = input.bool(title='MA 2: ', defval=true, inline='4', group='MA Overlay Group Settings')
+ma2_length = input.int(defval=20, title=' ', minval=1, inline='4', group='MA Overlay Group Settings')
+ma2_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='4', group='MA Overlay Group Settings')
+ma2_color = input.color(color.new(color.orange, 50), title='Color', inline='4', group='MA Overlay Group Settings')
+
+ma1_value = request.security(syminfo.tickerid, ma1_tf, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+ma2_value = request.security(syminfo.tickerid, ma1_tf, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+
+plot(show_ma1 ? ma1_value : na, editable=false, color=ma1_color)
+plot(show_ma2 ? ma2_value : na, editable=false, color=ma2_color)
+plotshape(show_ma_line, style=shape.circle, location=location.bottom, color=ma1_value > ma2_value ? color_up : color_down, editable=false)
+
+
+//Additional Mas
+show_ma3 = input.bool(title='MA 3: ', defval=false, inline='1', group='Additional MA Settings')
+ma3_length = input.int(defval=50, title=' ', minval=1, inline='1', group='Additional MA Settings')
+ma3_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='1', group='Additional MA Settings')
+ma3_tf = input.timeframe(title=' ', defval='', inline='1', group='Additional MA Settings')
+
+show_ma4 = input.bool(title='MA 4: ', defval=false, inline='2', group='Additional MA Settings')
+ma4_length = input.int(defval=100, title=' ', minval=1, inline='2', group='Additional MA Settings')
+ma4_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='2', group='Additional MA Settings')
+ma4_tf = input.timeframe(title=' ', defval='', inline='2', group='Additional MA Settings')
+
+ma3_color = input.color(color.new(color.fuchsia, 50), title='MA 3 Color', inline='3', group='Additional MA Settings')
+ma4_color = input.color(color.new(color.yellow, 50), title='MA 4 Color', inline='3', group='Additional MA Settings')
+
+ma3_value = request.security(syminfo.tickerid, ma3_tf, getMA(close, ma3_length, ma3_type), lookahead=barmerge.lookahead_on)
+ma4_value = request.security(syminfo.tickerid, ma4_tf, getMA(close, ma4_length, ma4_type), lookahead=barmerge.lookahead_on)
+
+plot(show_ma3 ? ma3_value : na, editable=false, color=ma3_color)
+plot(show_ma4 ? ma4_value : na, editable=false, color=ma4_color)

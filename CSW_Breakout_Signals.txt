@@ -1,0 +1,524 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("CSW Breakout Signals", overlay = true)
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The Pro Breakout Signals are designed to catch breakout moves from trend changes.
+ \nSignals are displayed above and below candles with a number. The number is our confirmation signals which
+ \nact as secondary confirmation to the breakout signals. The confirmations we use are:
+ \n\n1. Recent Moving Average Cross
+ \n2. Momentum from our Panel
+ \n3. Alignment with ORB Strategies
+ \n4. Above Normal Volume
+ \n5. VWAP (Volume-Weighted Average Price)
+ \n6. Moving Average of Your Choice & Timeframe #1
+ \n7. Moving Average of Your Choice & Timeframe #2
+ \n8. A Secondary Symbols Last Breakout Signal Matches.
+ 
+ That is the base of our signals. Next you can adjust the signals entries, stops, and targets using our adjuster. 
+ \nWe did not want to limit the breakout signals to one market so we allow users to tweak the signals to fit their 
+ \nmarket, timeframe, and personal risk tolerance."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+//INPUTS
+//SIGNAL SETTINGS
+trend_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, inline='4', group='Signal Settings', tooltip = "Recommended Settings: \nExtreme Scalping: 1-5 \nScalping: 5-10 \nIntra-day: 10-15 \nSwing: 15+")
+target_adj = input.float(title='Target Adjuster', defval=1.0, minval=1, maxval=10, step=0.25, inline='5', group='Signal Settings', tooltip = "Recommended Settings: \nScalping: 1-3 \nIntra-day: 4-7 \nSwing: 7-10")
+stop_adj = input.float(title='Stop Adjuster', defval=1.0, minval=1, maxval=10, step=0.25, inline='6', group='Signal Settings', tooltip = "Recommended Settings: \nScalping: 1-3 \nIntra-day: 4-7 \nSwing: 7-10")
+
+//VISUAL SETTINGS
+show_signals = input.bool(title='Buy/Sell Signals', defval=true, inline='1', group='Visual Settings', tooltip = "The Buy/Sell Signals are a breakout algorithm that capture when markets are breaking out of support or resistance.")
+use_reentry = input.bool(title = 'Re-entry Signals', defval=false, inline='2', group='Visual Settings', tooltip = "The Re-Entry Signal is a small triangle that appears when the logic for re-entry is deemed true by the algorithm. Note that if this box is checked it does 
+     not adjust the main signals entry, target, or stop lines.")
+show_confirmations = input.bool(true, title = 'Confirmation Signals', group = 'Visual Settings', inline = '3', tooltip = "The Confirmations Signals are a ranking system of other technical indicators. 
+     The higher the confirmation number the stronger the signal.")
+show_cloud = input.bool(title='Pro Cloud', defval=true, inline='4', group='Visual Settings', tooltip = 'The Pro Cloud is part of the algorithm, but it is not all of the secret sauce for signals.
+     The Cloud can be used to tell you the current trend and also act as an adaptive moving for pullbacks.')
+
+
+show_tgts_labels = input.bool(title='Target Hit Labels', defval=false, inline='10', group='Visual Settings')
+showing_lines = input.string(defval = "No Lines", title='Trade Management Lines', options =["Current Signal Only", "All Signals (Backtesting)", "No Lines"], inline='8', group='Visual Settings')
+show_signal_lines = showing_lines != "No Lines" ? true : false
+show_backtesting = showing_lines == "All Signals (Backtesting)" ? true : false
+
+//COLOR SETTINGS
+buy_color = input.color(#27a69b, title='Buy', inline='1', group='Color Settings')
+sell_color = input.color(#b63632, title='Sell', inline='1', group='Color Settings')
+entry_color = input.color(title='Entry', defval=color.new(#27a69b, 0), inline='2', group='Color Settings')
+tgts_color = input.color(title='Targets', defval=color.new(#b63632, 0), inline='2', group='Color Settings')
+stop_color = input.color(title='Stop', defval=color.new(#E040FB, 0), inline='2', group='Color Settings')
+tgthit_color = input.color(title='Tgt Hit Label', defval=color.new(#ffffff, 0), inline='3', group='Color Settings')
+confirmation_color = input.color(color.white, title = 'Confirmation Label', inline='4', group='Color Settings')
+
+//TREND FUNCTION
+get_trend(symbol, trend_adj, use_reentry) =>
+
+    //base logic
+    trend_length = 4 * trend_adj
+    
+    //call base trend function
+    trend_breakout = request.security(symbol, "" , barstate.isconfirmed  and (ta.rsi(close,14) > 60 or ta.rsi(close,14) < 40) and close > (ta.ema(hlc3,trend_length) + (ta.stdev(ta.ema(hlc3,trend_length),trend_length) * (0.25 * trend_adj)))  and  low > ta.ema(hlc3,trend_length) and high >= ta.highest(high, trend_length))
+    trend_breakdown = request.security(symbol, "" , barstate.isconfirmed and (ta.rsi(close,14) > 60 or ta.rsi(close,14) < 40) and close < (ta.ema(hlc3,trend_length) - (ta.stdev(ta.ema(hlc3,trend_length),trend_length) * (0.25 * trend_adj)))  and high < ta.ema(hlc3,trend_length) and low <= ta.lowest(low, trend_length))
+    
+    //plotting only for signals can be removed for scanner
+    trend_avg = ta.ema(hlc3,trend_length)
+    trend_stddev = ta.stdev(ta.ema(hlc3,trend_length),trend_length)
+    
+    //base trend direction
+    var trend_direction = 0
+    trend_direction := trend_breakout ? 1 : trend_breakdown ? -1 : trend_direction[1]
+    
+    var base_color = #000000
+    base_color := trend_direction == 1 ? buy_color : trend_direction == -1 ? sell_color : na   
+    
+    //OUTPUT with or without filtering
+    var long_entry = false
+    var long_exit = false
+    var short_entry = false
+    var short_exit = false
+      
+    long_entry := trend_direction == 1 and trend_direction[1] == -1
+    long_exit := false
+    short_entry := trend_direction == -1 and trend_direction[1] == 1
+    short_exit := false
+    
+    //RE-ENTRY  
+    var last_entry_bn = 0
+    var re_entry_count = 0
+    var long_reentry = false
+    var short_reentry = false
+    last_entry_bn := (long_entry == true or short_entry == true)  ? 1 : last_entry_bn[1] + 1
+    re_entry_count := (long_entry == true or short_entry == true) ? 1 : re_entry_count[1]
+    
+    var crossover = false
+    var crossunder = false
+    crossover := ta.crossover(close, trend_avg)
+    crossunder := ta.crossunder(close, trend_avg)
+    
+    if use_reentry and barstate.isconfirmed 
+        if trend_direction == 1 and last_entry_bn >= 20 and re_entry_count == 1 and crossover
+            long_reentry := true
+            re_entry_count := re_entry_count[1] + 1
+        else if trend_direction == -1 and last_entry_bn >= 20 and re_entry_count == 1 and crossunder
+            short_reentry := true
+            re_entry_count := re_entry_count[1] + 1            
+        else
+            long_reentry := false
+            short_reentry := false
+                
+    
+    [trend_avg, trend_stddev, trend_direction, long_entry, long_exit, short_entry, short_exit, long_reentry, short_reentry, base_color]
+
+[trend_avg, trend_stddev, trend_direction, long_entry, long_exit, short_entry, short_exit, long_reentry, short_reentry, base_color] = get_trend(syminfo.tickerid, trend_adj, use_reentry)
+
+
+
+//
+//CONFIRMATIONS
+//
+
+
+// 1. RECENT MA CROSS
+confirm1_ma1_length = input.int(8, title = 'MA CROSS: Shorter MA Length', group = 'CONFIRMATIONS', inline = '1')
+confirm1_ma1_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='1', group='CONFIRMATIONS')
+confirm1_ma2_length = input.int(20, title = 'MA CROSS: Longer MA Length', group = 'CONFIRMATIONS', inline = '2')
+confirm1_ma2_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='2', group='CONFIRMATIONS')
+
+f_ma(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : type == 'Perimeter' ?  ta.ema(ta.hma(src,len*2),len) : na
+    ma_value
+
+ma1_value = f_ma(close, confirm1_ma1_length, confirm1_ma1_type)
+ma2_value = f_ma(close, confirm1_ma2_length, confirm1_ma2_type)
+last_crossover = ta.valuewhen(ta.crossover(ma1_value, ma2_value), bar_index, 0)
+last_crossunder = ta.valuewhen(ta.crossunder(ma1_value, ma2_value), bar_index, 0)
+
+f_confirmation1(last_crossover, last_crossunder) =>
+
+    bars_since_last_cross = bar_index - math.max(last_crossover, last_crossunder)
+    confirmation1 = bars_since_last_cross <= 5 ? 1 : 0
+    confirmation1_text = (confirmation1 ? '✅' : '❌') + '  MA CROSS ' + str.tostring(confirm1_ma1_length) + '/' + str.tostring(confirm1_ma2_length) + (last_crossover > last_crossunder ? ':  UP ' : ':  DOWN ') + 
+     str.tostring(bars_since_last_cross) + ' bars ago' 
+    [confirmation1, confirmation1_text]
+
+
+// 2. MOMENTUM / SQUEEZE 
+confirm2_momo_length = input.int(20, title = 'MOMENTUM:  Length', group = 'CONFIRMATIONS', inline = '3')
+
+//momentum
+[ha_o, ha_c, ha_h, ha_l] = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, [ta.ema(open, confirm2_momo_length), ta.ema(close, confirm2_momo_length), 
+ ta.ema(high, confirm2_momo_length), ta.ema(low, confirm2_momo_length)])
+ha_o_smooth = ta.ema(ha_o, confirm2_momo_length)
+ha_c_smooth = ta.ema(ha_c, confirm2_momo_length)
+ha_h_smooth = ta.ema(ha_h, confirm2_momo_length)
+ha_l_smooth = ta.ema(ha_l, confirm2_momo_length)
+dif_oc = ha_c_smooth - ha_o_smooth
+dif_hl = ha_h_smooth - ha_l_smooth
+variable_oc_percent = dif_oc * 100 / dif_hl
+
+//squeeze
+abs_variable_oc_percent = math.abs(variable_oc_percent)
+trigger = 8
+count = 0
+count := abs_variable_oc_percent <= trigger and abs_variable_oc_percent[1] > trigger ? 1 : abs_variable_oc_percent <= trigger ? count[1] + 1 : 0
+
+
+f_confirmation2(variable_oc_percent, count, type) =>
+
+    var int confirmation2 = 0
+    var string confirmation2_text = '' 
+    if type == 1
+        bars_since_last_cross = bar_index - math.max(last_crossover, last_crossunder)
+        confirmation2 := variable_oc_percent > 0 ? 1 : 0
+        confirmation2_text :=  (confirmation2 ? '✅' : '❌') + (variable_oc_percent > 0 ? '  MOMENTUM:  UP' : '  MOMENTUM:  DOWN') + (count >= 1 ? ' & SQUEEZING' : ' & NO SQUEEZE')
+    else if type == -1
+        bars_since_last_cross = bar_index - math.max(last_crossover, last_crossunder)
+        confirmation2 := variable_oc_percent <= 0 ? 1 : 0
+        confirmation2_text := (confirmation2 ? '✅' : '❌') + (variable_oc_percent > 0 ? '  MOMENTUM:  UP' : '  MOMENTUM:  DOWN') + (count >= 1 ? ' & SQUEEZING' : ' &NO SQUEEZE') 
+    [confirmation2, confirmation2_text]
+
+
+// 3. RVOL
+rvol_period = input.int(100, title = 'RVOL: Length', minval = 20, maxval = 200, group = 'CONFIRMATIONS', inline = '4')
+vol = volume
+svol = ta.ema(vol, rvol_period)
+rvol = vol / svol[1]
+rvol_value = math.round(ta.ema(rvol,20),2)
+
+f_confirmation3(rvol_value) =>
+
+    var int confirmation3 = 0
+    var string confirmation3_text = '' 
+
+    confirmation3 := rvol_value >= 0.9 ? 1 : 0
+    confirmation3_text := (confirmation3 ? '✅' : '❌') + '  RVOL:  ' + (rvol_value >= 2.00 ? 'EXTREME ' : rvol_value >= 1.25 ? 'HIGH ' : rvol_value >= 0.9 ? 'NORMAL ' : 'LOW ') + str.tostring(rvol_value) 
+
+    [confirmation3, confirmation3_text]
+
+// 4. OPENING RANGE
+input_or = input.session('0930-1000', title='ORB: Time', group = 'CONFIRMATIONS', inline = '5',tooltip='The time period in which the opening range is. Note - the start time needs to be before 
+     the end time or you will get unwanted results!')
+
+or_session = time(timeframe.period, str.format('{0}:1234567', input_or), 'America/New_York')
+var or_high = 0.0
+var or_low = 0.0
+var or_mid = 0.0
+var or_size = 0.0
+if or_session
+    if not or_session[1]
+        or_low := low
+        or_high := high
+    else
+        or_low := math.min(low, or_low)
+        or_high := math.max(high, or_high)
+
+f_confirmation4(or_low, or_high, or_session, type) =>
+
+    var int confirmation4 = 0
+    var string confirmation4_text = '' 
+
+    if or_session
+        confirmation4 :=  1
+        confirmation4_text := (confirmation4 ? '✅' : '  ❌') + '  STILL IN OPENING RANGE' 
+    else if type == 1
+        confirmation4 := high >= or_high ? 1 : 0
+        confirmation4_text :=  (confirmation4 ? '✅' : '❌') + '  OPENING RANGE BREAKOUT: ' + str.tostring(or_high) 
+    else if type == -1
+        confirmation4 := low <= or_low ? 1 : 0
+        confirmation4_text := (confirmation4 ? '✅' : '❌') + '  OPENING RANGE BREAKDOWN:  ' + str.tostring(or_low)
+
+    [confirmation4, confirmation4_text]
+
+// 5. VWAP
+vwapAnchorInput = input.string("Daily", title = "VWAP: Type", options = ["Daily", "Weekly"],  group = 'CONFIRMATIONS', inline = '6')
+anchorTimeframe = switch vwapAnchorInput
+	"Daily"   => "1D"
+	"Weekly"  => "1W"
+anchor = timeframe.change(anchorTimeframe)
+[vwap, upper, lower] = ta.vwap(hlc3, anchor, 1.0)
+
+f_confirmation5(vwap_value, type) =>
+
+    var int confirmation5 = 0
+    var string confirmation5_text = '' 
+
+    if type == 1
+        confirmation5 := close >= vwap_value ? 1 : 0
+        confirmation5_text := (confirmation5 ? '✅' : '❌') + '  VWAP: ' + str.tostring(math.round(vwap_value,2)) 
+    else if type == -1
+        confirmation5 := close <= vwap_value ? 1 : 0
+        confirmation5_text := (confirmation5 ? '✅' : '❌') + '  VWAP: ' + str.tostring(math.round(vwap_value,2))
+
+    [confirmation5, confirmation5_text]
+
+// 6. Above Below MTF MA 1
+confirm6_length = input.int(defval=50, title='MTF MA 1: ', minval=1, inline='7', group='CONFIRMATIONS')
+confirm6_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='7', group='CONFIRMATIONS')
+confirm6_tf = input.timeframe(title=' ', defval='', inline='7', group='CONFIRMATIONS')
+
+f_confirmation6(confirm6_length, confirm6_type, confirm6_tf, type) =>
+
+    var int confirmation6 = 0
+    var string confirmation6_text = '' 
+
+    ma6_value = request.security(syminfo.tickerid, confirm6_tf, f_ma(close[1], confirm6_length, confirm6_type), lookahead=barmerge.lookahead_on)
+
+    if type == 1
+        confirmation6 := close >= ma6_value ? 1 : 0
+        confirmation6_text := (confirmation6 ? '✅' : '❌') + '  ' + str.tostring(confirm6_length) + ' ' + str.tostring(confirm6_type) +  ': ' + str.tostring(math.round(ma6_value,2)) 
+    else if type == -1
+        confirmation6 := close <= ma6_value ? 1 : 0
+        confirmation6_text := (confirmation6 ? '✅' : '❌') + '  ' + str.tostring(confirm6_length) + ' ' + str.tostring(confirm6_type) +  ': ' + str.tostring(math.round(ma6_value,2)) 
+
+    [confirmation6, confirmation6_text]
+
+// 7. Above Below MTF MA 2
+confirm7_length = input.int(defval=200, title='MTF MA 2: ', minval=1, inline='8', group='CONFIRMATIONS')
+confirm7_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='8', group='CONFIRMATIONS')
+confirm7_tf = input.timeframe(title=' ', defval='', inline='8', group='CONFIRMATIONS')
+
+f_confirmation7(confirm7_length, confirm7_type, confirm7_tf, type) =>
+
+    var int confirmation7 = 0
+    var string confirmation7_text = '' 
+
+    ma7_value = request.security(syminfo.tickerid, confirm7_tf, f_ma(close[1], confirm7_length, confirm7_type), lookahead=barmerge.lookahead_on)
+
+    if type == 1
+        confirmation7 := close >= ma7_value ? 1 : 0
+        confirmation7_text := (confirmation7 ? '✅' : '❌') + '  ' + str.tostring(confirm7_length) + ' ' + str.tostring(confirm7_type) +  ': ' + str.tostring(math.round(ma7_value,2)) 
+    else if type == -1
+        confirmation7 := close <= ma7_value ? 1 : 0
+        confirmation7_text := (confirmation7 ? '✅' : '❌') + '  ' + str.tostring(confirm7_length) + ' ' + str.tostring(confirm7_type) +  ': ' + str.tostring(math.round(ma7_value,2)) 
+
+    [confirmation7, confirmation7_text]
+
+// 8. Secondary Symbol
+confirm8_symbol = input.symbol(defval='AMEX:SPY', title='Secondary Symbol: ', inline='9', group='CONFIRMATIONS')
+[trend_avg8, trend_stddev8, trend_direction8, long_entry8, long_exit8, short_entry8, short_exit8, long_reentry8, short_reentry8, basecolor8] = get_trend(confirm8_symbol, trend_adj, use_reentry)
+confirm8_symbolpos = str.pos(confirm8_symbol, ":") 
+confirm8_symboltkr= str.substring(confirm8_symbol, confirm8_symbolpos+1) 
+
+f_confirmation8(trend_direction8, type) =>
+
+    var int confirmation8 = 0
+    var string confirmation8_text = '' 
+    
+    if type == 1
+        confirmation8 := trend_direction8 == 1 ? 1 : 0
+        confirmation8_text := (confirmation8 ? '✅' : '❌') + '  ' + confirm8_symboltkr + (confirmation8 ? ' Last Signal Matches' : ' Last Signal Does Not Match')
+    else if type == -1
+        confirmation8 := trend_direction8 == -1 ? 1 : 0
+        confirmation8_text := (confirmation8 ? '✅' : '❌') + '  ' + confirm8_symboltkr + (confirmation8 ? ' Last Signal Matches' : ' Last Signal Does Not Match')
+
+    [confirmation8, confirmation8_text]
+
+//PLOT CONFIRMATIONS
+f_plotconfirmations(type, y_axis) =>
+
+    [confirmation_1_value, confirmation_1_text] = f_confirmation1(last_crossover, last_crossunder)
+    [confirmation_2_value, confirmation_2_text] = f_confirmation2(variable_oc_percent, count, type)
+    [confirmation_3_value, confirmation_3_text] = f_confirmation3(rvol_value)
+    [confirmation_4_value, confirmation_4_text] = f_confirmation4(or_low, or_high, or_session, type)
+    [confirmation_5_value, confirmation_5_text] = f_confirmation5(vwap, type)
+    [confirmation_6_value, confirmation_6_text] = f_confirmation6(confirm6_length, confirm6_type, confirm6_tf, type) 
+    [confirmation_7_value, confirmation_7_text] = f_confirmation7(confirm7_length, confirm7_type, confirm7_tf, type) 
+    [confirmation_8_value, confirmation_8_text] = f_confirmation8(trend_direction8, type) 
+
+    confirmation_values = confirmation_1_value + confirmation_2_value + confirmation_4_value + confirmation_3_value + confirmation_5_value + confirmation_6_value + confirmation_7_value + confirmation_8_value
+    confirmation_tooltip = confirmation_1_text + '\n' + confirmation_2_text + '\n' + confirmation_4_text + '\n' + confirmation_3_text + '\n' + confirmation_5_text + '\n' + confirmation_6_text + 
+     '\n' + confirmation_7_text + '\n' + confirmation_8_text +'\n\nCONFIRMED: ' + str.tostring(confirmation_values) + ' / 8'
+
+    if type == 1
+        label.new( x = bar_index, y = y_axis, text = '\n' + str.tostring(confirmation_values) + ' / 8', textcolor = confirmation_color, color = color.new(buy_color, 100), style = label.style_label_up, 
+         size = size.small, tooltip = confirmation_tooltip, textalign = text.align_center)
+    
+    else if type == -1
+        label.new( x = bar_index, y = y_axis, text = str.tostring(confirmation_values) + ' / 8', textcolor = confirmation_color, color = color.new(sell_color, 100), style = label.style_triangledown, 
+         size = size.small, tooltip = confirmation_tooltip, textalign = text.align_center)
+
+//
+//END CONFIRMATION
+//
+
+
+
+//PLOT ENTRY LINES
+entry = 0.00
+stop = 0.00
+risk_baseline = 0.00
+tgt1 = 0.00
+tgt2 = 0.00
+tgt3 = 0.00
+tgt4 = 0.00
+tgt5 = 0.00
+hit_tgt1 = 0
+hit_tgt2 = 0
+hit_tgt3 = 0
+hit_tgt4 = 0
+hit_tgt5 = 0
+entry_bn = 0
+var float label_yaxis = 0.00
+trend_atr = ta.atr(4 * trend_adj)
+trend_cloudlow = trend_avg - trend_stddev * 0.25
+trend_cloudhigh = trend_avg + trend_stddev * 0.25
+
+if trend_direction == 1
+    if long_entry
+        entry := close
+        stop := entry - stop_adj * trend_atr
+        risk_baseline := entry - (entry - target_adj * trend_atr)
+        tgt1 := entry + risk_baseline
+        tgt2 := entry + risk_baseline * 2
+        tgt3 := entry + risk_baseline * 3
+        tgt4 := entry + risk_baseline * 4
+        tgt5 := entry + risk_baseline * 5
+        hit_tgt1 := -1
+        hit_tgt2 := -1
+        hit_tgt3 := -1
+        hit_tgt4 := -1
+        hit_tgt5 := -1
+        entry_bn := bar_index
+        label_yaxis := math.min(low, trend_cloudlow) - syminfo.mintick * 10
+        f_plotconfirmations(1, label_yaxis)
+
+    else
+        entry := entry[1]
+        stop := stop[1]
+        risk_baseline := risk_baseline[1]
+        tgt1 := tgt1[1]
+        tgt2 := tgt2[1]
+        tgt3 := tgt3[1]
+        tgt4 := tgt4[1]
+        tgt5 := tgt5[1]
+        hit_tgt1 := hit_tgt1[1] == -1 and high > tgt1 ? 1 : hit_tgt1[1]
+        hit_tgt2 := hit_tgt2[1] == -1 and high > tgt2 ? 1 : hit_tgt2[1]
+        hit_tgt3 := hit_tgt3[1] == -1 and high > tgt3 ? 1 : hit_tgt3[1]
+        hit_tgt4 := hit_tgt4[1] == -1 and high > tgt4 ? 1 : hit_tgt4[1]
+        hit_tgt5 := hit_tgt5[1] == -1 and high > tgt5 ? 1 : hit_tgt5[1]
+        entry_bn := entry_bn[1]
+        label_yaxis := math.min(low, trend_cloudlow) - syminfo.mintick * 10
+
+
+
+if trend_direction == -1
+    if short_entry
+        entry := close
+        stop := entry + stop_adj * trend_atr
+        risk_baseline :=(entry + target_adj * trend_atr) - entry
+        tgt1 := entry - risk_baseline
+        tgt2 := entry - risk_baseline * 2
+        tgt3 := entry - risk_baseline * 3
+        tgt4 := entry - risk_baseline * 4
+        tgt5 := entry - risk_baseline * 5
+        hit_tgt1 := -1
+        hit_tgt2 := -1
+        hit_tgt3 := -1
+        hit_tgt4 := -1
+        hit_tgt5 := -1
+        entry_bn := bar_index
+        label_yaxis := math.max(high, trend_cloudhigh) + syminfo.mintick * 10
+        f_plotconfirmations(-1, label_yaxis)
+
+    else
+        entry := entry[1]
+        stop := stop[1]
+        risk_baseline := risk_baseline[1]
+        tgt1 := tgt1[1]
+        tgt2 := tgt2[1]
+        tgt3 := tgt3[1]
+        tgt4 := tgt4[1]
+        tgt5 := tgt5[1]
+        hit_tgt1 := hit_tgt1[1] == -1 and low < tgt1 ? 1 : hit_tgt1[1]
+        hit_tgt2 := hit_tgt2[1] == -1 and low < tgt2 ? 1 : hit_tgt2[1]
+        hit_tgt3 := hit_tgt3[1] == -1 and low < tgt3 ? 1 : hit_tgt3[1]
+        hit_tgt4 := hit_tgt4[1] == -1 and low < tgt4 ? 1 : hit_tgt4[1]
+        hit_tgt5 := hit_tgt5[1] == -1 and low < tgt5 ? 1 : hit_tgt5[1]
+        entry_bn := entry_bn[1]
+        label_yaxis := math.max(high, trend_cloudhigh) + syminfo.mintick * 10
+
+
+
+oktoplotlongtgts = show_signals and trend_direction == 1 and show_tgts_labels and not (long_entry or short_exit)
+plotchar(oktoplotlongtgts and hit_tgt1 == 1 and hit_tgt1[1] != 1 and not(hit_tgt2 == 1 or hit_tgt3 == 1 or hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='1', color=tgthit_color, location=location.abovebar, size=size.tiny)
+plotchar(oktoplotlongtgts and hit_tgt2 == 1 and hit_tgt2[1] != 1 and not(hit_tgt3 == 1 or hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='2', color=tgthit_color, location=location.abovebar, size=size.tiny)
+plotchar(oktoplotlongtgts and hit_tgt3 == 1 and hit_tgt3[1] != 1 and not(hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='3', color=tgthit_color, location=location.abovebar, size=size.tiny)
+plotchar(oktoplotlongtgts and hit_tgt4 == 1 and hit_tgt4[1] != 1 and not(hit_tgt5 == 1), editable=false, char='4', color=tgthit_color, location=location.abovebar, size=size.tiny)
+plotchar(oktoplotlongtgts and hit_tgt5 == 1 and hit_tgt5[1] != 1, editable=false, char='5', color=tgthit_color, location=location.abovebar, size=size.tiny)
+
+oktoplotshorttgts = show_signals and trend_direction == -1 and show_tgts_labels and not (short_entry or long_exit)
+plotchar(oktoplotshorttgts and hit_tgt1 == 1 and hit_tgt1[1] != 1 and not(hit_tgt2 == 1 or hit_tgt3 == 1 or hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='1', color=tgthit_color, location=location.belowbar, size=size.tiny)
+plotchar(oktoplotshorttgts and hit_tgt2 == 1 and hit_tgt2[1] != 1 and not(hit_tgt3 == 1 or hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='2', color=tgthit_color, location=location.belowbar, size=size.tiny)
+plotchar(oktoplotshorttgts and hit_tgt3 == 1 and hit_tgt3[1] != 1 and not(hit_tgt4 == 1 or hit_tgt5 == 1), editable=false, char='3', color=tgthit_color, location=location.belowbar, size=size.tiny)
+plotchar(oktoplotshorttgts and hit_tgt4 == 1 and hit_tgt4[1] != 1 and not(hit_tgt5 == 1), editable=false, char='4', color=tgthit_color, location=location.belowbar, size=size.tiny)
+plotchar(oktoplotshorttgts and hit_tgt5 == 1 and hit_tgt5[1] != 1, editable=false, char='5', color=tgthit_color, location=location.belowbar, size=size.tiny)
+
+//Prev Signal Lines
+plot(show_backtesting ? entry : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : entry_color, editable=false)
+plot(show_backtesting ? stop : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : stop_color, editable=false)
+plot(show_backtesting ? tgt1 : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : tgts_color, editable=false)
+plot(show_backtesting ? tgt2 : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : tgts_color, editable=false)
+plot(show_backtesting ? tgt3 : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : tgts_color, editable=false)
+plot(show_backtesting ? tgt4 : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : tgts_color, editable=false)
+plot(show_backtesting ? tgt5 : na, style=plot.style_line, color=entry != entry[1] ? color.new(#000000,100) : tgts_color, editable=false)
+
+if show_signal_lines
+    entry_line = line.new(x1=entry_bn, x2=bar_index, y1=entry, y2=entry, xloc=xloc.bar_index, width=1, color=entry_color, extend=extend.right, style=line.style_solid)
+    line.delete(entry_line[1])
+    stop_line = line.new(x1=entry_bn, x2=bar_index, y1=stop, y2=stop, xloc=xloc.bar_index, width=1, color=stop_color, extend=extend.right, style=line.style_solid)
+    line.delete(stop_line[1])
+
+    tgt1_line = line.new(x1=entry_bn, x2=bar_index, y1=tgt1, y2=tgt1, xloc=xloc.bar_index, width=1, color=tgts_color, extend=extend.right, style=line.style_solid)
+    line.delete(tgt1_line[1])
+
+    tgt2_line = line.new(x1=entry_bn, x2=bar_index, y1=tgt2, y2=tgt2, xloc=xloc.bar_index, width=1, color=tgts_color, extend=extend.right, style=line.style_solid)
+    line.delete(tgt2_line[1])
+
+    tgt3_line = line.new(x1=entry_bn, x2=bar_index, y1=tgt3, y2=tgt3, xloc=xloc.bar_index, width=1, color=tgts_color, extend=extend.right, style=line.style_solid)
+    line.delete(tgt3_line[1])
+
+    tgt4_line = line.new(x1=entry_bn, x2=bar_index, y1=tgt4, y2=tgt4, xloc=xloc.bar_index, width=1, color=tgts_color, extend=extend.right, style=line.style_solid)
+    line.delete(tgt4_line[1])
+
+    tgt5_line = line.new(x1=entry_bn, x2=bar_index, y1=tgt5, y2=tgt5, xloc=xloc.bar_index, width=1, color=tgts_color, extend=extend.right, style=line.style_solid)
+    line.delete(tgt5_line[1])
+
+//TREND / SIGNAL END
+
+
+//PLOTTING  CLOUD VISUALS
+trend_fill_high = plot(show_cloud ? trend_cloudhigh : na, title='Cloud High', color=color.new(color.white, 100), editable=false)
+trend_fill_low = plot(show_cloud ? trend_cloudlow : na, title='Cloud Low', color=color.new(color.white, 100), editable=false)
+trend_high_shade = plot(show_cloud ? trend_cloudhigh + trend_atr * .1 : na, title='Cloud High', color=color.new(#c2c2c2, 90), editable=false)
+trend_low_shade = plot(show_cloud ? trend_cloudlow - trend_atr * .1 : na, title='Cloud Low', color=color.new(#c2c2c2, 90), editable=false)
+fill(trend_fill_high, trend_fill_low, editable=false, color=color.new(base_color, 60), title='Cloud')
+fill(trend_high_shade, trend_low_shade, editable=false, color=color.new(base_color, 85), title='Cloud')
+
+//PLOTTING SIGNAL CODE
+//MAIN
+plotshape(show_signals and long_entry ? label_yaxis : na, style=shape.labelup, editable=false, text= "BUY", textcolor=color.white, location= location.absolute, color=color.new(buy_color, 30), size=size.tiny)
+plotshape(show_signals and short_entry ? label_yaxis : na, style=shape.labeldown, editable=false, text='SELL', textcolor=color.white, location=location.absolute, color=color.new(sell_color, 30), size=size.tiny)
+
+//EXITS
+plotshape(show_signals and short_exit ? label_yaxis : na, style=shape.labelup, editable=false, text= "Exit", textcolor=color.white, location= location.absolute, color=color.new(buy_color, 30), size=size.tiny)
+plotshape(show_signals and long_exit ? label_yaxis : na, style=shape.labeldown, editable=false, text='Exit', textcolor=color.white, location=location.absolute, color=color.new(sell_color, 30), size=size.tiny)
+
+//RE-ENTRY
+plotshape(show_signals and long_reentry ? label_yaxis : na, style=shape.labelup, editable=false, text= 'Re-E', textcolor=color.white, location= location.absolute, color=color.new(buy_color, 70), size=size.tiny)
+plotshape(show_signals and short_reentry ? label_yaxis : na, style=shape.labeldown, editable=false, text='Re-E', textcolor=color.white, location=location.absolute, color=color.new(sell_color, 70), size=size.tiny)
+
+//Alertsmath.min(low, trend_cloudlow) - (syminfo.mintick * 10) 
+alertcondition(long_entry, "Long Entry", "Long Entry")
+alertcondition(short_entry, "Short Entry", "Short Entry")
+
+alertcondition(long_reentry, "Long Re-Entry", "Long Re-Entry")
+alertcondition(short_reentry, "Short Re-Entry", "Short Re-Entry")
+
+alertcondition(long_exit, "Long Exit", "Long Exit")
+alertcondition(short_exit, "Short Exit", "Short Exit")

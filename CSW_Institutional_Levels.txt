@@ -1,0 +1,115 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator("CSW Institutional Levels", overlay = true)
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Institutional Levels Indicator plots previous time periods Highs, Lows, and Closes.
+ \nInstitutions track these levels and will use them as support and resistance to enter and exit their positions. 
+ \nNot every algorithm is a machine-learning wizard. Institutions still use these relatively simple levels to conduct their trades. 
+ \nThe best way to use The CSW Institutional Levels Indicator is to find overlapping levels. 
+ \nThese areas or lines are called confluence levels and will act as a stronger level than a single line.
+ \n\nFor the labeling.
+ \n1. Y stands for Yesterday
+ \n2. L stands for Last.
+ \n3. H stands for High
+ \n4. Low stands for Low
+ \n5. C stand for Close
+ \nFor example, LMC would equal Last Months Close. LQH, would equal Last Quarters High. YL would equal Yesterdays Low."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+daily_levels = input.bool(true, title = "Daily Levels", group = "Daily Levels")
+daily_line_color = input.color(color.new(color.silver, 20), title = "Line Color", group = "Daily Levels", inline = '2')
+daily_text_color = input.color(color.new(color.white, 20), title = "Label Text Color", group = "Daily Levels", inline = '2')
+
+
+weekly_levels = input.bool(true, title = "Weekly Levels", group = "Weekly Levels")
+weekly_line_color = input.color(color.new(color.yellow, 20), title = "Line Color", group = "Weekly Levels", inline = '2')
+weekly_text_color = input.color(color.new(color.yellow, 20), title = "Label Text Color", group = "Weekly Levels", inline = '2')
+
+
+monthly_levels = input.bool(true, title = "Monthly Levels", group = "Monthly Levels")
+monthly_line_color = input.color(color.new(color.blue, 20), title = "Line Color", group = "Monthly Levels", inline = '2')
+monthly_text_color = input.color(color.new(color.blue, 20), title = "Label Text Color", group = "Monthly Levels", inline = '2')
+
+
+qtr_levels = input.bool(true, title = "Quarterly Levels", group = "Quarterly Levels")
+qtr_line_color = input.color(color.new(color.red, 20), title = "Line Color", group = "Quarterly Levels", inline = '2')
+qtr_text_color = input.color(color.new(color.red, 20), title = "Label Text Color", group = "Quarterly Levels", inline = '2')
+
+
+yearly_levels = input.bool(true, title = "Yearly Levels", group = "Yearly Levels")
+yearly_line_color = input.color(color.new(color.orange, 20), title = "Line Color", group = "Yearly Levels", inline = '2')
+yearly_text_color = input.color(color.new(color.orange, 20), title = "Label Text Color", group = "Yearly Levels", inline = '2')
+
+
+timeChange(period) =>
+	ta.change(time(period))
+
+institution_function(time_period, line_color, text_color, text_text) =>
+
+    is_new_period = timeChange(time_period)
+    
+    var first_bar_in_period = 0
+    first_bar_in_period := is_new_period ? time : first_bar_in_period[1]
+    
+    highs = request.security(syminfo.tickerid,time_period, high[1], lookahead=barmerge.lookahead_on)
+    lows = request.security(syminfo.tickerid,time_period, low[1], lookahead=barmerge.lookahead_on)
+    closes = request.security(syminfo.tickerid,time_period, close[1], lookahead=barmerge.lookahead_on)
+    
+    high_line = line.new(first_bar_in_period, highs, time, y2 = highs, xloc = xloc.bar_time, extend = extend.right, color = line_color, style = line.style_dotted, width = 2)
+    line.delete(high_line[1])
+    
+    low_line = line.new(first_bar_in_period, lows, time, y2 = lows, xloc = xloc.bar_time, extend = extend.right, color = line_color, style = line.style_dotted, width = 2)
+    line.delete(low_line[1])
+    
+    close_line = line.new(first_bar_in_period, closes, time, y2 = closes, xloc = xloc.bar_time, extend = extend.right, color = line_color, style = line.style_dotted, width = 2)
+    line.delete(close_line[1])
+    
+    high_label = label.new(x = bar_index + 70, y = highs, text = text_text + "H", style = label.style_none, textcolor = text_color)
+    label.delete(high_label[1])
+    
+    low_label = label.new(x = bar_index + 70, y = lows, text = text_text + "L", style = label.style_none, textcolor = text_color)
+    label.delete(low_label[1])
+    
+    close_label = label.new(x = bar_index + 70, y = closes, text = text_text + "C", style = label.style_none, textcolor = text_color)
+    label.delete(close_label[1])
+    
+    
+if daily_levels
+    institution_function("D",daily_line_color,  daily_text_color, "Y")
+
+if weekly_levels
+    institution_function("W",weekly_line_color,  weekly_text_color, "LW")
+    
+if monthly_levels
+    institution_function("M",monthly_line_color,  monthly_text_color, "LM")
+    
+if qtr_levels
+    institution_function("3M",qtr_line_color,  qtr_text_color, "LQ")
+    
+if yearly_levels
+    institution_function("12M",yearly_line_color,  yearly_text_color, "LY")
+    
+    
+//TABLE
+show_dashboard = input.bool(title='Color Legend', defval=true, inline='1', group='Dashboard Settings')
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+var table t = table.new(positioning, 5, 1,frame_color=color.new(#000000, 100), frame_width=0, border_color=color.new(#000000,100), border_width=0)
+if barstate.islast and show_dashboard
+
+    //Column 1
+    table.cell(t, 0, 0, text='D', width=0, bgcolor=daily_line_color, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 0, text='W', width=0, bgcolor=weekly_line_color, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 0, text='M', width=0, bgcolor=monthly_line_color, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 3, 0, text='Q', width=0, bgcolor=qtr_line_color, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 4, 0, text='Y', width=0, bgcolor=yearly_line_color, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+
+    

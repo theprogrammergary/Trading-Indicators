@@ -1,0 +1,170 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator("CSW Auto Fib", overlay = true)
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Auto Fib Tool automatically draws Fibonacci Retracements & Fibonacci Extensions based on time periods. 
+     \n 1.The Fib Period is the period in which the Fib Tool determines a High and Low.
+     \n 2. Use Previous Fib overlays the past periods Fib Levels on the current period. 
+     
+     \n\nFor example, if we are using Daily period (D), then the CSW Auto Fib will
+     \ncalculate that Time periods High and Low. After determining the High and Low
+     \nthe tool will plot retracement levels and extension levels based off that time-periods
+     \nHigh and Low. If we have the Use Previous Fib Unchecked it will use the current Day. 
+     \nIf we have the Use Previous Fib checked (Or set to True), the Fib tool will use the 
+     \nprevious day and overlay onto the current day. \n\nThese levels can act as support and resistance, profit targets
+     \nor stop losses. If you need more information on Fibonacci or how traders use it, it is best to do a quick Google search."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+fib_period = input.string("D", title = "Fib Period", options = ["60", "120","180","240","D","W"], group = "Fib Settings", inline = '1')
+use_prior_period = input.bool(false, title = "Use Previous Fib", group = "Fib Settings", inline = '1')
+
+timeChange(period) =>
+	ta.change(time(period))
+isNewPeriod = timeChange(fib_period)
+
+var period_high = 0.00
+var period_high_bn = 0
+var period_low = 0.00
+var period_low_bn = 0
+var prev_period_high = 0.00
+var prev_period_high_bn = 0
+var prev_period_low = 0.00
+var prev_period_low_bn = 0
+var first_bar_in_period = 0
+
+//call_sercurities
+highs = request.security(syminfo.tickerid,"", high, lookahead=barmerge.lookahead_on)
+lows = request.security(syminfo.tickerid,"", low, lookahead=barmerge.lookahead_on)
+bn = request.security(syminfo.tickerid, "", bar_index, lookahead=barmerge.lookahead_on)
+
+if not isNewPeriod
+    if highs >= period_high
+        period_high := highs
+        period_high_bn := bn
+    
+    if lows <= period_low
+        period_low := lows
+        period_low_bn := bn
+
+if isNewPeriod
+    period_high := highs
+    period_high_bn := bn
+    period_low := lows
+    period_low_bn := bn
+    first_bar_in_period := bar_index
+
+    prev_period_high := period_high[1]
+    prev_period_high_bn := period_high_bn[1]
+    prev_period_low := period_low[1]
+    prev_period_low_bn := period_low_bn[1]
+
+show_labels = input.bool(true, "Show Labels", group = "Fib Levels" , inline = '1')
+label_color = input.color(color.white, " " ,group = "Fib Levels" , inline = '1')
+    
+value_1 = input(0.00, "", inline = "Level0", group = "Fib Levels")
+color_value_1 = input(color.white, "", inline = "Level0", group = "Fib Levels")
+
+value_2 = input(0.236, "", inline = "Level1", group = "Fib Levels")
+color_value_2 = input(#00fefe, "", inline = "Level1", group = "Fib Levels")
+
+value_3 = input(0.382, "", inline = "Level2", group = "Fib Levels")
+color_value_3 = input(#94eb82, "", inline = "Level2", group = "Fib Levels")
+
+value_4 = input(0.5, "", inline = "Level3", group = "Fib Levels")
+color_value_4 = input(#535352, "", inline = "Level3", group = "Fib Levels")
+
+value_5 = input(0.618, "", inline = "Level4", group = "Fib Levels")
+color_value_5 = input(#fec500, "", inline = "Level4", group = "Fib Levels")
+
+value_6 = input(0.786, " | ", inline = "Level0", group = "Fib Levels")
+color_value_6 = input(#ce0501, "", inline = "Level0", group = "Fib Levels")
+
+value_7 = input(1.00, " | ", inline = "Level1", group = "Fib Levels")
+color_value_7 = input(color.white, "", inline = "Level1", group = "Fib Levels")
+
+value_8 = input(1.236, " | ", inline = "Level2", group = "Fib Levels")
+color_value_8 = input(color.gray, "", inline = "Level2", group = "Fib Levels")
+
+value_9 = input(1.382, " | ", inline = "Level3", group = "Fib Levels")
+color_value_9 = input(color.gray, "", inline = "Level3", group = "Fib Levels")
+
+value_10 = input(1.618, " | ", inline = "Level4", group = "Fib Levels")
+color_value_10 = input(color.gray, "", inline = "Level4", group = "Fib Levels")
+
+//Calculate Fibs Function
+calculate_fibs_and_draw(high_level, low_level, high_bn, low_bn, fib_value) =>
+    difference = high_level - low_level
+    difference_mult = difference * fib_value
+    
+    return_value = 0.00
+    
+    if high_bn <= low_bn 
+        return_value := low_level + difference_mult
+    
+    if high_bn > low_bn
+        return_value := high_level - difference_mult
+    
+    return_value
+    
+//Line Function
+draw_lines(start_bar, level_value, level_color, label_value) =>
+    line1 = line.new(start_bar, level_value, bar_index + 5, y2 = level_value, extend = extend.right, color = level_color, style = line.style_dotted, width = 2)
+    line.delete(line1[1])
+    
+    if show_labels
+        label1 = label.new(start_bar , level_value, text= str.tostring(label_value), style=label.style_none, textcolor = label_color, textalign =  text.align_left)
+        label.delete(label1[1])
+    
+//Get Values
+var fib_level1 = 0.00
+var fib_level2 = 0.00
+var fib_level3 = 0.00
+var fib_level4 = 0.00
+var fib_level5 = 0.00
+var fib_level6 = 0.00
+var fib_level7 = 0.00
+var fib_level8 = 0.00
+var fib_level9 = 0.00
+var fib_level10 = 0.00
+
+if use_prior_period
+    fib_level1 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_1)
+    fib_level2 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_2)
+    fib_level3 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_3)
+    fib_level4 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_4)
+    fib_level5 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_5)
+    fib_level6 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_6)
+    fib_level7 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_7)
+    fib_level8 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_8)
+    fib_level9 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_9)
+    fib_level10 := calculate_fibs_and_draw(prev_period_high, prev_period_low, prev_period_high_bn, prev_period_low_bn, value_10)
+
+if not use_prior_period
+    fib_level1 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_1)
+    fib_level2 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_2)
+    fib_level3 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_3)
+    fib_level4 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_4)
+    fib_level5 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_5)
+    fib_level6 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_6)
+    fib_level7 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_7)
+    fib_level8 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_8)
+    fib_level9 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_9)
+    fib_level10 := calculate_fibs_and_draw(period_high, period_low, period_high_bn, period_low_bn, value_10)
+
+draw_lines(first_bar_in_period, fib_level1, color_value_1, value_1)
+draw_lines(first_bar_in_period, fib_level2, color_value_2, value_2)  
+draw_lines(first_bar_in_period, fib_level3, color_value_3, value_3)
+draw_lines(first_bar_in_period, fib_level4, color_value_4, value_4)
+draw_lines(first_bar_in_period, fib_level5, color_value_5, value_5)
+draw_lines(first_bar_in_period, fib_level6, color_value_6, value_6)
+draw_lines(first_bar_in_period, fib_level7, color_value_7, value_7)
+draw_lines(first_bar_in_period, fib_level8, color_value_8, value_8)
+draw_lines(first_bar_in_period, fib_level9, color_value_9, value_9)
+draw_lines(first_bar_in_period, fib_level10, color_value_10, value_10)

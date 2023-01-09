@@ -1,0 +1,67 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("CSW Sequence Candles Pro", overlay = true)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Sequence Candles are mostly secret sauce that we can't talk too much about. 
+ \nThe candles are better variation of the classic Japanese candlesticks. The CSW Sequence Candles should be used 
+ \nto keep you on the right side of trend and momentum. \n\nFor best performance turn the default Tradingview candles transparency to 0 so they are hidden entirely."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+show_signals = input.bool(title = 'Show Signals', defval = true, inline = '2')
+show_candle = input.bool(title = 'Show Sequence Candles', defval = true, inline = '3')
+
+color_up = input.color(color.new(#27a69b,0), title='Body', inline='1', group='Bull Candle Settings')
+wick_up = input.color(color.new(#27a69b,30), title='Wick', inline='1', group='Bull Candle Settings')
+border_up = input.color(color.new(#27a69b,30), title='Border', inline='1', group='Bull Candle Settings')
+
+color_down = input.color(color.new(#b63632,0), title='Body', inline='1', group='Bear Candle Settings')
+wick_down = input.color(color.new(#b63632,30), title='Wick', inline='1', group='Bear Candle Settings')
+border_down = input.color(color.new(#b63632,30), title='Border', inline='1', group='Bear Candle Settings')
+
+var openMA = 0.00
+var highMA = 0.00
+var lowMA = 0.00
+var closeMA = 0.00
+
+period = 5
+
+openMA := bar_index < period + 1 ? open : ta.ema(open,period)
+highMA := bar_index < period + 1 ? high : ta.ema(high,period)
+lowMA := bar_index < period + 1 ? low : ta.ema(low,period)
+closeMA := bar_index < period + 1 ? close : ta.ema(close,period)
+
+halow = math.min(lowMA, openMA)
+hahigh = math.max(highMA, openMA)
+
+candle_ema = ta.ema(closeMA, 20)
+body_color = closeMA >= candle_ema ? color_up : color_down
+wick_color = closeMA >= candle_ema ? wick_up : wick_down
+border_color = closeMA >= candle_ema ? border_up : border_down
+
+var trend_color = 0
+trend_color := closeMA >= candle_ema ? 1 : -1
+
+plotcandle(show_candle ? openMA : na , show_candle ? highMA : na ,show_candle ? lowMA : na,show_candle ? closeMA : na, color = body_color, wickcolor = wick_color, bordercolor = border_color, editable = false)
+
+alertcondition(barstate.isconfirmed and body_color != body_color[1] and body_color == color_up, "Trend Chg Bull","Trend Chg Bull")
+alertcondition(barstate.isconfirmed and body_color != body_color[1] and body_color == color_down, "Trend Chg Bear","Trend Chg Bear")
+
+[middle, upper, lower] = ta.bb(closeMA, 50, 0.10)
+
+//PLOTTING SIGNAL CODE
+//MAIN
+
+buy = barstate.isconfirmed and ta.crossover(trend_color,0) and highMA <= lower
+sell = barstate.isconfirmed and ta.crossunder(trend_color,0) and lowMA >= upper
+
+plotshape(show_signals and buy and math.sum(buy == true ? 1 : 0,10) == 1  ? math.min(lowMA,lower) - (syminfo.mintick * 20) : na, style=shape.labelup, editable=false, text= "Buy", textcolor=color.white, location= location.absolute, color=color.new(color_up, 30), size=size.tiny)
+plotshape(show_signals and sell and math.sum(sell == true ? 1 : 0,10) == 1  ? math.max(highMA,upper) + (syminfo.mintick * 20) : na, style=shape.labeldown, editable=false, text='Sell', textcolor=color.white, location=location.absolute, color=color.new(color_down, 30), size=size.tiny)

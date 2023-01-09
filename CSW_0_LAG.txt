@@ -1,0 +1,103 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator(title='CSW Ø-Lag Oscillator')
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The Ø-Lag Oscillator is a modified & enhanced MACD. The indicator applies zero-lagging algorithms 
+ \nin order to speed up the traditional MACD indicator. The Ø-Lag Oscillator also plots 3 colors. Green if the trend is up. 
+ \nRed if the Trend is down. And yellow if the Ø-Lag and traditional MACD do not agree with each other."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+color_up = input.color(#27a69b, title='Bull Color', inline='2', group='Visual Settings')
+color_down = input.color(#b63632, title='Bear Color', inline='2', group='Visual Settings')
+color_mismatch = input.color(color.yellow, title='Directional Change Color', inline='2', group='Visual Settings')
+color_lagging = input.color(color.new(color.white, 85), title='Lagging Line Color', inline='3', group='Visual Settings')
+color_con_div = input.color(color.new(color.white, 85), title='Convergence/Divergence Line Color', inline='3', group='Visual Settings')
+
+fastLength = input.int(12, minval=1, title='Fast Length:', inline='3', group='Indicator Settings')
+slowLength = input.int(26, minval=1, title='Slow Length:', inline='3', group='Indicator Settings')
+signalLength = input.int(9, minval=1, title='Signal Length:', inline='3', group='Indicator Settings', tooltip  = "These are the default Settings are 12,26,9. For Faster Signals Decrease. For Slower Signals Increase")
+
+src = close
+calc_zlema(src, length) =>
+    ema1 = ta.ema(src, length)
+    ema2 = ta.ema(ema1, length)
+    d = ema1 - ema2
+    ema1 + d
+
+ma(src, length) =>
+    calc_zlema(src, length)
+calc_leader(src, shortLength, longLength) =>
+    sema = ma(src, shortLength)
+    lema = ma(src, longLength)
+    i1 = sema + ma(src - sema, shortLength)
+    i2 = lema + ma(src - lema, longLength)
+    i1 - i2
+
+fastMA = ma(src, fastLength)
+slowMA = ma(src, slowLength)
+macd = fastMA - slowMA
+
+sig = ta.sma(macd, signalLength)
+hist = macd - sig
+zerolag = calc_leader(src, fastLength, slowLength)
+
+column_color = hist >= 0 and zerolag >= 0 ? color_up : hist >= 0 and zerolag < 0 or hist < 0 and zerolag >= 0 ? color_mismatch : color_down
+highs3 = plot(zerolag, color=color.new(color.black, 0), linewidth=5, editable=false)
+lows3 = plot(zerolag, color=color.new(color.black, 0), linewidth=5, editable=false)
+leader = plot(zerolag, style=plot.style_line, linewidth=2, color=color.new(column_color, 0), title='Ø-Lag Line')
+signal = plot(sig, title='Lagging Line', color=color_lagging)
+histogram = plot(hist, style=plot.style_columns, linewidth=2, color=color.new(column_color, 20), title='MACD Oscillator')
+zero = plot(0, linewidth=2, color=color.new(color.white, 30), editable=false)
+macdline = plot(macd, title='Convergence/Divergence Line', color=color_con_div)
+
+//DIVERGENCE
+show_DIV = input.bool(title='Show Divergence', defval=true, inline='5', group='Divergence Settings')
+lbR = input.int(title=' - Adjuster:', defval=5, inline='5', group='Divergence Settings', tooltip  = "Set the length over which a swing point in the market is calculated.")
+lbL = lbR
+rangeUpper = 50
+rangeLower = 20
+bullColor = input.color(#27a69b, 'Bull Divergence Color', inline='8', group='Divergence Settings')
+bearColor = input.color(#b63632, 'Bear Divergence Color', inline='8', group='Divergence Settings')
+textColor = input.color(color.white, 'Text Color', inline='8', group='Divergence Settings')
+noneColor = color.new(color.white, 100)
+osc = zerolag
+
+plFound = na(ta.pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(ta.pivothigh(osc, lbL, lbR)) ? false : true
+_inRange(cond) =>
+    bars = ta.barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// Osc: Higher Low
+oscHL = osc[lbR] > ta.valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+priceLL = low[lbR] < ta.valuewhen(plFound, low[lbR], 1)
+bullCond = show_DIV and priceLL and oscHL and plFound
+alertcondition(bullCond, 'Bullish Divergence', 'Bullish Divergence')
+
+plot(plFound ? osc[lbR] : na, offset=-lbR, title='Regular Bullish', linewidth=3, color=bullCond ? bullColor : noneColor, editable=false)
+
+plotshape(bullCond ? osc[lbR] : na, offset=-lbR, title='Regular Bullish Label', text=' ∇ ', style=shape.labelup, location=location.absolute, color=bullColor, textcolor=textColor, editable=false)
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// Osc: Lower High
+oscLH = osc[lbR] < ta.valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+priceHH = high[lbR] > ta.valuewhen(phFound, high[lbR], 1)
+bearCond = show_DIV and priceHH and oscLH and phFound
+alertcondition(bearCond, 'Bearish Divergence', 'Bearish Divergence')
+
+plot(phFound ? osc[lbR] : na, offset=-lbR, title='Regular Bearish', linewidth=3, color=bearCond ? bearColor : noneColor, editable=false)
+plotshape(bearCond ? osc[lbR] : na, offset=-lbR, title='Regular Bearish Label', text=' ∇ ', style=shape.labeldown, location=location.absolute, color=bearColor, textcolor=textColor, editable=false)
+

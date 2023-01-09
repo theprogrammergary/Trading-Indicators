@@ -1,0 +1,122 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator('CSW MTF Sentiment Line', overlay=true, scale=scale.none, max_lines_count=500, max_labels_count=500)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW MTF Sentiment Line is very similar to the CSW Sentiment Line. However instead of plotting RSI, Volatility, 
+ \nand Volume, the user can select one option. That one option then gets a sentiment rating on five different user-selectable timeframes. 
+ \nThe Sentiment Line rates RSI, Volatility, and Volume from 0 to 100. Values closer to 100 means it is overbought or a strong reading. 
+ \nValues closer to 0 mean it is oversold or a weak reading. The Sentiment Line is just an add-on tool for your chart for a quick glance
+ \nto see where RSI, Volatility, and Volume are at for the current chart symbol."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+type = input.string('RSI', title = 'Type', options = ['RSI', 'Volatility', 'Volume'])
+length = input.int(14, title = 'Length')
+
+tf1 = input.timeframe("", title = "Timeframe 1", inline = '2')
+tf2 = input.timeframe("60", title = "Timeframe 2", inline = '3')
+tf3 = input.timeframe("240", title = "Timeframe 3", inline = '4')
+tf4 = input.timeframe("D", title = "Timeframe 4", inline = '5')
+tf5 = input.timeframe("W", title = "Timeframe 5", inline = '6')
+
+color_up = input.color(color.new(#27a69b,30), title='Bull Color', inline='1', group='Visual Settings')
+color_down = input.color(color.new(#b63632,30), title='Bear Color', inline='1', group='Visual Settings')
+label_color = input.color(#ffffff, title = 'Label Color', inline='1', group='Visual Settings')
+
+offset = input.int(150, 'Line Offset', group='Visual Settings', minval = 0, maxval = 500)
+
+n = bar_index
+var names = array.new_string(0)
+var values = array.new_float(0)
+var scale_lines = array.new_line(0)
+dt = math.round(n - n[1])
+
+rsi(tf, length) =>
+    value1 = request.security(syminfo.tickerid, tf, ta.rsi(close,length) / 100, lookahead = barmerge.lookahead_on)
+    value1
+    
+vol(tf, length) =>
+    value1 = request.security(syminfo.tickerid, tf, ta.rsi(ta.stdev(close, 30),length) / 100, lookahead = barmerge.lookahead_on)
+    value1
+
+volume_f(tf, length) =>
+    value1 = request.security(syminfo.tickerid, tf, ta.rsi(ta.sma(volume,20),length) / 100, lookahead = barmerge.lookahead_on)
+    value1
+    
+var value1 = 0.00
+var value2 = 0.00
+var value3 = 0.00
+var value4 = 0.00
+var value5 = 0.00
+ 
+if type == 'RSI'
+    value1 := rsi(tf1, length)
+    value2 := rsi(tf2, length)
+    value3 := rsi(tf3, length)
+    value4 := rsi(tf4, length)
+    value5 := rsi(tf5, length)
+    
+if type == 'Volatility'
+    value1 := vol(tf1, length)
+    value2 := vol(tf2, length)
+    value3 := vol(tf3, length)
+    value4 := vol(tf4, length)
+    value5 := vol(tf5, length)
+    
+if type == 'Volume'
+    value1 := volume_f(tf1, length)
+    value2 := volume_f(tf2, length)
+    value3 := volume_f(tf3, length)
+    value4 := volume_f(tf4, length)
+    value5 := volume_f(tf5, length)
+
+if barstate.isfirst
+    for i = 0 to 99 by 1
+        array.push(scale_lines, line.new(na, na, na, na))
+
+if barstate.islast
+    array.push(values, value1)
+    array.push(values, value2)
+    array.push(values, value3)
+    array.push(values, value4)
+    array.push(values, value5)
+    array.push(values, array.get(values, 0))
+
+    avg = (array.avg(values) - .5) * 2
+    avg_css = color.from_gradient(avg, -1.2, 1.2, color_down, color_up)
+
+    tf1_text = tf1 == "" ? str.tostring(timeframe.period) : tf1
+    tf2_text = tf2 == "" ? str.tostring(timeframe.period) : tf2
+    tf3_text = tf3 == "" ? str.tostring(timeframe.period) : tf3
+    tf4_text = tf4 == "" ? str.tostring(timeframe.period) : tf4
+    tf5_text = tf5 == "" ? str.tostring(timeframe.period) : tf5
+    
+    label.delete(label.new(n + offset , (value1 - .5) * 2, "  " + str.tostring(math.round(value1*100,2)) + "-" + type + "  " + tf1_text , color = #00000000, style = label.style_label_left, textcolor = label_color, textalign = text.align_right)[1])
+    label.delete(label.new(n + offset, (value2 - .5) * 2, "  " + str.tostring(math.round(value2*100,2)) + "-" + type + "  " + tf2_text , color = #00000000, style = label.style_label_left, textcolor = label_color, textalign = text.align_right)[1])
+    label.delete(label.new(n + offset, (value3 - .5) * 2, "  " + str.tostring(math.round(value3*100,2)) + "-" + type + "  " + tf3_text , color = #00000000, style = label.style_label_left, textcolor = label_color, textalign = text.align_right)[1])
+    label.delete(label.new(n + offset, (value4 - .5) * 2, "  " + str.tostring(math.round(value4*100,2)) + "-" + type + "  " + tf4_text , color = #00000000, style = label.style_label_left, textcolor = label_color, textalign = text.align_right)[1])
+    label.delete(label.new(n + offset, (value5 - .5) * 2, "  " + str.tostring(math.round(value5*100,2)) + "-" + type + "  " + tf5_text , color = #00000000, style = label.style_label_left, textcolor = label_color, textalign = text.align_right)[1])
+    
+    for i = 1 to 99 by 1
+        y1 = ((i - 1) / 99 - .5) * 2
+        y2 = (i / 99 - .5) * 2
+
+        css = color.from_gradient(i, 1, 100, color_down, color_up)
+        scale_line = array.get(scale_lines, i)
+        line.set_xloc(scale_line, n + dt * offset + dt , bar_index + dt * offset + dt, xloc.bar_index)
+        line.set_y1(scale_line, y1)
+        line.set_y2(scale_line, y2)
+        line.set_width(scale_line, 8)
+        line.set_color(scale_line, css)
+
+    label.delete(label.new(n + offset, 1.025, '100', xloc.bar_index, yloc.price, color=#00000000, style=label.style_label_center, textcolor=color_up, textalign=text.align_center)[1])
+    label.delete(label.new(n + offset, -1.025, '0', xloc.bar_index, yloc.price, color=#00000000, style=label.style_label_center, textcolor=color_down, textalign=text.align_center)[1])
+    label.delete(label.new(n + offset, 1.1, '� CSW ' + type + ' Sentiment', xloc.bar_index, yloc.price, color=#00000000, style=label.style_label_center, textcolor=label_color, textalign=text.align_center)[1])

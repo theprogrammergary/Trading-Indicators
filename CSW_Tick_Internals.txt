@@ -1,0 +1,74 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator("CSW Tick Internals")
+     
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Tick Internals uses the NYSE Cumulative Tick to show traders the number of stocks that are 
+ \nrising vs the number of stocks that are falling on the New York Stock Exchange. The CSW Tick Indicator allows traders to more 
+ \neasily read the TICK Index chart. It does this by showing traders colored tick candles and overbought / oversold areas. 
+ \nGreen candles mean that the current TICK trend is UP and Red candles mean that the current TICK trend is DOWN. 
+ \nReadings that occur in the overbought or oversold areas mean that the market is showing great strength or great weakness. 
+ \nTypically when we get into these zones we can see potential reversals; however, sometimes the strong readings are indicating
+ \nthat a very strong trend is taking place and the trend could continue. That is why it is best to pair this indicator with other
+ \ntools to enhance its usefulness. 
+ \n\nThe CSW Tick Interals are meant to be used ONLY small intraday timeframes (1min - 5min) and ONLY on U.S. equities or U.S. equity options. 
+ \nThe NYSE TICK index only runs during U.S. Market Hours; therefore, the CSW TICK Internals will only work from 0930-1600 EST"
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+period = 20
+smooth = 5
+lookback = 4
+
+o = request.security("USI:TICK", "", open,barmerge.gaps_off, barmerge.lookahead_on)
+h = request.security("USI:TICK", "", high,barmerge.gaps_off, barmerge.lookahead_on)
+l = request.security("USI:TICK", "", low,barmerge.gaps_off, barmerge.lookahead_on)
+c = request.security("USI:TICK", "", close,barmerge.gaps_off, barmerge.lookahead_on)
+
+var htick = 0.00
+var ltick = 0.00
+htick := nz(h,htick[1])
+ltick := nz(l,ltick[1])
+
+var avgh = 0.00
+var avgl = 0.00
+avgh := ta.sma(htick,period)
+avgl := ta.sma(ltick,period)
+
+var avg_h_fix = 0.00
+avg_h_fix := math.max(300,ta.ema(htick - avgh[1],period))
+var avg_l_fix = 0.00
+avg_l_fix := math.min(-300,ta.ema(ltick - avgl[1],period))
+
+amean = na(close) ? na : (avg_h_fix + avg_l_fix) / 2
+trendmean = (htick > avg_h_fix or ltick < avg_l_fix) ? amean : 0
+
+bull = htick > avg_h_fix ? htick - avg_h_fix  : 0
+bear = ltick < avg_l_fix ? ltick - avg_l_fix  : 0
+
+var ctick = 0.00
+ctick := bar_index == 1 ? 0 : na(htick) or na(ltick) ? ctick[1] : ctick[1] + bull + bear + trendmean
+
+ctickavg = ta.ema(ctick, smooth)
+cumtick = na(close) ? na : ctickavg
+
+us_session = time("",'0930-1600', "America/New_York")
+tick_trend_coloring = not us_session ? 0 : cumtick > cumtick[lookback] ? 1 : -1
+
+plotcandle(tick_trend_coloring == 1 ? o : na , tick_trend_coloring == 1 ? h : na , tick_trend_coloring == 1 ? l : na , tick_trend_coloring == 1 ? c : na , title='Bull Trend', color = color.new(#26a69a,0), wickcolor=color.new(#26a69a,0), bordercolor = color.new(#26a69a,30))
+plotcandle(tick_trend_coloring == -1 ? o : na , tick_trend_coloring == -1 ? h : na , tick_trend_coloring == -1 ? l : na , tick_trend_coloring == -1 ? c : na , title='Bear Trend', color = color.new(#d32f2f,0), wickcolor=color.new(#d32f2f,0), bordercolor = color.new(#d32f2f,30))
+
+zero = hline(0, "Zero Line", color = color.new(color.white,70), linestyle =  hline.style_dotted)
+strong_bull = hline(800, "Strong Bull Reading", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+extreme_strong_bull = hline(1000, "Xtreme Bull Reading", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+strong_bear = hline(-800, "Strong Bear Reading", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+extreme_strong_bear = hline(-1000, "Xtreme Bear Reading", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+
+fill(strong_bull,extreme_strong_bull, color = color.new(#d32f2f,90), title = "Overbought Area")
+fill(strong_bear,extreme_strong_bear, color = color.new(#26a69a,90), title = "Oversold Area")

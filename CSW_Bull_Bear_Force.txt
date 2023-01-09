@@ -1,0 +1,53 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator(title='CSW Bull/Bear Force', overlay=false)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The Bull/Bear Forces shows the strength of buyers versus sellers in the market. 
+ \nIf we see more green then buyers are in control. If we see more red then sellers are in control. 
+  \nIf there is an even amount of buyers and sellers then the market is likely range bound or a trend is coming to an end."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+color_up = input.color(#27a69b, title='Bull Increasing Color', inline='2', group='Visual Settings')
+color_down = input.color(#b63632, title='Bear Increasing Color', inline='2', group='Visual Settings')
+color_up2 = input.color(#5d606b, title='Bull Decreasing Color', inline='2', group='Visual Settings')
+color_down2 = input.color(#5d606b, title='Bear Decreasing Color', inline='2', group='Visual Settings')
+//smooth = input(title='Smoothing - ', type=input.bool, defval=false, inline = "3", group = "Indicator Settings")
+//window = input.int(title=' Length:', defval=20, inline='3', group='Indicator Settings')
+window = 20
+
+f_exp_lr(_height, _length) =>
+    _ret = _height + _height / _length
+    _ret
+
+h_value = ta.highest(close, window)
+l_value = ta.lowest(close, window)
+h_bar = ta.highestbars(close, window)
+l_bar = ta.lowestbars(close, window)
+
+normFactor = 100 / window
+
+bear = 0 - (f_exp_lr(h_value - close, h_bar) > 0 ? f_exp_lr(h_value - close, h_bar) : 0)
+bull = 0 + (f_exp_lr(close - l_value, l_bar) > 0 ? f_exp_lr(close - l_value, l_bar) : 0)
+
+bull_avg = normFactor * bull
+bear_avg = normFactor * bear
+
+bull_color = color.from_gradient(bull_avg, ta.lowest(bull_avg, window), ta.highest(bull_avg, window), color_up2, color_up)
+bear_color = color.from_gradient(bear_avg, ta.lowest(bear_avg, window), ta.highest(bear_avg, window), color_down, color_down2)
+
+direction = ta.alma(bull_avg + bear_avg, 5, 0.9, 6)
+dcolor = direction[0] > direction[1] ? color_up : direction[0] < direction[1] ? color_down : color.yellow
+
+highs = plot(title='Bull Force', series=bull_avg, style=plot.style_columns, color=color.new(bull_color, 0))
+lows = plot(title='Bear Force', series=bear_avg, style=plot.style_columns, color=color.new(bear_color, 0))
+plot(title = "Direction Outline",series=direction, style=plot.style_line, linewidth=8, color= color.black)
+plot(title='Direction', series=direction, style=plot.style_line, linewidth=2, color= dcolor)
+plot(0, title='zero line', color=color.new(color.white, 30), linewidth=2)

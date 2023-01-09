@@ -1,0 +1,316 @@
+//@version=5
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+indicator(title='CSW Pro Panel')
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The Pro Panel is a lower chart study that is used as a trend-confirmation & momentum indicator.
+ \nIt features: 
+ \nA squeeze line to show when energy for the next move is building up.
+ \nTrend Oscillator
+ \nMomentum Power Band
+ \nOverbought / Oversold Areas.
+ \n\nThe panel also comes with a dashboard that shows you trend from 4 different timeframes, momentum, MACD, VWAP, 
+ \nRelative Volume, Daily Range, and RSI all in a quick glance!"
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+panelbull_color = input.color(#27a69b, title='Bull Increasing Color', inline='1', group='Visual Settings')
+panelbear_color = input.color(#b63632, title='Bear Increasing Color', inline='1', group='Visual Settings')
+squeeze_color = input.color(#ffffff, title='Squeeze Dots Color', inline='2', group='Visual Settings')
+
+//MOMENTUM
+show_momo = input.bool(title='Show Momentum', defval=true, inline = '1', group='Momentum Settings', tooltip = "Momentum is the larger oscillator on the panel and can be used to keep you on the right side of the market. The algorithm behind Momentum takes the price point data and visually makes it easier for the trader to see what the current trading environment is like.")
+show_DIV = input.bool(title='Show Momentum Divergence', defval=true, inline='2', group='Momentum Settings', tooltip = "Divergence is when the Momentum Oscillator picks up on when price data is potentially decieving. If you have this tool turned on you can see when the market make be making a move that others can't see on a regular price chart.")
+ema = 20
+
+ema_smooth = ema
+o = ta.ema(open, ema)
+c = ta.ema(close, ema)
+h = ta.ema(high, ema)
+l = ta.ema(low, ema)
+ha_t = ticker.heikinashi(syminfo.tickerid)
+ha_o = request.security(ha_t, timeframe.period, o)
+ha_c = request.security(ha_t, timeframe.period, c)
+ha_h = request.security(ha_t, timeframe.period, h)
+ha_l = request.security(ha_t, timeframe.period, l)
+ha_o_smooth = ta.ema(ha_o, ema_smooth)
+ha_c_smooth = ta.ema(ha_c, ema_smooth)
+ha_h_smooth = ta.ema(ha_h, ema_smooth)
+ha_l_smooth = ta.ema(ha_l, ema_smooth)
+dif_oc = ha_c_smooth - ha_o_smooth
+dif_hl = ha_h_smooth - ha_l_smooth
+variable_oc_percent = dif_oc * 100 / dif_hl
+
+bull_color = color.from_gradient(variable_oc_percent, ta.lowest(variable_oc_percent, ema / 2), ta.highest(variable_oc_percent, ema / 2), color.new(panelbull_color,65), panelbull_color)
+bear_color = color.from_gradient(variable_oc_percent, ta.lowest(variable_oc_percent, ema / 2), ta.highest(variable_oc_percent, ema / 2), panelbear_color, color.new(panelbear_color,65))
+color_trend = dif_oc <= 0 ? bear_color : bull_color
+plot(show_momo ? variable_oc_percent : na, style=plot.style_columns, color=color_trend, title='Momentum Trend', editable=false)
+outline_color = variable_oc_percent >= 0 ? panelbull_color : panelbear_color
+highs3 = plot(show_momo ? variable_oc_percent : na, color=color.new(color.black, 0), linewidth=5, editable=false)
+lows3 = plot(show_momo ? variable_oc_percent : na, color=color.new(color.black, 0), linewidth=5, editable=false)
+highs2 = plot(show_momo ? variable_oc_percent : na, color=color.new(outline_color, 10), linewidth=2, editable=false)
+lows2 = plot(show_momo ? variable_oc_percent : na, color=color.new(outline_color, 10), linewidth=2, editable=false)
+alertcondition(variable_oc_percent > 0, 'Momentum Bull', 'Momentum Bull')
+alertcondition(variable_oc_percent < 0, 'Momentum Bear', 'Momentum Bear')
+
+//SQUEEZE
+show_squeeze = input.bool(title='Show Squeeze Line', defval=true, inline='3', group='Momentum Settings', tooltip = "The Squeeze Line shows the user when Momentum has been building up. If you squeeze something for too long eventually it will pop. The longer the squeeze line the bigger potential for a massive move in the markets.")
+abs_variable_oc_percent = math.abs(variable_oc_percent)
+trigger = 8
+count = 0
+count := abs_variable_oc_percent <= trigger and abs_variable_oc_percent[1] > trigger ? 1 : abs_variable_oc_percent <= trigger ? count[1] + 1 : 0
+squeeze = count >= 1
+plot(show_squeeze and squeeze ? 0 : na, 'Squeeze Line', style=plot.style_circles, linewidth=2, color=squeeze_color, editable=false)
+alertcondition(squeeze, 'Squeeze', 'Squeeze')
+
+
+//DIVERGENCE
+lbR = 5
+lbL = lbR
+rangeUpper = 50
+rangeLower = 20
+noneColor = color.new(color.white, 100)
+osc = variable_oc_percent
+
+plFound = na(ta.pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(ta.pivothigh(osc, lbL, lbR)) ? false : true
+_inRange(cond) =>
+    bars = ta.barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// Osc: Higher Low
+oscHL = osc[lbR] > ta.valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+priceLL = low[lbR] < ta.valuewhen(plFound, low[lbR], 1)
+bullCond = show_DIV and priceLL and oscHL and plFound
+alertcondition(bullCond, 'Bullish Divergence', 'Bullish Divergence')
+
+plot(plFound ? osc[lbR] : na, offset=-lbR, title='Regular Bullish', linewidth=3, color=bullCond ? panelbull_color : noneColor, editable=false)
+plotshape(bullCond ? osc[lbR] : na, offset=-lbR, title='Regular Bullish Label', text=' ∇ ', style=shape.labelup, location=location.absolute, color=panelbull_color, textcolor=color.white, editable=false)
+
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// Osc: Lower High
+oscLH = osc[lbR] < ta.valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+priceHH = high[lbR] > ta.valuewhen(phFound, high[lbR], 1)
+bearCond = show_DIV and priceHH and oscLH and phFound
+alertcondition(bearCond, 'Bearish Divergence', 'Bearish Divergence')
+
+plot(phFound ? osc[lbR] : na, offset=-lbR, title='Regular Bearish', linewidth=3, color=bearCond ? panelbear_color : noneColor, editable=false)
+plotshape(bearCond ? osc[lbR] : na, offset=-lbR, title='Regular Bearish Label', text=' ∇ ', style=shape.labeldown, location=location.absolute, color=panelbear_color, textcolor=color.white, editable=false)
+
+
+//POWER
+show_powermomo = input.bool(title='Show Power Momentum', defval=true,inline = '4',group='Momentum Settings', tooltip = "Power Momentum is meant as a supplement to the main Momentum Oscillator. Power Momentum is NOT a Buy or Sell signal. It is simply a confirmation of that shorter-term Momentum is on the same side as the main Momentum Oscillator.")
+powerlength = 14
+powercalcLength = 5
+pwoersmoothLength = 3
+oscl = 0
+for i = 1 to powerlength by 1
+    oscl := oscl + (close > close[i] ? 1 : close < close[i] ? -1 : 0)
+    oscl
+normFactor = 65 / powerlength
+oscl := oscl * normFactor
+powerma = ta.ema(oscl, powercalcLength)
+tmo = ta.ema(powerma, pwoersmoothLength)
+signal = ta.ema(tmo, pwoersmoothLength)
+powercolor = tmo > signal ? panelbull_color : panelbear_color
+power1 = plot(show_powermomo ? tmo : na, 'TMO', color=powercolor, editable=false)
+power2 = plot(show_powermomo ? signal : na, 'Signal', color=powercolor, editable=false)
+fill(power1, power2, color.new(powercolor, 70))
+alertcondition(tmo > 45, 'Power Momentum Overbought', 'Power Momentum Overbought')
+alertcondition(tmo < -45, 'Power Momentum Oversold', 'Power Momentum Oversold')
+
+//OTHER
+high1 = plot(45, color=color.new(panelbear_color, 80), editable=false)
+low1 = plot(-45, color=color.new(panelbull_color, 80), editable=false)
+high2 = plot(60, color=color.new(panelbear_color, 80), editable=false)
+low2 = plot(-60, color=color.new(panelbull_color, 80), editable=false)
+fill(high1, high2, color=color.new(panelbear_color,90))
+fill(low1, low2, color=color.new(panelbull_color,90))
+
+//DASHBOARD
+show_dashboard = input.bool(title='CSW Dashboard', defval=true, inline='1', group='Dashboard Settings', tooltip = "The CSW Dash is one of our favorite tools as it allows users to take a quick-glance at all of the CSW Pro Indicators. One quick-glance and the analyysis is done for you. \n\n� \n-This column shows you the CSW MA Line on multiple different timeframes. It is designed to show you the trend on all of the user-selected timeframes. \n\nMomentum \n- This column shows you the CSW Momentum Oscillator for whatever timeframe your current chart is on. Green = Momentum above 0. Red = Momentum below 0.\n\nMACD \n- The MACD was requested by multiple users to be also be shown on the panel. The MACD is a Trend-following oscillator that shows convergence and divergence between two moving averages. Green = MACD above 0. Red = MACD below 0.\n\nVWAP \n- (Volume-Weighted Average Price), is another one of the most popular trading indicators and is used by institutional algorithms to work large orders. Green = Current Price is above VWAP. Red = Current Price is below VWAP.\n\nRelative Volume \n- Sometimes also called RVOL, is used by traders to track if traders are actively trading an instrument or not. An RVOL reading of 1.00 means that current volume is currently average. Any RVOL reading below 1.00 means that currentvolume is below average. It is typically okay to trade stocks that are slightly below 1.00, but if an RVOL starts to get below 0.80 then a low-volume chop period is likely and we color using Low Volume. RVOL readings greater than 1.25 start to show that volume is relatively higher and we use High Volume Color to show this. RVOL readings greater than 2.00 mean that relative volume is 2x the average, when this happens we color using the Extremely High Volume Color. \n\nADR vs DR \n- ADR = (Average Daily Range) , DR = (Daily Range). Is primarily used by day traders to compare the days current range versus the average daily range. If an instrument has already moved its ADR (and there is no news catalyst to drive further price action) , then it might be time toake profit or potential look for an intraday-reversal. \n\nRSI \n - RSI, (Relative Strength Index), measures the change of price moments over time and tells traders when a stock is overbought or oversold. When an RSI reading reaches OB (Overbought) or OS (Oversold) we will show a color to indicate the current RSI conditions. ")
+//INPUTS
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.middle_right 
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Dashboard Settings')
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Dashboard Settings')
+dashboard_bull = color.new(panelbull_color,40)
+dashboard_bear = color.new(panelbear_color,40)
+
+//TABLE VALUES
+//momentum
+momo_color = variable_oc_percent > 0 ? dashboard_bull : dashboard_bear 
+
+//0 lag
+fastLength = 12
+slowLength = 26
+signalLength = 9
+src = close
+calc_zlema(src, length) =>
+    ema1 = ta.ema(src, length)
+    ema2 = ta.ema(ema1, length)
+    d = ema1 - ema2
+    ema1 + d
+ma(src, length) =>
+    calc_zlema(src, length)
+calc_leader(src, shortLength, longLength) =>
+    sema = ma(src, shortLength)
+    lema = ma(src, longLength)
+    i1 = sema + ma(src - sema, shortLength)
+    i2 = lema + ma(src - lema, longLength)
+    i1 - i2
+fastMA = ma(src, fastLength)
+slowMA = ma(src, slowLength)
+macd = fastMA - slowMA
+sig = ta.sma(macd, signalLength)
+hist = macd - sig
+zerolag = calc_leader(src, fastLength, slowLength)
+zerolag_color = hist >= 0 ? dashboard_bull : dashboard_bear
+
+//VWAP Functions
+computeVWAP(src, isNewPeriod) =>
+    var float sumSrcVol = na
+    var float sumVol = na
+    var float sumSrcSrcVol = na
+    sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+    sumVol := isNewPeriod ? volume : volume + sumVol[1]
+    // sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+    sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+    _vwap = sumSrcVol / sumVol
+    variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+    variance := variance < 0 ? 0 : variance
+    stDev = math.sqrt(variance)
+    [_vwap, stDev]
+
+timeChange(period) =>
+    ta.change(time(period))
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on)
+isNewPeriod = timeChange('D') ? true : false
+
+//VWAP Variables
+float vwapValue = na
+float std = na
+
+[_vwap, _stddev] = computeVWAP(close, isNewPeriod)
+//VWAP Run
+vwapValue := _vwap
+std := _stddev
+vwap_color = close > _vwap ? dashboard_bull : dashboard_bear
+
+//RSI
+rsi_ob = input.int(70, minval=1, title='RSI OB:', inline='3', group='Dashboard Settings')
+rsi_colorOB = input.color(color.new(#4dd0e1,30), title=' ', inline='3', group='Dashboard Settings')
+rsi_os = input.int(30, minval=1, title='RSI OS:', inline='4', group='Dashboard Settings')
+rsi_colorOS = input.color(color.new(color.fuchsia,30), title=' ', inline='4', group='Dashboard Settings')
+rsi = ta.rsi(close,14)
+rsiob = rsi > rsi_ob
+rsios = rsi < rsi_os
+rsi_ob2 = input.int(80, minval=1, title='RSI OB 2:', inline='5', group='Dashboard Settings')
+rsi_colorOB2 = input.color(color.new(#1848cc,30), title=' ', inline='5', group='Dashboard Settings')
+rsi_os2 = input.int(20, minval=1, title='RSI OS 2:', inline='6', group='Dashboard Settings')
+rsi_colorOS2 = input.color(color.new(color.yellow,30), title=' ', inline='6', group='Dashboard Settings')
+rsiob2 = rsi > rsi_ob2
+rsios2 = rsi < rsi_os2
+rsi_color = rsiob2 ? rsi_colorOB2 : rsiob ? rsi_colorOB : rsios2 ? rsi_colorOS2 : rsios ? rsi_colorOS : dashboard_color
+
+//VOLUME
+above_threshold1_color = input.color(color.new(#4dd0e1,30), title = "Extremly High Volume",group='Dashboard Settings')
+above_threshold2_color = input.color(color.new(color.yellow,30), title = "High Volume",group='Dashboard Settings')
+normal_color = input.color(color.new(#131722,0), title = "Normal Volume",group='Dashboard Settings')
+below_threshold1_color = input.color(color.new(color.gray,50), title = "Low Volume",group='Dashboard Settings')
+
+period = 100
+vol = volume
+svol = ta.ema(vol, period)
+rvol = vol / svol[1]
+avg_rvol = ta.ema(rvol,20)
+
+rvol_upthreshold1 = 2.00
+rvol_upthreshold2 = 1.25
+rvol_downthreshold1 = 0.80
+rvol_downthreshold2 = 0.30
+//rvol_color = rvol >= rvol_upthreshold1 ? above_threshold1_color : rvol >= rvol_upthreshold2 ? above_threshold2_color : rvol <= rvol_downthreshold2 ? below_threshold2_color : rvol <= rvol_downthreshold1 ? below_threshold1_color : normal_color
+rvol_color =avg_rvol >= rvol_upthreshold1 ? above_threshold1_color: avg_rvol >= rvol_upthreshold2 ? above_threshold2_color : avg_rvol <= rvol_downthreshold1 ? below_threshold1_color : normal_color
+
+//adr
+adr_val = math.round(request.security(syminfo.tickerid, 'D', ta.sma(high - low, 14), lookahead=barmerge.lookahead_on), 2)
+dr_val = math.round(request.security(syminfo.tickerid, 'D', ta.sma(high - low, 1), lookahead=barmerge.lookahead_on), 2)
+
+////////////////////////////GENERAL INPUTS//////////////////////////////////////
+ma1_length = input.int(defval=8, title='MA Line Length 1:', minval=1, inline='12', group='Dashboard Settings')
+ma1_type = input.string(title=' ', defval='EMA', options=['SMA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='12', group='Dashboard Settings')
+
+ma2_length = input.int(defval=20, title='MA Line Length 2:', minval=1, inline='13', group='Dashboard Settings')
+ma2_type = input.string(title=' ', defval='EMA', options=['SMA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='13', group='Dashboard Settings')
+
+alt_tf1 = input.timeframe(defval='5', title='MA Line TF 1:', inline='14', group='Dashboard Settings')
+alt_tf2 = input.timeframe(defval='15', title='MA Line TF 2:', inline='15', group='Dashboard Settings')
+alt_tf3 = input.timeframe(defval='60', title='MA Line TF 3:', inline='16', group='Dashboard Settings')
+alt_tf4 = input.timeframe(defval='D', title='MA Line TF 4:', inline='17', group='Dashboard Settings')
+
+getMA(src, len, type) =>
+    ma_value = type == 'SMA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+
+alt1_ma1 = request.security(syminfo.tickerid, alt_tf1, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+alt1_ma2 = request.security(syminfo.tickerid, alt_tf1, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+alt1_color = alt1_ma1 > alt1_ma2 ? dashboard_bull : dashboard_bear
+
+alt2_ma1 = request.security(syminfo.tickerid, alt_tf2, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+alt2_ma2 = request.security(syminfo.tickerid, alt_tf2, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+alt2_color = alt2_ma1 > alt2_ma2 ? dashboard_bull : dashboard_bear
+
+alt3_ma1 = request.security(syminfo.tickerid, alt_tf3, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+alt3_ma2 = request.security(syminfo.tickerid, alt_tf3, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+alt3_color = alt3_ma1 > alt3_ma2 ? dashboard_bull : dashboard_bear
+
+alt4_ma1 = request.security(syminfo.tickerid, alt_tf4, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+alt4_ma2 = request.security(syminfo.tickerid, alt_tf4, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+alt4_color = alt4_ma1 > alt4_ma2 ? dashboard_bull : dashboard_bear
+
+//TABLE
+var table t = table.new(positioning, 5, 30,frame_color=color.new(#000000, 100), frame_width=0, border_color=color.new(#000000,100), border_width=0)
+if barstate.islast and show_dashboard
+
+    //Column 1
+    table.cell(t, 0, 0, text='�', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 1, text=alt_tf1, width=0, bgcolor=alt1_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 2, text=alt_tf2, width=0, bgcolor=alt2_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 3, text=alt_tf3, width=0, bgcolor=alt3_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 4, text=alt_tf4, width=0, bgcolor=alt4_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 5, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 6, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    //Column2
+    table.cell(t, 1, 0, text=' �CSW Dash�', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 1, text=' Momentum', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 2, text=' MACD', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 3, text=' VWAP ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 4, text=' Relative Volume', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 5, text=' ADR vs DR', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 6, text=' RSI', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    //Column3
+    table.cell(t, 2, 0, text='    ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 1, text='    ', width=0, bgcolor=momo_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 2, text='    ', width=0, bgcolor=zerolag_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 3, text='    ', width=0, bgcolor=vwap_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 4, text=str.tostring(avg_rvol, format.mintick), width=0, bgcolor=rvol_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 5, text=str.tostring(adr_val) + ' vs ' + str.tostring(dr_val), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 6, text=str.tostring(rsi, format.mintick), width=0, bgcolor=rsi_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)

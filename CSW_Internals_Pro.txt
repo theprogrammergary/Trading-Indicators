@@ -1,0 +1,116 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("CSW Internals Pro")
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• The CSW Internal Pro is based on the four major U.S. Equity Indexes. This is to not be used for any other markets. 
+ \nIf you need more information on any of the indexes, you can google or watch YouTube videos on what they are. Typically if we are looking 
+ \nfor to be long we want to see all four of the indexes green and have buy ratings. If we are looking to be short we want to see all four 
+ \nof the indexes red and have sell ratings. If you see Overbought or Oversold ratings it may be best to wait for a pullback to get long 
+ \nor not take the trade at all. \n\nFor the stocks that you trade, you should know what index they are in. The reason for this is that 
+ \nyou can still take trades if not all four indexes are aligned the same color. For example, maybe small caps (IWM) are on a hot streak 
+ \nand seeing buying momentum from insitutions meanwhile tech (QQQ), is being sold. If you held a long in a company that is in IWM then 
+ \nyou could be more comfortable holding your long position. Meanwhile,  if you held a long position in a stock that is in QQQ then you 
+ \nmight want to cut your loss or take profit. There are multiple different use cases for this indicator so it is best to look for outside 
+ \nresources on more information on the indexes and what stocks are in each index. This can be a very powerful tool to see sector rotation by hedge funds and institutions."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+color_up = input.color(color.new(#27a69b,0), title='Bull Color', inline='3', group='Internal Settings')
+color_down = input.color(color.new(#b63632,0), title='Bear Color', inline='3', group='Internal Settings')
+
+spy = request.security("SPY", "", ta.rsi(close,50), lookahead = barmerge.lookahead_on)
+ym = request.security("DIA", "", ta.rsi(close,50), lookahead = barmerge.lookahead_on)
+qqq = request.security("QQQ", "", ta.rsi(close,50), lookahead = barmerge.lookahead_on)
+iwm = request.security("IWM", "", ta.rsi(close,50), lookahead = barmerge.lookahead_on)
+
+avg = math.avg(spy,ym,qqq,iwm)
+plot(avg, color = color.new(#000000,0), title = 'Internal Oscillator Outline', linewidth = 5, style = plot.style_line, editable = false)
+avg_plot = plot(avg, color = avg > 50 ? color_up : color_down, title = 'Internal Oscillator', linewidth = 2, style = plot.style_line, editable = false)
+midline = plot(50, color = color.new(color.gray,50), title = "Midline", editable = false)
+bull_color = color.from_gradient(avg, ta.lowest(avg, 20), ta.highest(avg, 20), color.new(color_up,65), color_up)
+bear_color = color.from_gradient(avg, ta.lowest(avg, 20), ta.highest(avg, 20), color_down, color.new(color_down,65))
+fill(avg_plot, midline, color = avg > 50 ? bull_color : bear_color, editable = false)
+
+f_bb(src, length, mult, mult2) =>
+    float basis = ta.sma(src, length)
+    float dev =  ta.stdev(src, length)
+    [basis, basis + dev * mult, basis - dev * mult, basis + dev * mult2, basis - dev * mult2]
+    
+[middle, upper, lower, upper2, lower2] = f_bb(avg, 200, 2.5 ,3)
+
+upper_1 = plot(upper, title = 'Strong Overbought Reading', color = color.new(#d32f2f, 80),editable = false)
+lower_1 = plot(lower, title = 'Strong Oversold Reading', color = color.new(#26a69a, 80),editable = false)
+upper_2 = plot(upper2,title = 'Xtreme Overbought Reading', color = color.new(#d32f2f, 80),editable = false)
+lower_2 = plot(lower2,title = 'Xtreme Oversold Reading', color = color.new(#26a69a, 80),editable = false)
+
+fill(upper_1, upper_2, color = color.new(color_down,90), title = "Overbought Area")
+fill(lower_1, lower_2, color = color.new(color_up,90), title = "Oversold Area")
+
+pct_chg(symbol) =>
+    chg = request.security(symbol, "D", math.round((close - close[1]) / close[1] * 100,2), lookahead = barmerge.lookahead_on)
+    chg_color = chg >= 0 ? color.new(color_up,40) : color.new(color_down,40)
+    [chg, chg_color]
+    
+[spy_chg, spy_chg_color] = pct_chg("SPY")
+[dia_chg, dia_chg_color]  = pct_chg("DIA")
+[qqq_chg, qqq_chg_color]  = pct_chg("QQQ")
+[iwm_chg, iwm_chg_color]  = pct_chg("IWM")
+    
+rating(number) =>
+    return_rating = number > 70 ? "Overbought" : number >= 60 ? "Strong Buy" : number >= 50 ? "Buy" : number < 20 ? "Oversold" : number <= 40 ? "Strong Sell" : number < 50 ? "Sell" : " "
+    return_color = number > 70 ? color.new(color_up,70) : number >= 50 ? color.new(color_up,40)  : number < 20 ? color.new(color_up,70)  : number < 50 ? color.new(color_down,40)  : na
+    [return_rating, return_color]
+    
+[spy_rating, spy_color] = rating(spy)
+[dia_rating, dia_color]  = rating(ym)
+[qqq_rating, qqq_color]  = rating(qqq)
+[iwm_rating, iwm_color]  = rating(iwm)
+
+
+//TABLE
+show_dashboard = input.bool(title='Dashboard', defval=true, inline='1', group='Dashboard Settings')
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.middle_right 
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Dashboard Settings')
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Dashboard Settings')
+dashboard_bull = color.new(color_up,40)
+dashboard_bear = color.new(color_down,40)
+
+var table t = table.new(positioning, 5, 30,frame_color=color.new(#000000, 100), frame_width=0, border_color=color.new(#000000,100), border_width=0)
+if barstate.islast and show_dashboard
+
+    //Column 1
+    table.cell(t, 0, 0, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 1, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 2, text='SPY', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 3, text='QQQ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 4, text='DIA', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 5, text='IWM', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 5, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 5, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    // //Column2
+    table.cell(t, 1, 0, text=' �CSW Internals�', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 1, text=' % Chg', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 2, text=str.tostring(spy_chg)+ "%", width=0, bgcolor=spy_chg_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 3, text=str.tostring(qqq_chg)+ "%", width=0, bgcolor=qqq_chg_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 4, text=str.tostring(dia_chg)+ "%", width=0, bgcolor=dia_chg_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 5, text=str.tostring(iwm_chg)+ "%", width=0, bgcolor=iwm_chg_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    // //Column3
+    table.cell(t, 2, 0, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 1, text=' Rating', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 2, text=spy_rating, width=0, bgcolor=spy_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 3, text=qqq_rating, width=0, bgcolor=qqq_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 4, text=dia_rating, width=0, bgcolor=dia_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 5, text=iwm_rating, width=0, bgcolor=iwm_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    

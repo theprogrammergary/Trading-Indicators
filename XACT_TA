@@ -1,0 +1,573 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Xact Technical-Analysis [BETA]",  overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 1000)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• Supply/Demand = zones where buyers or sellers will look to enter the market.
+ \n• Price-Action Labels = swing highs and swing lows labeled to show if market is bullish or bearish. Hover to see details.
+ \n• Patterns = draw price-action patterns using trendlines for you.
+  "
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+//--GLOBAL INPUTS--//
+show_supplydemand = input.bool(true, title = 'Supply/Demand Zones', group = 'Xact TA Options', inline = '1', tooltip = 'Supply/Demand are price action zones that are drawn based on prior
+ swing highs and swing lows. Supply Zones act as resisPatternsnce. Demand Zones act as support.')
+
+show_priceaction = input.bool(true, title = 'Price Action Labels', group = 'Xact TA Options', inline = '2', tooltip = 'Price Action Labels mark at each swing high or swing low. \n\nHH = Higher High \nLH = Lower High \nLL=
+ Lower Low \nLH = Lower High')
+
+show_longterm_patterns = input.bool(true, title = 'Long-term Patterns   ', group = 'Xact TA Options', inline = '3')
+css_longterm = input.color(color.yellow, title = '', group = 'Xact TA Options', inline = '3')
+style_longterm = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Xact TA Options', inline = '3')
+width_longterm = input.int(2, title = '', group = 'Xact TA Options', inline = '3', minval = 1, maxval = 5)
+
+show_mediumterm_patterns = input.bool(true, title = 'Medium-term Patterns', group = 'Xact TA Options', inline = '4')
+css_middleterm = input.color(color.orange, title = '', group = 'Xact TA Options', inline = '4')
+style_middleterm = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Xact TA Options', inline = '4')
+width_middleterm = input.int(2, title = '', group = 'Xact TA Options', inline = '4', minval = 1, maxval = 5)
+
+show_shortterm_patterns = input.bool(true, title = 'Short-term Patterns  ', group = 'Xact TA Options', inline = '5')
+css_shortterm = input.color(color.blue, title = '', group = 'Xact TA Options', inline = '5')
+style_shortterm = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Xact TA Options', inline = '5')
+width_shortterm = input.int(1, title = '', group = 'Xact TA Options', inline = '5', minval = 1, maxval = 5)
+//--GLOBAL INPUTS--//
+
+
+//--SUPPLY DEMAND INPUTS--//
+sd_length = input.int(20, title = 'Supply/Demand Length', group = 'Supply/Demand Settings', minval = 3, maxval = 50)
+sd_width = input.float(7.00, title = 'Supply/Demand Width', group = 'Supply/Demand Settings', minval = 1, maxval = 15, step = 0.5)
+sd_history = 50
+
+supply_color = input.color(color.new(#c30616,70), title = 'Supply', group = 'Supply/Demand Settings', inline = '3')
+demand_color = input.color(color.new(#05cd0e,70), title = 'Demand', group = 'Supply/Demand Settings', inline = '3')
+sd_labelcolor = input.color(color.new(color.white,20), title = 'Label', group = 'Supply/Demand Settings', inline = '3')
+//--SUPPLY DEMAND INPUTS--//
+
+
+//--PRICE ACTION INPUTS--//
+pa_color = input.color(color.new(color.white, 60), title = 'Label', group = 'Price Action Label Settings', inline = '1')
+//--PRICE ACTION INPUTS--//
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+//--FUNCTION SWING H & L LABELS--//
+f_sh_sl_labels(array, swing_type) =>
+
+    var string label_text = na
+    if swing_type == 1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HH'
+        else
+            label_text := 'LH'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text, style=label.style_label_down, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+    
+    else if swing_type == -1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HL'
+        else
+            label_text := 'LL'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text, style=label.style_label_up, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+//--FUNCTION SWING H & L LABELS--//
+
+
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+f_check_overlapping(new_poi, box_array, atr) =>
+
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+
+
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+f_supply_demand(value_array, bn_array, box_array, box_type, atr) =>
+
+    atr_buffer = atr * (sd_width / 10)
+    box_left = array.get(bn_array, 0)
+    box_right = bar_index
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+
+    if box_type == 1
+        box_top := array.get(value_array, 0)
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := array.get(value_array, 0)
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    //delete oldest box, and then create a new box and add it to the array
+    if box_type == 1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = show_supplydemand ? color.new(supply_color,30) : color.new(#000000,100),
+             bgcolor = show_supplydemand ? supply_color : color.new(#000000,100), extend = extend.right, text = show_supplydemand ? 'SUPPLY' : '', text_halign = text.align_center, text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+
+    else if box_type == -1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = show_supplydemand ? color.new(demand_color,30) : color.new(#000000,100),
+             bgcolor = show_supplydemand ?  demand_color : color.new(#000000,100), extend = extend.right,  text = show_supplydemand ? 'DEMAND' : '', text_halign = text.align_center, text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+
+
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+f_sd_to_bos(box_array, bos_array, zone_type) =>
+
+    for i = 0 to array.size(box_array) - 1
+        level_to_break = zone_type == 1 ? box.get_top(array.get(box_array,i)) : box.get_bottom(array.get(box_array,i))
+        if (zone_type == 1  and close >= level_to_break) or (zone_type == -1  and close <= level_to_break) 
+            box.delete(array.get(box_array, i))
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+
+
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+f_extend_box_endpoint(box_array) =>
+
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), bar_index + 100)
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+//-----FUNCTIONS-----//
+
+
+
+//-----DEFINE VARIABLES-----//
+//--ARRAYS FOR SWING H/L & BN--//
+var swing_high_values = array.new_float(5,0.00)
+var swing_low_values = array.new_float(5,0.00)
+var swing_high_bns = array.new_int(5,0)
+var swing_low_bns = array.new_int(5,0)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR SWING H/L & BN--//
+var current_supply_box = array.new_box(sd_history, na)
+var current_demand_box = array.new_box(sd_history, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR BOS--//
+var supply_bos = array.new_box(5, na)
+var demand_bos = array.new_box(5, na)
+//--ARRAYS FOR BOS--//
+//-----DEFINE VARIABLES-----//
+
+
+
+//-----START CALCULATING-----//
+// call functions to calculate swing highs/lows
+swing_high = ta.pivothigh(high, sd_length, sd_length)
+swing_low = ta.pivotlow(low, sd_length, sd_length)
+
+atr = ta.atr(50)
+
+// if new swing high
+if not na(swing_high)
+
+    // manage swing high values
+    f_array_add_pop(swing_high_values, swing_high)
+    f_array_add_pop(swing_high_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_high_values, 1)
+
+    f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, 1, atr)
+
+// if new swing low
+else if not na(swing_low)
+
+    // manage swing low values
+    f_array_add_pop(swing_low_values, swing_low)
+    f_array_add_pop(swing_low_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_low_values, -1)
+    
+    f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, -1, atr)
+
+// move s/d zones to bos
+f_sd_to_bos(current_supply_box, supply_bos, 1)
+f_sd_to_bos(current_demand_box, demand_bos, -1)
+
+if barstate.islast
+    f_extend_box_endpoint(current_supply_box)
+    f_extend_box_endpoint(current_demand_box)
+
+
+
+// --------------------PATTERN START--------------------
+//--GLOBAL VARS--//
+avoidOverlap = true
+lookback_longterm = 50
+lookback_middleterm = 22
+lookback_shortterm = 8
+
+
+maxPatternsReference = 1
+
+var aBarArray = array.new_int()
+var bBarArray = array.new_int()
+var cBarArray = array.new_int()
+var dBarArray = array.new_int()
+var eBarArray = array.new_int()
+var fBarArray = array.new_int()
+var xBarArray = array.new_int()
+
+drawZigzag = false
+//--GLOBAL VARS--//
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_unshift_to_array(array, value, max_items) =>
+    array.insert(array, 0, value)
+    if(array.size(array) > max_items)
+        array.pop(array)
+    array
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+
+//--FUNCTION TO ADD NEW IN ARRAY--//
+f_add_to_array(array, value, max_items) =>
+    array.insert(array, 0, value)
+    if array.size(array) > max_items
+        array.pop(array)
+    array
+//--FUNCTION TO ADD NEW IN ARRAY--//
+
+
+//--FUNCTION TO GET ANGLE OF TWO POINTS--//
+f_angle(a, b, loopback) =>
+    rad2degree = 180 / math.pi
+    ang = rad2degree * math.atan((a - b)/(2*math.sum(ta.tr, loopback+1)/(loopback+1)))
+    ang
+//--FUNCTION TO GET ANGLE OF TWO POINTS--//
+
+
+//--FUNCTION TO GET PIVOTS--//
+f_pivots(length, highSource=high, lowSource = low) =>
+    float phigh = ta.highestbars(highSource, length) == 0 ? highSource : na
+    float plow = ta.lowestbars(lowSource, length) == 0 ? lowSource : na
+    [phigh, plow, bar_index, bar_index]
+//--FUNCTION TO GET PIVOTS--//
+
+
+//--FUNCTION TO GET SENTIMENT MIGHT NOT NEED LOOKS TO BE USED FOR DIVERGENCE--//
+f_getSentiment(pDir, oDir, sDir) =>
+    sentiment = pDir == oDir ? sDir == pDir or sDir * 2 == -pDir ? -sDir : sDir * 4 : sDir == pDir or sDir == -oDir ? 0 : (math.abs(oDir) > math.abs(pDir) ? sDir : -sDir) * (sDir == oDir ? 2 : 3)
+    sentiment
+//--FUNCTION TO GET SENTIMENT MIGHT NOT NEED LOOKS TO BE USED FOR DIVERGENCE--//
+
+
+
+f_addnewpivot(zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence, 
+                                     value, bar, dir, numberOfPivots,
+                                     oscHigh, oscLow, directionBias, divergenceOption) =>
+    newDir = dir
+    oscDir = dir
+    lPDir = 0
+    lODir = 0
+    ratio = 1.0
+    oscillatorSource = dir > 0? oscHigh[bar_index - bar] : oscLow[bar_index - bar]
+    if array.size(zigzagpivots) >= 2
+        lastPoint = array.get(zigzagpivots, 0)
+        llastPoint = array.get(zigzagpivots, 1)
+        newDir := dir * value > dir * llastPoint ? dir * 2 : dir
+        ratio := math.round(math.abs(value-lastPoint)/math.abs(llastPoint-lastPoint), 2)
+        
+        llastOsc = array.get(zigzagoscillators, 1)
+        oscDir := dir * oscillatorSource > dir * llastOsc ? dir * 2 : dir
+        if array.size(zigzagpivots) >=4
+            lllastPoint = array.get(zigzagpivots, 3)
+            lllastOsc = array.get(zigzagoscillators, 3)
+            lODir := dir * llastOsc > dir * lllastOsc ? dir * 2 : dir
+            lPDir := dir * llastPoint > dir * lllastPoint ? dir * 2 : dir
+            
+        
+    sentiment = f_getSentiment(newDir, oscDir, directionBias[bar_index-bar])
+    llastSentiment = array.size(zigzagdivergence) >=2 ? array.get(zigzagdivergence, 1): na
+    
+    useHiddenDoubleD = divergenceOption == 1 or divergenceOption == 3
+    useRegularDoubleD = divergenceOption == 1 or divergenceOption == 2
+    doubleDivergence = (sentiment == llastSentiment and ((math.abs(sentiment) == 3 and useHiddenDoubleD) or (math.abs(sentiment) == 2 and useRegularDoubleD))) ? sentiment/math.abs(sentiment) : 0
+    
+    f_add_to_array(zigzagpivots, value, numberOfPivots)
+    f_add_to_array(zigzagpivotbars, bar, numberOfPivots)
+    f_add_to_array(zigzagpivotdirs, newDir, numberOfPivots)
+    f_add_to_array(zigzagpivotratios, ratio, numberOfPivots)
+    f_add_to_array(zigzagoscillators, oscillatorSource, numberOfPivots)
+    f_add_to_array(zigzagoscillatordirs, oscDir, numberOfPivots)
+    f_add_to_array(zigzagtrendbias, directionBias[bar_index-bar], numberOfPivots)
+    f_add_to_array(zigzagdivergence, sentiment, numberOfPivots)
+    f_add_to_array(zigzagdoubledivergence, doubleDivergence, numberOfPivots)
+
+
+
+f_zigzagcore(phigh, plow, phighbar, plowbar, numberOfPivots, oscHigh, oscLow, directionBias,
+                                     zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence, divergenceOption) =>
+    pDir = 1
+    newZG = false
+    doubleZG = phigh and plow
+    if array.size(zigzagpivots) >= 1
+        pDir := array.get(zigzagpivotdirs, 0)
+        pDir := pDir % 2 == 0 ? pDir / 2 : pDir
+        pDir
+
+    if (pDir == 1 and phigh or pDir == -1 and plow) and array.size(zigzagpivots) >= 1
+        pivot = array.remove(zigzagpivots,0)
+        pivotbar = array.remove(zigzagpivotbars,0)
+        pivotdir = array.remove(zigzagpivotdirs,0)
+        array.remove(zigzagpivotratios, 0)
+        array.remove(zigzagoscillators, 0)
+        array.remove(zigzagoscillatordirs, 0)
+        array.remove(zigzagtrendbias, 0)
+        array.remove(zigzagdivergence, 0)
+        array.remove(zigzagdoubledivergence, 0)
+        value = pDir == 1 ? phigh : plow
+        bar = pDir == 1 ? phighbar : plowbar
+
+        useNewValues = value * pivotdir > pivot * pivotdir
+        value := useNewValues ? value : pivot
+        bar := useNewValues ? bar : pivotbar
+        newZG := newZG or useNewValues
+        f_addnewpivot(zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence, value, bar, pDir, numberOfPivots,
+                                     oscHigh, oscLow, directionBias, divergenceOption)
+
+    if pDir == 1 and plow or pDir == -1 and phigh
+        value = pDir == 1 ? plow : phigh
+        bar = pDir == 1 ? plowbar : phighbar
+        dir = pDir == 1 ? -1 : 1
+        newZG := true
+        f_addnewpivot(zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence, value, bar, dir, numberOfPivots,
+                                     oscHigh, oscLow, directionBias, divergenceOption)
+
+    [newZG, doubleZG]
+
+
+f_zigzag(int length, simple int numberOfPivots = 20, float highSource = high, float lowSource = low, float oscillatorHighSource = high, float oscillatorLowSource  = low, int directionBias = 1, int divergenceOption=1) =>
+    var zigzagpivots = array.new_float(0)
+    var zigzagpivotbars = array.new_int(0)
+    var zigzagpivotdirs = array.new_int(0)
+    var zigzagpivotratios = array.new_float(0)
+
+    
+    var zigzagoscillators = array.new_float(0)
+    var zigzagoscillatordirs = array.new_int(0)
+    var zigzagtrendbias = array.new_int(0)
+    var zigzagdivergence = array.new_int(0)
+    var zigzagdoubledivergence = array.new_int(0)
+    [phigh, plow, phighbar, plowbar] = f_pivots(length, highSource, lowSource)
+    [newPivot, doublePivot] = f_zigzagcore(phigh, plow, phighbar, plowbar, numberOfPivots,
+                                     oscillatorHighSource, oscillatorLowSource, directionBias,
+                                     zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence, divergenceOption)
+    [zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, zigzagoscillators,
+                                     zigzagoscillatordirs, zigzagtrendbias, zigzagdivergence, zigzagdoubledivergence,
+                                     newPivot, doublePivot]
+
+
+f_add_new_wedge(a,b,c,d,e,f,aBar,bBar,cBar,dBar,eBar,fBar,l1Angle, l2Angle)=>
+    dir = a>b? 1: -1
+    f_unshift_to_array(fBarArray, fBar, maxPatternsReference)
+    f_unshift_to_array(aBarArray, aBar, maxPatternsReference)
+    f_unshift_to_array(bBarArray, bBar, maxPatternsReference)
+    f_unshift_to_array(cBarArray, cBar, maxPatternsReference)
+    f_unshift_to_array(dBarArray, dBar, maxPatternsReference)
+    f_unshift_to_array(eBarArray, eBar, maxPatternsReference)
+
+    if(drawZigzag)
+        ab = line.new(bBar, b, aBar, a)
+        bc = line.new(cBar, c, bBar, b)
+        cd = line.new(dBar, d, cBar, c)
+        de = line.new(eBar, e, dBar, d)
+        
+        aLbl = label.new(aBar, a, '5', style=label.style_none, yloc=dir>0?yloc.abovebar:yloc.belowbar)
+        bLbl = label.new(bBar, b, '4', style=label.style_none, yloc=dir<0?yloc.abovebar:yloc.belowbar)
+        cLbl = label.new(cBar, c, '3', style=label.style_none, yloc=dir>0?yloc.abovebar:yloc.belowbar)
+        dLbl = label.new(dBar, d, '2', style=label.style_none, yloc=dir<0?yloc.abovebar:yloc.belowbar)
+        eLbl = label.new(eBar, e, '1', style=label.style_none, yloc=dir>0?yloc.abovebar:yloc.belowbar)
+
+
+f_draw_wedge(l1StartX, l1StartY, l1EndX, l1EndY, l2StartX, l2StartY, l2EndX, l2EndY, css, linestyle, linewidth)=>
+    l1t = line.new(l1StartX, l1StartY, l1EndX, l1EndY, extend=extend.both)
+    l2t = line.new(l2StartX, l2StartY, l2EndX, l2EndY, extend=extend.both)
+    
+    startBar = math.min(l2StartX, l1StartX)
+    endBar = l1EndX
+    l1Start = line.get_price(l1t, startBar)
+    l1End = line.get_price(l1t, endBar)
+    l2Start = line.get_price(l2t,startBar)
+    l2End = line.get_price(l2t, endBar)
+
+    line.set_extend(l1t, extend.none)
+    line.set_extend(l2t, extend.none)
+    line.set_x1(l1t, startBar)
+    line.set_y1(l1t, l1Start)
+    line.set_x2(l1t, endBar)
+    line.set_y2(l1t, l1End)
+    
+    line.set_x1(l2t, startBar)
+    line.set_y1(l2t, l2Start)
+    line.set_x2(l2t, endBar)
+    line.set_y2(l2t, l2End)
+    
+    l1Angle = f_angle(l1End, l1Start, endBar-startBar)
+    l2Angle = f_angle(l2End, l2Start, endBar-startBar)
+    
+    l1Diff = math.abs(l1Start-l1End)
+    l2Diff = math.abs(l2Start-l2End)
+
+    // css
+    line.set_color(l1t, css)
+    line.set_color(l2t, css)
+    line.set_width(l1t, linewidth)
+    line.set_width(l2t, linewidth)
+    line.set_style(l1t, (linestyle == 'Solid' ? line.style_solid : linestyle == 'Dashed' ? line.style_dashed : linestyle == 'Dotted' ? line.style_dotted : line.style_solid) )
+    line.set_style(l2t, (linestyle == 'Solid' ? line.style_solid : linestyle == 'Dashed' ? line.style_dashed : linestyle == 'Dotted' ? line.style_dotted : line.style_solid) )
+        
+    [l1t, l2t, l1Angle, l2Angle, l1Diff, l2Diff]
+
+
+
+f_find_wedge(a,b,c,d,e,f,aBar,bBar,cBar,dBar,eBar,fBar,zigzagpivots, zigzagpivotbars, fIndex, css, linestyle, linewidth) =>
+    existingPattern = false
+    lastPivot = e
+    lastPivotBar = eBar
+    llastPivot = d
+    for i=0 to array.size(aBarArray)==0? na: array.size(aBarArray)-1
+        commonPivots = (array.get(aBarArray, i) == aBar ? 1 : 0) +
+                         (array.get(bBarArray, i) == bBar ? 1 : 0) +
+                         (array.get(cBarArray, i) == cBar ? 1 : 0) +
+                         (array.get(dBarArray, i) == dBar ? 1 : 0) +
+                         (array.get(eBarArray, i) == eBar ? 1 : 0)
+        
+        if(commonPivots >=2) or (avoidOverlap and lastPivotBar < array.get(aBarArray,i) and lastPivotBar > array.get(fBarArray, i))
+            existingPattern := true
+            break
+    
+    if(not existingPattern)
+        aRatio = math.abs(a-b)/math.abs(b-c)
+        bRatio = math.abs(b-c)/math.abs(c-d)
+        cRatio = math.abs(c-d)/math.abs(d-e)
+        dRatio = math.abs(d-e)/math.abs(e-f)
+
+        [l1t, l2t, l1Angle, l2Angle, l1Diff, l2Diff] = f_draw_wedge(eBar, e, aBar, a, dBar, d, bBar, b, css, linestyle, linewidth)
+        
+        isType1Wedge = aRatio >=1 and bRatio < 1 and cRatio >= 1 and l1Diff < l2Diff
+        isType2Wedge = aRatio <1 and bRatio >= 1 and cRatio < 1  and l1Diff > l2Diff
+        
+        angleDiff = math.abs(l1Angle-l2Angle)
+        isWedge = (isType1Wedge or isType2Wedge)
+        
+        if(isWedge)
+            for i = aBar to lastPivotBar
+                l = low[bar_index-i]
+                h = high[bar_index-i]
+                l1Price = line.get_price(l1t, i)
+                l2Price = line.get_price(l2t, i)
+                if(h < math.min(l1Price, l2Price) or l > math.max(l1Price, l2Price))
+                    isWedge := false
+                    break
+                if(i == cBar and (l1Price > h or l1Price < l))
+                    isWedge := false
+                    break
+                if(i == dBar and (l2Price > h or l2Price < l))
+                    isWedge := false
+                    break
+
+        if isWedge
+            wedgeType = isType1Wedge? 1 : 2
+            f_add_new_wedge(a,b,c,d,e,f,aBar,bBar,cBar,dBar,eBar,fBar,l1Angle, l2Angle)
+            true
+        else
+            line.delete(l1t)
+            line.delete(l2t)
+            false
+
+f_scan_patterns(startIndex, newPivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css, linestyle, linewidth) =>
+    length = array.size(zigzagpivots)
+    numberOfPivots=5
+    newLastABar = lastABar
+    if(length >= startIndex+numberOfPivots+1 and newPivot)
+        a = array.get(zigzagpivots, startIndex)
+        aBar = array.get(zigzagpivotbars, startIndex)
+        aIndex = startIndex
+        lastDir = array.get(zigzagpivotdirs, startIndex)
+        if(aBar!=lastABar)
+            newLastABar := aBar
+            b = array.get(zigzagpivots, startIndex+1)
+            bBar = array.get(zigzagpivotbars, startIndex+1)
+            c = array.get(zigzagpivots, startIndex+2)
+            cBar = array.get(zigzagpivotbars, startIndex+2)
+            d = array.get(zigzagpivots, startIndex+3)
+            dBar = array.get(zigzagpivotbars, startIndex+3)
+            e = array.get(zigzagpivots, startIndex+4)
+            eBar = array.get(zigzagpivotbars, startIndex+4)
+            f = e
+            fBar = eBar
+            f_find_wedge(a,b,c,d,e,f,aBar,bBar,cBar,dBar,eBar,fBar,zigzagpivots, zigzagpivotbars, startIndex+5-1, css, linestyle, linewidth)
+    newLastABar
+//-----FUNCTIONS-----//
+
+
+
+// css_longterm = input.color(color.blue, title = '', group = 'Pattern Detection Settings', inline = '1')
+// style_longterm = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Pattern Detection Settings', inline = '1')
+// width_longterm = input.int(3, title = '', group = 'Pattern Detection Settings', inline = '1')
+
+
+startIndex = 0
+
+if(show_longterm_patterns)
+    [zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, _, _, _, _, _, newPivot, doublePivot] = f_zigzag(lookback_longterm)
+
+    var lastABar = 0
+    lastABar := f_scan_patterns(startIndex+1, doublePivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_longterm, style_longterm, width_longterm)
+    lastABar := f_scan_patterns(startIndex, newPivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_longterm, style_longterm, width_longterm)
+
+if(show_mediumterm_patterns)
+    [zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, _, _, _, _, _, newPivot, doublePivot] = f_zigzag(lookback_middleterm)
+
+    var lastABar = 0
+    lastABar := f_scan_patterns(startIndex+1, doublePivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_middleterm, style_middleterm, width_middleterm)
+    lastABar := f_scan_patterns(startIndex, newPivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_middleterm, style_middleterm, width_middleterm)
+
+if(show_shortterm_patterns)
+    [zigzagpivots, zigzagpivotbars, zigzagpivotdirs, zigzagpivotratios, _, _, _, _, _, newPivot, doublePivot] = f_zigzag(lookback_shortterm)
+
+    var lastABar = 0
+    lastABar := f_scan_patterns(startIndex+1, doublePivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_shortterm, style_shortterm, width_shortterm)
+    lastABar := f_scan_patterns(startIndex, newPivot, zigzagpivots, zigzagpivotbars, zigzagpivotratios, zigzagpivotdirs, lastABar, css_shortterm, style_shortterm, width_shortterm)
+

@@ -1,0 +1,237 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Xact Supply/Demand + [BETA]",  overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 1000)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "• Supply/Demand = zones where buyers or sellers will look to enter the market.
+ \n• Price-Action Labels = swing highs and swing lows labeled to show if market is bullish or bearish. Hover to see details.
+ \n• Patterns = draw price-action patterns using trendlines for you.
+  "
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+//--GLOBAL INPUTS--//
+show_supplydemand1 = input.bool(true, title = '', group = 'Xact TA Options', inline = '1')
+sd_timeframe1 = input.timeframe('', title = 'Supply/Demand Timeframe 1', group = 'Xact TA Options', inline = '1') 
+
+show_supplydemand2 = input.bool(true, title = '', group = 'Xact TA Options', inline = '2')
+sd_timeframe2 = input.timeframe('60', title = 'Supply/Demand Timeframe 2', group = 'Xact TA Options', inline = '2') 
+
+show_supplydemand3 = input.bool(true, title = '', group = 'Xact TA Options', inline = '3')
+sd_timeframe3 = input.timeframe('D', title = 'Supply/Demand Timeframe 3', group = 'Xact TA Options', inline = '3') 
+
+show_priceaction = input.bool(true, title = 'Price Action Labels', group = 'Xact TA Options', inline = '5', tooltip = 'Price Action Labels mark at each swing high or swing low. \n\nHH = Higher High \nLH = Lower High \nLL=
+ Lower Low \nLH = Lower High')
+//--GLOBAL INPUTS--//
+
+
+//--SUPPLY DEMAND INPUTS--//
+sd_length = input.int(20, title = 'Supply/Demand Length', group = 'Supply/Demand Settings', minval = 3, maxval = 50)
+sd_width = input.float(7.00, title = 'Supply/Demand Width', group = 'Supply/Demand Settings', minval = 1, maxval = 15, step = 0.5)
+sd_history = 50
+
+supply_color = input.color(color.new(#c30616,70), title = 'Supply', group = 'Supply/Demand Settings', inline = '3')
+demand_color = input.color(color.new(#05cd0e,70), title = 'Demand', group = 'Supply/Demand Settings', inline = '3')
+sd_labelcolor = input.color(color.new(color.white,20), title = 'Label', group = 'Supply/Demand Settings', inline = '3')
+//--SUPPLY DEMAND INPUTS--//
+
+
+//--PRICE ACTION INPUTS--//
+pa_color = input.color(color.new(color.white, 60), title = 'Label', group = 'Price Action Label Settings', inline = '1')
+//--PRICE ACTION INPUTS--//
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+//--FUNCTION SWING H & L LABELS--//
+f_sh_sl_labels(array, swing_type) =>
+
+    var string label_text = na
+    if swing_type == 1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HH'
+        else
+            label_text := 'LH'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text, style=label.style_label_down, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+    
+    else if swing_type == -1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HL'
+        else
+            label_text := 'LL'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text, style=label.style_label_up, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+//--FUNCTION SWING H & L LABELS--//
+
+
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+f_check_overlapping(new_poi, box_array, atr) =>
+
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+
+
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+f_supply_demand(value_array, bn_array, box_array, box_type, atr) =>
+
+    atr_buffer = atr * (sd_width / 10)
+    box_left = array.get(bn_array, 0)
+    box_right = bar_index
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+
+    if box_type == 1
+        box_top := array.get(value_array, 0)
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := array.get(value_array, 0)
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    //delete oldest box, and then create a new box and add it to the array
+    if box_type == 1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = show_supplydemand1 ? color.new(supply_color,30) : color.new(#000000,100),
+             bgcolor = show_supplydemand1 ? supply_color : color.new(#000000,100), extend = extend.right, text = show_supplydemand1 ? 'SUPPLY' : '', text_halign = text.align_center, text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+
+    else if box_type == -1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = show_supplydemand1 ? color.new(demand_color,30) : color.new(#000000,100),
+             bgcolor = show_supplydemand1 ?  demand_color : color.new(#000000,100), extend = extend.right,  text = show_supplydemand1 ? 'DEMAND' : '', text_halign = text.align_center, text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+
+
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+f_sd_to_bos(box_array, bos_array, zone_type) =>
+
+    for i = 0 to array.size(box_array) - 1
+        level_to_break = zone_type == 1 ? box.get_top(array.get(box_array,i)) : box.get_bottom(array.get(box_array,i))
+        if (zone_type == 1  and close >= level_to_break) or (zone_type == -1  and close <= level_to_break) 
+            box.delete(array.get(box_array, i))
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+
+
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+f_extend_box_endpoint(box_array) =>
+
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), bar_index + 100)
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+//-----FUNCTIONS-----//
+
+
+
+
+
+
+
+
+
+
+
+
+//-----DEFINE VARIABLES-----//
+
+
+
+
+//--ARRAYS FOR SWING H/L & BN--//
+var swing_high_values = array.new_float(5,0.00)
+var swing_low_values = array.new_float(5,0.00)
+var swing_high_bns = array.new_int(5,0)
+var swing_low_bns = array.new_int(5,0)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR SWING H/L & BN--//
+var current_supply_box = array.new_box(sd_history, na)
+var current_demand_box = array.new_box(sd_history, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR BOS--//
+var supply_bos = array.new_box(5, na)
+var demand_bos = array.new_box(5, na)
+//--ARRAYS FOR BOS--//
+//-----DEFINE VARIABLES-----//
+
+
+//-----START CALCULATING-----//
+// call functions to calculate swing highs/lows
+swing_high = request.security(syminfo.tickerid, sd_timeframe1, ta.pivothigh(high, sd_length, sd_length))
+swing_low = request.security(syminfo.tickerid, sd_timeframe1, ta.pivotlow(low, sd_length, sd_length))
+
+atr = ta.atr(50)
+
+// if new swing high
+if not na(swing_high)
+
+    // manage swing high values
+    f_array_add_pop(swing_high_values, swing_high)
+    f_array_add_pop(swing_high_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_high_values, 1)
+
+    f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, 1, atr)
+
+// if new swing low
+else if not na(swing_low)
+
+    // manage swing low values
+    f_array_add_pop(swing_low_values, swing_low)
+    f_array_add_pop(swing_low_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_low_values, -1)
+    
+    f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, -1, atr)
+
+// move s/d zones to bos
+f_sd_to_bos(current_supply_box, supply_bos, 1)
+f_sd_to_bos(current_demand_box, demand_bos, -1)
+
+
+
+
+
+
+
+// extend lines
+if barstate.islast
+
+    // tf1
+    f_extend_box_endpoint(current_supply_box)
+    f_extend_box_endpoint(current_demand_box)
+
+

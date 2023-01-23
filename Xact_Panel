@@ -1,0 +1,450 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator(title='Xact Panel')
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "Xact Panel
+ \n• Momentum = main oscillator for general overall direction
+ \n• Momentum Divergence = oscillator algorithm computation does not match price chart
+ \n• Squeeze Line = price action is compressing or building for the next move
+ \n• Rotation Band = more refined momentum that can be used for micro-pullbacks / better entries
+ \n• Xact Markers = extremeties in ATR and RSI OB/OS
+
+ \n\nXact Dashboard
+ \n• Trend = based on user-selected timeframe, tells you that timeframes trend
+ \n• Momentum = same oscillator from Panel
+ \n• MACD = tells you what the MACD oscillator is doing without wasting chart space 
+ \n• VWAP = tells you what the VWAP indicator is doing without wasting chart space 
+ \n• RVOL = informs when volume is flat, normal, or elevated depending on color
+ \n• ATR = the current ATR for the chart timeframe
+ \n• RSI = the current RSI for the chart timeframe
+ \n• ADR % = the first number is the current days range as a percent of the average. If below 100% 
+ \nthen the number next to it displays how much range is left for the day to reach 100%.
+ "
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+
+//--PANEL SETTINGS--//
+show_momo = input.bool(title='Show Momentum', defval=true, inline = '2', group='Xact Panel Settings', tooltip = "Momentum is the larger oscillator on the panel and can be used to keep you on the right side of the market. The algorithm behind Momentum takes the price point 
+     data and visually makes it easier for the trader to see what the current trading environment is like.")
+show_DIV = input.bool(title='Show Momentum Divergence', defval=false, inline='3', group='Xact Panel Settings', tooltip = "Divergence is when the Momentum Oscillator picks up on when price data is potentially decieving. If you have this tool turned on you can see when the market 
+     make be making a move that others can't see on a regular price chart.")
+show_squeeze = input.bool(title='Show Squeeze Line', defval=true, inline='4', group='Xact Panel Settings', tooltip = "The Squeeze Line shows the user when Momentum has been building up. If you squeeze something for too long eventually it will pop. The longer the squeeze line 
+     the bigger potential for a massive move in the markets. When you see a squeeze it is best to mark the current range on your chart and play the breakout of that range.")
+show_powermomo = input.bool(title='Show Rotation Band', defval=true,inline = '5',group='Xact Panel Settings', tooltip = "The rotation band can be used for scalping or a way to get better entries along the main trend. The band shows you the current rotation or price action
+     of the market.")
+show_Xactmarkers = input.bool(title='Show Xact Markers', defval=true,inline = '6',group='Xact Panel Settings', tooltip = "The Xact Markers are squares on the Panel that show when ATR or RSI have reached extremes. 
+ Extremities are good places to look to exit positions or start to look for reversal patterns. To see what the ATR % or RSI was use your cursor to hover over the dot and the data will be displayed.")
+
+panelbull_color = input.color(#05cd0e, title='Bull', inline='7', group='Xact Panel Settings')
+panelbear_color = input.color(#c30616, title='Bear', inline='7', group='Xact Panel Settings')
+squeeze_color = input.color(color.silver, title='Squeeze', inline= '7', group='Xact Panel Settings')
+//--PANEL SETTINGS--//
+
+
+//--PANEL VISUALS--//
+high1 = plot(45, color=color.new(panelbear_color, 60), editable=false)
+low1 = plot(-45, color=color.new(panelbull_color, 60), editable=false)
+high2 = plot(60, color=color.new(panelbear_color, 60), editable=false)
+low2 = plot(-60, color=color.new(panelbull_color, 60), editable=false)
+fill(high1, high2, color=color.new(panelbear_color,80))
+fill(low1, low2, color=color.new(panelbull_color,80))
+//--PANEL VISUALS--//
+
+
+//--MOMENTUM--//
+ema_length = 20
+o = ta.ema(open, ema_length)
+c = ta.ema(close, ema_length)
+h = ta.ema(high, ema_length)
+l = ta.ema(low, ema_length)
+ha_t = ticker.heikinashi(syminfo.tickerid)
+[ha_o, ha_h, ha_l, ha_c] = request.security(ha_t, timeframe.period, [ta.ema(open, ema_length), ta.ema(high, ema_length), ta.ema(low, ema_length), ta.ema(close, ema_length)])
+
+ha_o_smooth = ta.ema(ha_o, ema_length)
+ha_c_smooth = ta.ema(ha_c, ema_length)
+ha_h_smooth = ta.ema(ha_h, ema_length)
+ha_l_smooth = ta.ema(ha_l, ema_length)
+dif_oc = ha_c_smooth - ha_o_smooth
+dif_hl = ha_h_smooth - ha_l_smooth
+variable_oc_percent = dif_oc * 100 / dif_hl
+
+bull_color = color.from_gradient(variable_oc_percent, ta.lowest(variable_oc_percent, ema_length / 2), ta.highest(variable_oc_percent, ema_length / 2), color.new(panelbull_color,65), panelbull_color)
+bear_color = color.from_gradient(variable_oc_percent, ta.lowest(variable_oc_percent, ema_length / 2), ta.highest(variable_oc_percent, ema_length / 2), panelbear_color, color.new(panelbear_color,65))
+color_trend = dif_oc <= 0 ? bear_color : bull_color
+plot(show_momo ? variable_oc_percent : na, style=plot.style_columns, color=color_trend, title='Momentum Trend', editable=false)
+outline_color = variable_oc_percent >= 0 ? panelbull_color : panelbear_color
+highs3 = plot(show_momo ? variable_oc_percent : na, color=color.new(color.black, 0), linewidth=5, editable=false)
+lows3 = plot(show_momo ? variable_oc_percent : na, color=color.new(color.black, 0), linewidth=5, editable=false)
+highs2 = plot(show_momo ? variable_oc_percent : na, color=color.new(outline_color, 10), linewidth=2, editable=false)
+lows2 = plot(show_momo ? variable_oc_percent : na, color=color.new(outline_color, 10), linewidth=2, editable=false)
+alertcondition(variable_oc_percent > 0, 'Momentum Bull', 'Momentum Bull')
+alertcondition(variable_oc_percent < 0, 'Momentum Bear', 'Momentum Bear')
+//--MOMENTUM--//
+
+
+//--SQUEEZE--//
+abs_variable_oc_percent = math.abs(variable_oc_percent)
+trigger = 8
+count = 0
+count := abs_variable_oc_percent <= trigger and abs_variable_oc_percent[1] > trigger ? 1 : abs_variable_oc_percent <= trigger ? count[1] + 1 : 0
+squeeze = count >= 1
+plot(show_squeeze and squeeze ? 0 : na, 'Squeeze Line', style=plot.style_cross, linewidth=2, color=squeeze_color, editable=false)
+alertcondition(squeeze, 'Squeeze', 'Squeeze')
+//--SQUEEZE--//
+
+
+//--DIVERGENCE--//
+divergence_length = 5
+rangeUpper = 50
+rangeLower = 20
+noneColor = color.new(color.white, 100)
+osc = variable_oc_percent
+
+plFound = na(ta.pivotlow(osc, divergence_length, divergence_length)) ? false : true
+phFound = na(ta.pivothigh(osc, divergence_length, divergence_length)) ? false : true
+_inRange(cond) =>
+    bars = ta.barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+
+oscHL = osc[divergence_length] > ta.valuewhen(plFound, osc[divergence_length], 1) and _inRange(plFound[1])
+priceLL = low[divergence_length] < ta.valuewhen(plFound, low[divergence_length], 1)
+bullCond = show_DIV and priceLL and oscHL and plFound
+alertcondition(bullCond, 'Bullish Divergence', 'Bullish Divergence')
+plot(plFound ? osc[divergence_length] : na, offset=-divergence_length, title='Regular Bullish', linewidth=3, color=bullCond ? panelbull_color : noneColor, editable=false)
+plotshape(bullCond ? osc[divergence_length] : na, offset=-divergence_length, title='Regular Bullish Label', text=' ∇ ', style=shape.labelup, location=location.absolute, color=panelbull_color, textcolor=color.white, editable=false)
+
+oscLH = osc[divergence_length] < ta.valuewhen(phFound, osc[divergence_length], 1) and _inRange(phFound[1])
+priceHH = high[divergence_length] > ta.valuewhen(phFound, high[divergence_length], 1)
+bearCond = show_DIV and priceHH and oscLH and phFound
+alertcondition(bearCond, 'Bearish Divergence', 'Bearish Divergence')
+plot(phFound ? osc[divergence_length] : na, offset=-divergence_length, title='Regular Bearish', linewidth=3, color=bearCond ? panelbear_color : noneColor, editable=false)
+plotshape(bearCond ? osc[divergence_length] : na, offset=-divergence_length, title='Regular Bearish Label', text=' ∇ ', style=shape.labeldown, location=location.absolute, color=panelbear_color, textcolor=color.white, editable=false)
+//--DIVERGENCE--//
+
+
+//--POWER BAND--//
+powerlength = 14
+powercalcLength = 5
+pwoersmoothLength = 3
+oscl = 0
+for i = 1 to powerlength by 1
+    oscl := oscl + (close > close[i] ? 1 : close < close[i] ? -1 : 0)
+    oscl
+normFactor = 65 / powerlength
+oscl := oscl * normFactor
+powerma = ta.ema(oscl, powercalcLength)
+tmo = ta.ema(powerma, pwoersmoothLength)
+signal = ta.ema(tmo, pwoersmoothLength)
+powercolor = tmo > signal ? panelbull_color : panelbear_color
+power1 = plot(show_powermomo ? tmo : na, 'TMO', color=powercolor, editable=false)
+power2 = plot(show_powermomo ? signal : na, 'Signal', color=powercolor, editable=false)
+fill(power1, power2, color.new(powercolor, 70))
+alertcondition(tmo > 45, 'Power Momentum Overbought', 'Power Momentum Overbought')
+alertcondition(tmo < -45, 'Power Momentum Oversold', 'Power Momentum Oversold')
+//--POWER BAND--//
+
+
+//--DASHBOARD INPUTS--//
+show_dashboard = input.bool(title='Xact Dashboard', defval=true, inline='1', group='Xact Dashboard Settings')
+dashboard_type = input.string('Desktop Normal', title = '', options = ['Desktop Normal', 'Desktop Small', 'Mobile'], group='Xact Dashboard Settings', inline = '1')
+label_size = dashboard_type == 'Desktop Normal' ? size.normal : size.small
+positioning = position.middle_right 
+dashboard_color = input.color(color.new(#131722, 0), title='Dashboard Color', inline='3', group='Xact Dashboard Settings')
+dashboard_text = input.color(#ffffff, title='Dashboard Text Color', inline='3', group='Xact Dashboard Settings')
+dashboard_bull = color.new(panelbull_color,40)
+dashboard_bear = color.new(panelbear_color,40)
+//--DASHBOARD INPUTS--//
+
+//--DASHBOARD TREND--//
+trend_type = input.string(title='Trend - ', defval='EMA', options=['SMA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='10', group='Xact Dashboard Settings')
+trend1_length = input.int(defval=8, title='', minval=1, inline='10', group='Xact Dashboard Settings')
+trend2_length = input.int(defval=20, title='', minval=1, inline='10', group='Xact Dashboard Settings', tooltip = 'Trend on the dashboard can be edited two ways. The first way is
+ assigning the Moving Average Type and the Moving Average Lengths. The second way is changing the timeframe the Moving Averages are calculated on.\n\nFor example,
+ the default moving average settings are EMA, 8, and 20. The default timeframes are 5 minutes, 15 minutes, 60 minutes, and Day. With this setup, 
+ the Dashboard calculates the EMA 8 and EMA 20 for each timeframe. If the shorter moving average is greater than the longer moving average
+ then the trend is up. If it is the inverse the trend is down.')
+
+trend_tf1 = input.timeframe(defval='5', title='TREND - TF 1', inline='11', group='Xact Dashboard Settings')
+trend_tf2 = input.timeframe(defval='15', title='TREND - TF 2', inline='12', group='Xact Dashboard Settings')
+trend_tf3 = input.timeframe(defval='60', title='TREND - TF 3', inline='13', group='Xact Dashboard Settings')
+trend_tf4 = input.timeframe(defval='D', title='TREND - TF 4', inline='14', group='Xact Dashboard Settings')  
+    
+getMA(src, len, type) =>
+    ma_value = type == 'SMA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+
+alt1_ma1 = request.security(syminfo.tickerid, trend_tf1, getMA(close, trend1_length, trend_type), lookahead=barmerge.lookahead_on)
+alt1_ma2 = request.security(syminfo.tickerid, trend_tf1, getMA(close, trend2_length, trend_type), lookahead=barmerge.lookahead_on)
+alt1_color = alt1_ma1 > alt1_ma2 ? dashboard_bull : dashboard_bear
+
+alt2_ma1 = request.security(syminfo.tickerid, trend_tf2, getMA(close, trend1_length, trend_type), lookahead=barmerge.lookahead_on)
+alt2_ma2 = request.security(syminfo.tickerid, trend_tf2, getMA(close, trend2_length, trend_type), lookahead=barmerge.lookahead_on)
+alt2_color = alt2_ma1 > alt2_ma2 ? dashboard_bull : dashboard_bear
+
+alt3_ma1 = request.security(syminfo.tickerid, trend_tf3, getMA(close, trend1_length, trend_type), lookahead=barmerge.lookahead_on)
+alt3_ma2 = request.security(syminfo.tickerid, trend_tf3, getMA(close, trend2_length, trend_type), lookahead=barmerge.lookahead_on)
+alt3_color = alt3_ma1 > alt3_ma2 ? dashboard_bull : dashboard_bear
+
+alt4_ma1 = request.security(syminfo.tickerid, trend_tf4, getMA(close, trend1_length, trend_type), lookahead=barmerge.lookahead_on)
+alt4_ma2 = request.security(syminfo.tickerid, trend_tf4, getMA(close, trend2_length, trend_type), lookahead=barmerge.lookahead_on)
+alt4_color = alt4_ma1 > alt4_ma2 ? dashboard_bull : dashboard_bear
+//--DASHBOARD TREND--//
+
+
+//-- DASHBOARD MOMENTUM--//
+momo_info = input.string(defval = "Not Editable", title = "MOMENTUM - ", options = ["Not Editable"], inline='15', group='Xact Dashboard Settings', tooltip = 'Momentum cannot
+ be edited on the Xact Dashboard. Momentum comes from the larger oscillator on the Xact Panel.')
+//-- DASHBOARD MOMENTUM--//
+
+
+//--MACD / 0 LAG--//
+fastLength = 12
+slowLength = 26
+signalLength = 9
+src = close
+calc_zlema(src, length) =>
+    ema1 = ta.ema(src, length)
+    ema2 = ta.ema(ema1, length)
+    d = ema1 - ema2
+    ema1 + d
+ma(src, length) =>
+    calc_zlema(src, length)
+calc_leader(src, shortLength, longLength) =>
+    sema = ma(src, shortLength)
+    lema = ma(src, longLength)
+    i1 = sema + ma(src - sema, shortLength)
+    i2 = lema + ma(src - lema, longLength)
+    i1 - i2
+fastMA = ma(src, fastLength)
+slowMA = ma(src, slowLength)
+macd = fastMA - slowMA
+sig = ta.sma(macd, signalLength)
+hist = macd - sig
+zerolag = calc_leader(src, fastLength, slowLength)
+zerolag_color = hist >= 0 ? dashboard_bull : dashboard_bear
+macd_info = input.string(defval = "Not Editable", title = "MACD - ", options = ["Not Editable"], inline='16', group='Xact Dashboard Settings', tooltip = 'MACD cannot be edited. It uses the default MACD settings.')
+//--MACD / 0 LAG--//
+
+
+//--VWAP--//
+computeVWAP(src, isNewPeriod) =>
+    var float sumSrcVol = na
+    var float sumVol = na
+    var float sumSrcSrcVol = na
+    sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+    sumVol := isNewPeriod ? volume : volume + sumVol[1]
+    // sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+    sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+    _vwap = sumSrcVol / sumVol
+    variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+    variance := variance < 0 ? 0 : variance
+    stDev = math.sqrt(variance)
+    [_vwap, stDev]
+
+timeChange(period) =>
+    ta.change(time(period))
+
+isNewPeriod = timeChange('D') ? true : false
+float vwapValue = na
+float std = na
+[_vwap, _stddev] = computeVWAP(close, isNewPeriod)
+vwapValue := _vwap
+std := _stddev
+vwap_color = close > _vwap ? dashboard_bull : dashboard_bear
+vwap_info = input.string(defval = "Not Editable", title = "VWAP - ", options = ["Not Editable"], inline='17', group='Xact Dashboard Settings', tooltip = 'VWAP cannot be edited. It uses the daily vwap. If
+ price is above VWAP then the dashboard is colored green. If price is below VWAP the dashboard is colored red.')
+ //--VWAP--//
+
+
+//--VOLUME--//
+above_threshold1_color = color.new(#4dd0e1,30)
+above_threshold2_color = color.new(color.yellow,30)
+normal_color = color.new(color.gray,0)
+below_threshold1_color = dashboard_color
+
+rvol_info = input.string(defval = "Not Editable", title = "RVOL - ", options = ["Not Editable"], inline='19', group='Xact Dashboard Settings', tooltip = 'RVOL cannot be edited. \n\nLight Blue = Extremely High RVOL
+ \nYellow = High RVOL \nGray = Normal RVOL \nNo Color = Low RVOL')
+
+period = 100
+vol = volume
+svol = ta.ema(vol, period)
+rvol = vol / svol[1]
+avg_rvol = ta.ema(rvol,20)
+rvol_color =avg_rvol >= 2.00 ? above_threshold1_color: avg_rvol >= 1.25 ? above_threshold2_color : avg_rvol <= 0.80 ? below_threshold1_color : normal_color
+//--VOLUME--//
+
+
+//--ATR--//
+atr_info = input.string(defval = "Not Editable", title = "ATR - ", options = ["Not Editable"], inline='20', group='Xact Dashboard Settings', tooltip = 'ATR cannot be edited. In the Dashboard the candle ATR is shown.
+ The ATR % is not shown, instead this is expressed by background coloring. \n\nLight Blue = Extremely High ATR %
+ \nYellow = High ATR % \nGray = Normal ATR % \nNo Color = Low ATR %')
+
+atr = math.round_to_mintick(ta.atr(20))
+atr_pct_value = math.round((high - low) / atr * 100,0)
+atr_above_marker = atr_pct_value > 200 and close > open ? 1 : 0 
+atr_below_marker = atr_pct_value > 200 and close < open ? 1 : 0 
+atr_color = avg_rvol >= 450 ? above_threshold1_color: avg_rvol >= 200 ? above_threshold2_color : avg_rvol <= 90 ? below_threshold1_color : normal_color
+//--ATR--//
+
+
+//--RSI--// 
+rsi_ob = input.int(75, minval=1, title='RSI - OB', inline='21', group='Xact Dashboard Settings', tooltip = 'RSI can be edited to have the Dashboard "light up" when overbought (OB) or oversold (OS) conditions
+ are present in the market.\n\nLight Green = Overbought \nLight Red = Oversold')
+rsi_os = input.int(25, minval=1, title='RSI - OS', inline='22', group='Xact Dashboard Settings', tooltip = 'RSI can be edited to have the Dashboard "light up" when overbought (OB) or oversold (OS) conditions
+ are present in the market.\n\nLight Green = Overbought \nLight Red = Oversold')
+rsi_colorOB = color.new(#71FF71,20)
+rsi_colorOS = color.new(#FF0372,20)
+rsi = math.round(ta.rsi(close,14),2)
+rsi_above_marker = (rsi >= rsi_ob)  ? 1 : 0 
+rsi_below_marker = (rsi <= rsi_os)  ? 1 : 0 
+rsi_color = rsi_above_marker ? rsi_colorOB : rsi_below_marker ? rsi_colorOS : dashboard_color
+//--RSI--// 
+
+
+//--ADR--//
+adr_val = math.round(request.security(syminfo.tickerid, 'D', ta.sma(high - low, 14), lookahead=barmerge.lookahead_on), 2)
+dr_val = math.round(request.security(syminfo.tickerid, 'D', ta.sma(high - low, 1), lookahead=barmerge.lookahead_on), 2)
+adr_pct = math.round(dr_val / adr_val * 100,1)
+adrl_info = input.string(defval = "Not Editable", title = "ADR % - ", options = ["Not Editable"], inline='23', group='Xact Dashboard Settings', tooltip = 'ADR cannot be edited. ADR stands for
+ Average Daily Range. This cell of the dashboard compares the entire days range against the average. If the current days range has not fulfilled the average then there is likely
+ still room to trend. In the dashboard you will see the current ADR %. If the % is less than 100%, then a number will appear to the right that shows you how much range is left
+ to achieve at least a 100% ADR.')
+//--ADR--//
+
+
+//--Xact MARKERS--//
+market_text_object = '\n ◽ \n \n'
+
+f_marker_labels(atr_above, atr_below, rsi_above, rsi_below) =>
+    
+    if show_Xactmarkers
+        if atr_above or rsi_above
+            var string above_tooltip = 'testing 123'
+            above_tooltip := (atr_above ? 'ATR: ' + str.tostring(atr_pct_value, format.percent) : '') + (atr_above and rsi_above ? '\n' : '') + (rsi_above ? 'RSI: ' + str.tostring(rsi) : '') 
+            label.new(bar_index, 52.5, yloc = yloc.price, text = str.tostring(market_text_object), textcolor = color.white, tooltip = above_tooltip, style = label.style_label_center, size = size.tiny, color = color.new(#000000,100))
+
+        else if atr_below or rsi_below
+            var string below_tooltip = ''
+            below_tooltip := (atr_below ? 'ATR: ' + str.tostring(atr_pct_value, format.percent) : '') + (atr_below and rsi_below ? '\n' : '') + (rsi_below ? 'RSI: ' + str.tostring(rsi) : '') 
+            label.new(bar_index, -52.5, yloc = yloc.price, text = str.tostring(market_text_object), textcolor = color.white, tooltip = below_tooltip, style = label.style_label_center, size = size.tiny, color = color.new(#000000,100))
+
+f_marker_labels(atr_above_marker, atr_below_marker, rsi_above_marker, rsi_below_marker)
+//--Xact MARKERS--//
+
+
+//--TABLE--//
+var table t = table.new(positioning, 5, 11,frame_color=color.new(#000000, 0), frame_width=1, border_color=color.new(#000000,100), border_width=0)
+if barstate.islast and show_dashboard
+
+    if dashboard_type == 'Desktop Normal' or dashboard_type == 'Desktop Small'
+    
+        // Title Row
+        table.cell(t, 0, 0, text='Xact Dashboard', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 0, text='', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t, 0, 0, 4, 0) //merge first row
+
+        // Trend Row
+        table.cell(t, 0, 1, text='Trend', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 1, text=trend_tf1, width=0, bgcolor=alt1_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 2, 1, text=trend_tf2, width=0, bgcolor=alt2_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 3, 1, text=trend_tf3, width=0, bgcolor=alt3_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 4, 1, text=trend_tf4, width=0, bgcolor=alt4_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+        // Momentum Row
+        table.cell(t, 0, 2, text='Momentum', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 2, text=' ', width=0, bgcolor=variable_oc_percent > 0 ? dashboard_bull : dashboard_bear , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,2,4,2)
+
+        // MACD Row
+        table.cell(t, 0, 3, text='MACD', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 3, text=' ', width=0, bgcolor=zerolag_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,3,4,3)
+
+        // VWAP Row
+        table.cell(t, 0, 4, text='VWAP', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 4, text=' ', width=0, bgcolor=vwap_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,4,4,4)
+
+        // RVOL Row
+        table.cell(t, 0, 6, text='RVOL', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 6, text=str.tostring(avg_rvol, format.mintick), width=0, bgcolor=rvol_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,6,4,6)
+
+        //ATR Row
+        table.cell(t, 0, 7, text='ATR', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 7, text=str.tostring(atr, format.mintick), width=0, bgcolor=atr_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,7,4,7)
+
+        //RSI Row
+        table.cell(t, 0, 8, text='RSI', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 8, text=str.tostring(rsi, format.mintick), width=0, bgcolor=rsi_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,8,4,8)
+
+        //ADR vs DR Row
+        table.cell(t, 0, 9, text='ADR %', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 9, text=str.tostring(adr_pct, format.percent) + (adr_pct < 100 ?  ' : ' + str.tostring(adr_val-dr_val) : ''), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t,1,9,4,9)
+
+    else
+    
+        // Title Row
+        table.cell(t, 0, 0, text='Xact', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 0, text='', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.merge_cells(t, 0, 0, 1, 0) //merge first row
+
+        // Trend Row
+        // table.cell(t, 0, 1, text='TREND', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 0, 1, text=trend_tf1, width=0, bgcolor=alt1_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 1, text=trend_tf2, width=0, bgcolor=alt2_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 0, 2, text=trend_tf3, width=0, bgcolor=alt3_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 2, text=trend_tf4, width=0, bgcolor=alt4_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+        // Momentum Row
+        table.cell(t, 0, 3, text='MOMO', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 3, text=' ', width=0, bgcolor=variable_oc_percent > 0 ? dashboard_bull : dashboard_bear , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,2,4,2)
+
+        // MACD Row
+        table.cell(t, 0, 4, text='MACD', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 4, text=' ', width=0, bgcolor=zerolag_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,3,4,3)
+
+        // VWAP Row
+        table.cell(t, 0, 5, text='VWAP', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 5, text=' ', width=0, bgcolor=vwap_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,4,4,4)
+
+        // RVOL Row
+        table.cell(t, 0, 7, text='RVOL', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 7, text=str.tostring(avg_rvol, format.mintick), width=0, bgcolor=rvol_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,6,4,6)
+
+        //ATR Row
+        table.cell(t, 0, 8, text='ATR', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 8, text=str.tostring(atr, format.mintick), width=0, bgcolor=atr_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,8,4,8)
+
+        //RSI Row
+        table.cell(t, 0, 9, text='RSI', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 9, text=str.tostring(rsi, format.mintick), width=0, bgcolor=rsi_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,7,4,7)
+
+        //ADR vs DR Row
+        table.cell(t, 0, 10, text='ADR %', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 10, text=str.tostring(adr_pct, format.percent), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        // table.merge_cells(t,1,8,4,8)
+//--TABLE--//
+    
+    
+    
+    
+    

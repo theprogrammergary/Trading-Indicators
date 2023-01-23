@@ -1,0 +1,151 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Xact ORB", overlay = true)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "BE SURE TO TURN OFF THE DEFAULT TRADINGVIEW CANDLESTICKS THROUGH THE CHART MENU UP BY THE SYMBOL
+     \nAT THE TOP LEFT OF YOUR CHART IF YOU WANT TO USE THE ORB CANDLES.
+     \n\nThe Xact ORB, Opening Range Breakout/Breakdown, is a tool used by many intraday traders to take advantage of intraday momentum. 
+     \nThe opening range is defined by either the first 30 or 60 minutes of a new trading day. During that time the opening ranges are set. 
+     \nIf the opening range is over and we start to break above the Opening Range High that is a good indication that a Trend
+     \nDay to the upside could be forming. When a stock takes out the opening range high from the first 30 or 60 minutes this is called an Opening Range Breakout. 
+     \n\nYou can see the ORH and ORL (Opening Range) lines on the chart. The other lines are extension lines from the Opening Range. 
+     \nThese are used as price targets for the end of Opening Range breakouts. 
+     \n\nThe candles are colored as follows. 
+     \nIf we are above the ORH then we use Bull Color 1. 
+     \nIf we are below the ORL then we use Bull Color 2. 
+     \nIf we are above the ORM, Opening Range Mid or the halfway point between the ORH and the ORL, we color Bull Color 2. 
+     \nIf we are below the ORM then we color Bear Color 2. 
+     \nIf the current time is still within the Opening Range then we color the Opening Range Color."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+
+//--ORB SETTINGS--//
+input_or = input.session('0930-1000', title='Opening Range Time (EST)', tooltip='The time period in which the opening range is. Note - the start time needs to be before the end time or you will get unwanted results!', group = 'Opening Range Settings', inline = '1')
+show_or_ext = input.bool(true, title = 'Opening Range Targets', tooltip='Extensions are multiples of the opening range and act as intraday price targets.', group = 'Opening Range Settings', inline = '2')
+ext1 = input.float(0.5, title = '', minval = 0.1, step = 0.1, group = 'Opening Range Settings', inline = '3')
+ext2 = input.float(1.0, title = '', minval = 0.1, step = 0.1, group = 'Opening Range Settings', inline = '3')
+ext3 = input.float(1.5, title = '', minval = 0.1, step = 0.1, group = 'Opening Range Settings', inline = '3')
+//--ORB SETTINGS--//
+
+
+//--VISUAL SETTINGS--//
+custom_candles = input.bool(true, title = "ORB Candles", inline = '1', group = 'Visual Settings', tooltip = 'Be sure to hide the default Tradingview candles if you have this enabled. \n\nTo hide the default Tradingview candles
+     set the transparency for the candles to 0. This can be found where you change the candlestick colors.')
+bull_one_color = input.color(color.new(#05cd0e,0), title='Bull Candle Color 1', inline='3', group='Visual Settings', tooltip = 'Bull Color 1 is for if we are above the Opening Range High. \n\nBull Color 2 is for if we are above the Opening Range Mid')
+bull_two_color = input.color(color.new(#1b5e20,0), title='Bull Candle Color 2 ', inline='3', group='Visual Settings')
+bear_one_color = input.color(color.new(#c30616,0), title='Bear Candle Color 1', inline='4', group='Visual Settings', tooltip = 'Bear Color 1 is for if we are below the Opening Range Low. \n\Bear Color 2 is for if we are below the Opening Range Mid')
+bear_two_color = input.color(color.new(#801922,0), title='Bear Candle Color 2', inline='4', group='Visual Settings')
+not_or_color = input.color(color.new(color.gray,0), title='Opening Range Candle Color', inline='5', group='Visual Settings', tooltip = 'This color is for if we are still currently in the Opening Range period.')
+
+show_labels = input.bool(true, title = "Show Labels  | ", inline = '6', group = 'Visual Settings')
+label_color = input.color(#ffffff, title = 'Color', inline='6', group ='Visual Settings')
+//--VISUAL SETTINGS--//
+
+
+//--CALCULATE ORB--//
+or_session = time(timeframe.period, str.format('{0}:1234567', input_or), 'America/New_York')
+var or_high = 0.0
+var or_low = 0.0
+var or_mid = 0.0
+var or_size = 0.0
+var or_high_ext1 = 0.0
+var or_high_ext2 = 0.0
+var or_high_ext3 = 0.0
+var or_low_ext1 = 0.0
+var or_low_ext2 = 0.0
+var or_low_ext3 = 0.0
+var days_open = 0.0
+
+if or_session
+    if not or_session[1]
+        or_low := low
+        or_high := high
+        days_open := open
+    else
+        or_low := math.min(low, or_low)
+        or_high := math.max(high, or_high)
+        
+or_mid := or_low + (or_high - or_low) / 2
+or_size := or_high - or_low
+or_high_ext1 := or_high + (or_size * ext1)
+or_high_ext2 := or_high + (or_size * ext2)
+or_high_ext3 := or_high + (or_size * ext3)
+or_low_ext1 := or_low - (or_size * ext1)
+or_low_ext2 := or_low - (or_size * ext2)
+or_low_ext3 := or_low - (or_size * ext3)
+//--CALCULATE ORB--//
+
+
+//--PLOT ORB--//
+or_high_plot = plot(not or_session ? or_high : na, title='ORH', color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr)
+or_low_plot = plot(not or_session ? or_low : na, title='ORL', color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr)
+
+orh_ext1 = plot(show_or_ext and not or_session ? or_high_ext1 : na, title='ORH ext1', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+orl_ext1 = plot(show_or_ext and not or_session ? or_low_ext1 : na, title='ORL ext1', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+
+orh_ext2 = plot(show_or_ext and not or_session ? or_high_ext2 : na, title='ORH ext2', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+orl_ext2 = plot(show_or_ext and not or_session ? or_low_ext2 : na, title='ORL ext2', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+
+orh_ext3 = plot(show_or_ext and not or_session ? or_high_ext3 : na, title='ORH ext3', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+orl_ext3 = plot(show_or_ext and not or_session ? or_low_ext3 : na, title='ORL ext3', color=color.new(color.white, 70), linewidth=1, style=plot.style_linebr)
+
+plot(not or_session ? or_mid : na, title='ORM', color=color.new(color.gray,0), linewidth=1, style=plot.style_linebr)
+fill(or_high_plot, or_low_plot, title='OR Fill', color=color.new(color.white, 97))
+fill(or_high_plot, orh_ext3, title='OR Breakout Fill', color=color.new(#00ff0c, 97))
+fill(or_low_plot, orl_ext3, title='OR Breakdown Fill', color=color.new(#ff0016, 97))
+//--PLOT ORB--//
+
+
+//--CANDLES ORB--//
+var color candle_color = na
+if or_session
+    candle_color := not_or_color
+else if not or_session
+    if close >= or_high 
+        candle_color := bull_one_color
+    else if close >= or_mid
+        candle_color := bull_two_color
+    else if close < or_low
+        candle_color := bear_one_color
+    else if close < or_mid
+        candle_color := bear_two_color
+plotcandle(custom_candles ? open : na, custom_candles ? high : na, custom_candles ? low : na, custom_candles ? close : na, color = candle_color, wickcolor = candle_color, bordercolor = candle_color)
+//--CANDLES ORB--//
+
+
+//--LABELS ORB--//
+drawLabels(position, custom_text, textcolor) =>
+    label = label.new(bar_index + 3, y = position, text = custom_text, color = color.new(#000000,100), textcolor= textcolor, style = label.style_label_left, size = size.small, textalign = text.align_center)
+    label.delete(label[1])
+
+if show_labels and not or_session
+    drawLabels(or_high, "ORH", label_color)
+    drawLabels(or_low, "ORL", label_color)
+    drawLabels(or_mid, "ORM", label_color)
+
+    if show_or_ext
+        drawLabels(or_high_ext1, "x " + str.tostring(ext1), label_color)
+        drawLabels(or_high_ext2, "x " + str.tostring(ext2), label_color)
+        drawLabels(or_high_ext3, "x " + str.tostring(ext3), label_color)
+
+        drawLabels(or_low_ext1, "x " + str.tostring(ext1), label_color)
+        drawLabels(or_low_ext2, "x " + str.tostring(ext2), label_color)
+        drawLabels(or_low_ext3, "x" + str.tostring(ext3), label_color)
+//--LABELS ORB--//
+
+
+//--ALERTS ORB--//
+alertcondition(not or_session and ta.crossover(close,or_high) and barstate.isconfirmed, "OR Breakout","OR Breakout")
+alertcondition(not or_session and ta.crossunder(close,or_low) and barstate.isconfirmed, "OR Breakdown","OR Breakdown")
+//--ALERTS ORB--//
+
+

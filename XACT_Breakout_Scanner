@@ -1,0 +1,148 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Xact Breakout Scanner", overlay = true)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "The Xact Scanner is a scanner/watchlist that is based off the Xact Breakout Signals. 
+ \nThe user can select up to 5 symbols to keep track of at a time. 
+ \nAt all times the user will be able to watch those 5 symbols to see if there was a new buy or sell signal available. 
+ \nNo longer will you have to scroll through your charts to find trading setups. 
+ \nThe Xact Scanner increases your screen real-estate by 5x because you can watch 5 symbols at ONCE!"
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+
+//--INPUTS--//
+show_scanner = input.bool(title='Xact Breakout Scanner', defval=true, inline='1', group='Scanner Settings')
+dashboard_type = input.string('Desktop Normal', title = 'Type', options = ['Desktop Normal', 'Desktop Small', 'Mobile'], group='Scanner Settings', inline = '2')
+label_size = dashboard_type == 'Desktop Normal' ? size.normal : size.small
+position = input.string(defval='Top', options=['Top', 'Middle', 'Bottom'], title='Position', inline='2', group='Scanner Settings')
+positioning = position == 'Top' ? position.top_right : position == 'Middle' ? position.middle_right : position == 'Bottom' ? position.bottom_right : position.middle_right
+buy_color = input.color(#05cd0e, title='Buy Color', inline='3', group='Scanner Settings')
+sell_color = input.color(#c30616, title='Sell Color', inline='3', group='Scanner Settings')
+scanner_color = input.color(color.new(#131722, 0), title='BG Color', inline='4', group='Scanner Settings')
+scanner_text = input.color(#ffffff, title='Text Color', inline='4', group='Scanner Settings')
+//--INPUTS--//
+
+
+//--BREAKOUT SIGNAL FUNCTION--//
+get_trend2(symbol, trend_adj, tf) =>
+    //base logic
+    trend_length = 8 * trend_adj
+    
+    //call base trend function
+    trend_breakout = request.security(symbol, tf , barstate.isconfirmed  and (ta.rsi(close,14) > 60 or ta.rsi(close,14) < 40) and close > (ta.ema(hlc3,trend_length) + (ta.stdev(ta.ema(hlc3,trend_length),trend_length) * (0.25 * trend_adj)))  and  low > ta.ema(hlc3,trend_length) and high >= ta.highest(high, trend_length))
+    trend_breakdown = request.security(symbol, tf , barstate.isconfirmed and (ta.rsi(close,14) > 60 or ta.rsi(close,14) < 40) and close < (ta.ema(hlc3,trend_length) - (ta.stdev(ta.ema(hlc3,trend_length),trend_length) * (0.25 * trend_adj)))  and high < ta.ema(hlc3,trend_length) and low <= ta.lowest(low, trend_length))
+    
+    //plotting only for signals can be removed for scanner
+    //trend_avg = ta.ema(hlc3,trend_length)
+    //trend_stddev = ta.stdev(ta.ema(hlc3,trend_length),trend_length)
+    
+    //base trend direction
+    var trend_direction = 0
+    trend_direction := trend_breakout ? 1 : trend_breakdown ? -1 : trend_direction[1]
+    
+    //new base trend
+    var new_base_buy = false
+    new_base_buy := trend_direction == 1 and trend_direction[1] == -1
+    
+    var new_base_sell = false
+    new_base_sell := trend_direction == -1 and trend_direction[1] == 1
+    
+    var new_base_counter = 0
+    new_base_counter := new_base_buy or new_base_sell ? 1 : new_base_counter[1] + 1
+
+    var base_color = #000000
+    base_color := trend_direction == 1 ? buy_color : trend_direction == -1 ? sell_color : na   
+    
+    var crossing = 0
+    crossing := request.security(symbol, tf , ta.crossover(close, ta.ema(hlc3, trend_length)) and barstate.isconfirmed ? 1 : ta.crossunder(close, ta.ema(hlc3, trend_length)) and barstate.isconfirmed  ? -1 : 0)
+    
+    
+    //OUTPUT with or without filtering
+    var long_entry = false
+    var long_exit = false
+    var short_entry = false
+    var short_exit = false
+    
+    long_entry := new_base_buy
+    long_exit := false
+    short_entry := new_base_sell
+    short_exit := false
+    
+    //FOR SCANNER
+    var color trend_color = #000000
+    var color column_color = #000000
+    var last_signal_barindex = 0
+    var bars_ago = 0
+    var bars_ago_text = " "
+    var last_signal_text = " "
+    
+    bn = request.security(symbol, tf , bar_index)
+    last_signal_barindex := (long_entry or short_entry or long_exit or short_exit) ? bn : last_signal_barindex[1]
+    bars_ago := (bn - last_signal_barindex)
+    
+    bars_ago_text := na(bars_ago) or bars_ago > 200 ? "-"  : str.tostring(bars_ago)  + (dashboard_type == 'Mobile' ? '' : " candles ago")
+    column_color := bars_ago_text == "-" ? scanner_color : color.new(base_color,40)
+    
+    [column_color, bars_ago_text]
+//--BREAKOUT SIGNAL FUNCTION--//
+
+
+//--SCANNER SETTINGS--//
+symbol1 = input.symbol("ETSY", title = "1.", group = "Symbol 1", inline = "1", tooltip = 'If your symbol says "-" Then the signal for that symbol happened 200+ candles ago. Sometimes the candles ago may be off by a few bars depending on the data quality of Tradingview.')
+symbol1_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, group = "Symbol 1", inline = "1")
+
+symbol2 = input.symbol("AAPL", title = "2.", group = "Symbol 2", inline = "1", tooltip = 'If your symbol says "-" Then the signal for that symbol happened 200+ candles ago. Sometimes the candles ago may be off by a few bars depending on the data quality of Tradingview.')
+symbol2_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, group = "Symbol 2", inline = "1")
+
+symbol3 = input.symbol("FB", title = "3.", group = "Symbol 3", inline = "1", tooltip = 'If your symbol says "-" Then the signal for that symbol happened 200+ candles ago. Sometimes the candles ago may be off by a few bars depending on the data quality of Tradingview.')
+symbol3_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, group = "Symbol 3", inline = "1")
+
+symbol4 = input.symbol("NVDA", title = "4.", group = "Symbol 4", inline = "1", tooltip = 'If your symbol says "-" Then the signal for that symbol happened 200+ candles ago. Sometimes the candles ago may be off by a few bars depending on the data quality of Tradingview.')
+symbol4_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, group = "Symbol 4", inline = "1")
+
+symbol5 = input.symbol("SPY", title = "5.", group = "Symbol 5", inline = "1", tooltip = 'If your symbol says "-" Then the signal for that symbol happened 200+ candles ago. Sometimes the candles ago may be off by a few bars depending on the data quality of Tradingview.')
+symbol5_adj = input.int(title='Signal Adjuster', defval=10, minval=1, maxval=25, step=1, group = "Symbol 5", inline = "1")
+//--SCANNER SETTINGS--//
+
+
+//--TABLE--//
+[symbol1_trend_color, column_text1 ] = get_trend2(symbol1, symbol1_adj, "")
+[symbol2_trend_color, column_text2 ] = get_trend2(symbol2, symbol2_adj, "")
+[symbol3_trend_color, column_text3 ] = get_trend2(symbol3, symbol3_adj, "")
+[symbol4_trend_color, column_text4 ] = get_trend2(symbol4, symbol4_adj, "")
+[symbol5_trend_color, column_text5 ] = get_trend2(symbol5, symbol5_adj, "")
+
+var table t = table.new(positioning, 3, 10, frame_color=color.new(#000000, 0), frame_width=1, border_color=color.new(#000000,100), border_width=0)
+if barstate.islast and show_scanner
+  
+    // column 1
+    table.cell(t, 0, 0, text=(dashboard_type == 'Mobile' ? 'Xact Breakout' : 'Xact Breakout Scanner'), width=0, bgcolor=scanner_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 1, text= str.substring(symbol1, str.pos(symbol1, ":") + 1) , width=0, bgcolor=symbol1_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 2, text= str.substring(symbol2, str.pos(symbol2, ":") + 1) , width=0, bgcolor=symbol2_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 3, text= str.substring(symbol3, str.pos(symbol3, ":") + 1) , width=0, bgcolor=symbol3_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 4, text= str.substring(symbol4, str.pos(symbol4, ":") + 1) , width=0, bgcolor=symbol4_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 5, text= str.substring(symbol5, str.pos(symbol5, ":") + 1) , width=0, bgcolor=symbol5_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    
+    // column 2
+    table.cell(t, 1, 0, text=' ', width=0, bgcolor=scanner_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 1, text= column_text1 , width=0, bgcolor=symbol1_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 2, text= column_text2 , width=0, bgcolor=symbol2_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 1, 3, text= column_text3 , width=0, bgcolor=symbol3_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 1, 4, text= column_text4 , width=0, bgcolor=symbol4_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 1, 5, text= column_text5 , width=0, bgcolor=symbol5_trend_color, text_color=scanner_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.merge_cells(t,0,0,1,0)
+//--TABLE--//
+
+
+    
+    

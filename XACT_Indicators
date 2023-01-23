@@ -1,0 +1,295 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator('Xact Indicators', overlay=true, max_labels_count = 100, max_lines_count = 500)
+
+//--INSTRUCTIONS--//
+instructions_tooltip = "The Xact Indicators are a combination of our best technical indicators in one package.
+ \n.The Xact Bands are price-action boundaries that act as dynamic support/resistance. The bands are color
+ \ncoded to show you the strength of trend. You can take profit or make entries dynamically as price nears a band.
+ \n\nThe Xact Candles allow users to do 2 things.
+ \n1. Change the candle type to our trend candles or leave as regular/default.
+ \n2. Change how the candles are colored.
+ \n\nThe Xact S/R is our automated Support/Resistance tool that marks key price levels for you.
+ \nYou can tweak S/R by selecting the timeframe you want to gather data from, and by setting the adjuster.
+ \n\nThe Xact MAs allow the user to choose between a variety of different moving-average types. With these
+ \ntypes the user can then select the length of the moving-average as well as the timeframe.
+ \nTherefore, the user can see daily or weekly moving averages on an intraday chart!
+ \n\nLastly, we have VWAP bands. The VWAP timeframe can be set by the user as well. VWAP is used to tell trend
+ \nweighted by volume, but the neat thing is that the bands also tell you when price is extended from the average."
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+
+
+
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : type == 'Reactive' ?  ta.ema(ta.hma(src,len*2),len)
+     : type == 'Static' ?  ta.ema(ta.ema(src,len*2),len) : na
+    ma_value
+
+
+//--XACT BANDS--//
+show_bands = input.bool(title='Xact Bands', defval=true, inline='1', group='Xact Bands Settings', tooltip = "Xact bands dynamically flow with price action to give users potential areas where price action has gotten too extended from its mean.
+     \n\nWe recommend using 3.00 as the default value, but when market volatility regimes change it might be wise to adjust the value. 
+     \n\nLower to decrease band distance. \nRaise to increase band distance.") 
+band_type = input.string('Reactive', title = '', options = ['Static', 'Reactive'], inline='1', group='Xact Bands Settings')
+band_distance = input.float(title='  -  Distance', defval=4.00, minval=1, maxval=10.0, step=1.00, inline='1', group='Xact Bands Settings')
+band_upper_color = input.color(#b2b5be, title='Upper Color', inline='3', group='Xact Bands Settings')
+band_lower_color = input.color(#b2b5be, title='Lower Color', inline='3', group='Xact Bands Settings')
+
+small_ma = request.security(syminfo.tickerid, "", ta.ema(close, 50))
+big_ma = request.security(syminfo.tickerid, "", ta.ema(close, 200))
+
+ma_trend = close >= small_ma ? 1 : -1
+distance_from_ma = math.abs(close - big_ma)
+
+buy_color = #00ff0c
+sell_color = #ff0016
+neutral_color = color.yellow
+bull_color = color.from_gradient(distance_from_ma, ta.lowest(distance_from_ma, 100), ta.highest(distance_from_ma, 100), neutral_color, buy_color)
+bear_color = color.from_gradient(distance_from_ma, ta.lowest(distance_from_ma, 100), ta.highest(distance_from_ma, 100), neutral_color, sell_color)
+
+bandtrend_color = ma_trend == 1 ? bull_color : bear_color
+
+band_atr = ta.atr(200)
+band_baseline_lows = getMA((low), 20, band_type) 
+band_baseline_highs = getMA((high), 20, band_type) 
+band_low1 = plot(show_bands ? band_baseline_lows - band_atr * (band_distance + 1.00) : na, color=color.new(#ffffff, 99), editable=false)
+band_high1 = plot(show_bands ? band_baseline_highs + band_atr * (band_distance + 1.00) : na, color=color.new(#ffffff, 99), editable=false)
+band_low2 = plot(show_bands ? band_baseline_lows - band_atr * (band_distance + 1.75) : na, color=color.new(#ffffff, 99), editable=false)
+band_high2 = plot(show_bands ? band_baseline_highs + band_atr * (band_distance + 1.75) : na, color=color.new(#ffffff, 99), editable=false)
+band_low3 = plot(show_bands ? band_baseline_lows - band_atr * (band_distance + 2.5) : na, color=color.new(#ffffff, 99), editable=false)
+band_high3 = plot(show_bands ? band_baseline_highs + band_atr * (band_distance + 2.5) : na, color=color.new(#ffffff, 99), editable=false)
+band_low4 = plot(show_bands ? band_baseline_lows - band_atr * (band_distance + 3.0) : na, color=color.new(bandtrend_color, 15), editable=false, style = plot.style_circles, join = true)
+band_high4 = plot(show_bands ? band_baseline_highs + band_atr * (band_distance + 3.0) : na, color=color.new(bandtrend_color, 15), editable=false, style = plot.style_circles, join = true)
+
+fill(band_low1, band_low2, editable=false, color=color.new(band_lower_color, 90), title='Cloud')
+fill(band_high1, band_high2, editable=false, color=color.new(band_upper_color, 90), title='Cloud')
+fill(band_low2, band_low3, editable=false, color=color.new(band_lower_color, 85), title='Cloud')
+fill(band_high2, band_high3, editable=false, color=color.new(band_upper_color, 85), title='Cloud')
+fill(band_low3, band_low4, editable=false, color=color.new(bandtrend_color, 75), title='Cloud')
+fill(band_high3, band_high4, editable=false, color=color.new(bandtrend_color, 75), title='Cloud')
+//--XACT BANDS--//
+
+
+//--XACT CANDLES--//
+candle_type = input.string('Regular', options = ['Regular', 'Xact Trend'], title = 'Type', group = 'Xact Candle Settings', inline = '1', tooltip = "BE SURE TO TURN OFF THE DEFAULT TRADINGVIEW CANDLESTICKS THROUGH THE CHART MENU UP BY THE SYMBOL AT THE TOP LEFT OF YOUR CHART.
+     \n\nThe Xact Trend Candles are a smoothed candlestick that removes the noise from
+     classic candlesticks. There are two ways to use or apply the Xact Trend Candles to your chart. \n\n1. Show Xact Trend Candles - this mode plots the
+     specialized candlesticks and colors them based on the markets trend. \n\n2. Only Color Default Candles - this mode colors the default candlesticks the colors from the same
+     colors as the Xact Trend Candles, but does not plot the specialized candlesticks.
+     \n\nYou can adjust the amount of smoothing of trend by using the adjuster. The possible values range from 1-5, with 5 having the most amount of smoothing and 1 having the least amount of smoothing.")
+candle_coloring = input.string('Heatmap', options = ['Regular', 'Heatmap', 'Xact Trend'], title = 'Color', group = 'Xact Candle Settings', inline = '2')
+candle_adjuster = input.float(3, title = 'Adjuster', minval = 1, maxval = 5, step = 0.5, group = 'Xact Candle Settings', inline = '3')
+
+Xact_candle_length = math.ceil(candle_adjuster * 1.5)
+
+openMA = ta.ema(open,Xact_candle_length)
+highMA = ta.ema(high,Xact_candle_length)
+lowMA = ta.ema(low,Xact_candle_length)
+closeMA = ta.ema(close,Xact_candle_length)
+
+halow = math.min(lowMA, openMA)
+hahigh = math.max(highMA, openMA)
+candle_ema = ta.ema(closeMA, 20)
+
+var color candlecolor = #000000
+if candle_coloring == 'Regular'
+    candlecolor := close >= open ? buy_color : sell_color
+else if candle_coloring == 'Heatmap'
+    candlecolor := bandtrend_color
+else if candle_coloring == 'Xact Trend'
+    candlecolor := closeMA >= candle_ema ? buy_color : sell_color
+
+plotcandle(candle_type == 'Regular' ? open : na, candle_type == 'Regular' ? high : na, candle_type == 'Regular' ? low : na, candle_type == 'Regular'  ? close : na, color = candlecolor, wickcolor = candlecolor, bordercolor = color.new(candlecolor,40), editable = false)
+plotcandle(candle_type != 'Regular' ? openMA : na, candle_type != 'Regular' ? highMA : na, candle_type != 'Regular' ? lowMA : na, candle_type != 'Regular'  ? closeMA : na, color = candlecolor, wickcolor = candlecolor, bordercolor = color.new(candlecolor,40), editable = false)
+//--XACT CANDLES--//
+
+
+//--XACT AUTO S/R
+//Delete all Lines and labels
+allLines = line.all
+alllabels = label.all
+if barstate.islast and array.size(allLines) > 0
+	for i = 0 to array.size(allLines) - 1
+		line.delete(array.get(allLines, i))
+		
+if barstate.islast and array.size(alllabels) > 0
+	for i = 0 to array.size(alllabels) - 1
+		label.delete(array.get(alllabels, i))
+		
+show_supportresistance = input.bool(title='Xact S/R', defval=true, inline='1', group='Xact S/R Settings')
+supportresistance_tf = input.timeframe(defval='', title='', inline='1', group='Xact S/R Settings')
+sr_color = input.color(color.new(color.white,80), title='  -  Color', inline='1', group='Xact S/R Settings')
+sr_length = 5
+sr_closeness = input.float(defval=5.00, step=0.25, minval=0, maxval=10, title='Adjuster', inline='2', group='Xact S/R Settings', tooltip = "Xact S/R takes the work of plotting lines on your chart and does it for you! There are two settings you can change. 
+     \n\nBy default Xact S/R plots support and resistance on whatever timeframe your chart is on. However you could choose another timeframe to show support and resistance on. 
+     For example say you are a scalper and trade off the 1 minute chart, but use the 15 minute chart to do your chart work. 
+      All you would need to do is set the timeframe to 15 minutes. \n\nThe other adjuster you have is the spacer. If the S/R lines are too close or too far apart for your liking you can change the value of the adjuster.
+      \n\nWe recommend putting the spacer on at least 5 with timeframes of 15 minutes or higher. On lower timeframes we recommend a spacer value between 2-3.")
+sr_width = input.int(5, minval = 1, maxval = 10, title='S/R Width', inline='2', group='Xact S/R Settings')
+sr_label_offset = 50
+
+//Get Pivot Boolean Function
+createLines(srcHigh, srcLow, strength) =>
+    pivotHigh = ta.pivothigh(srcHigh, strength, strength)
+    pivotLow = ta.pivotlow(srcLow, strength, strength)
+
+    levelHigh = ta.valuewhen(pivotHigh, srcHigh[strength], 0)
+    levelLow = ta.valuewhen(pivotLow, srcLow[strength], 0)
+
+    [pivotHigh, pivotLow, levelHigh, levelLow]
+    
+//  Calculate average candle size over the last n bars. 
+avg_candle(n, tf) =>
+    high_price = request.security(syminfo.tickerid, tf, high)
+    low_price = request.security(syminfo.tickerid, tf, low)
+    ta.sma(math.abs(high_price - low_price), n)
+
+//DEFEAT LEVEL CLUSTERING
+validate_Xactximity(y, levels, m, tf) =>
+    avg = avg_candle(100, tf) * m
+    x = 0
+    for i = 0 to array.size(levels) - 1 by 1
+        level = array.get(levels, i)
+        if math.abs(level - y) < avg
+            x := x + 1
+            x
+    x == 0
+
+[is_bear_fractal, is_bull_fractal, high_level, low_level] = request.security(syminfo.tickerid, supportresistance_tf, createLines(high, low, sr_length))
+var float[] key_levels = array.new_float(20, 0.0)
+
+if is_bear_fractal and validate_Xactximity(high_level, key_levels, sr_closeness, supportresistance_tf)
+    array.unshift(key_levels, high_level)
+    array.remove(key_levels, 20)
+
+if is_bull_fractal and validate_Xactximity(low_level, key_levels, sr_closeness, supportresistance_tf)
+    array.unshift(key_levels, low_level)
+    array.remove(key_levels, 20)
+
+drawSR(key_levels,line_color,sr_width) =>
+    for i = 0 to 19 by 1
+        line_value = array.get(key_levels,i)
+        line sr_line = line.new(x1=bar_index[1], x2=bar_index, y1=line_value, y2=line_value, xloc=xloc.bar_index, width=sr_width, color=line_color, extend=extend.both)
+        label sr_label = label.new(x=bar_index + sr_label_offset, y=line_value, xloc=xloc.bar_index, yloc=yloc.price, text=str.tostring(line_value, format.mintick), textcolor=color.new(line_color,0) ,style=label.style_none, color=color.white, textalign=text.align_right, size=size.normal)
+
+if show_supportresistance and barstate.islast
+    drawSR(key_levels,sr_color,sr_width)
+//--XACT AUTO S/R
+    
+
+//--XACT SECONDARY MAS--// 
+show_ma1 = input.bool(title='MA 1: ', defval=true, inline='1', group='Xact MA Settings')
+ma1_length = input.int(defval=20, title=' ', minval=1, inline='1', group='Xact MA Settings')
+ma1_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='1', group='Xact MA Settings')
+ma1_tf = input.timeframe(title=' ', defval='', inline='1', group='Xact MA Settings')
+
+show_ma2 = input.bool(title='MA 2: ', defval=false, inline='2', group='Xact MA Settings')
+ma2_length = input.int(defval=50, title=' ', minval=1, inline='2', group='Xact MA Settings')
+ma2_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='2', group='Xact MA Settings')
+ma2_tf = input.timeframe(title=' ', defval='', inline='2', group='Xact MA Settings')
+
+show_ma3 = input.bool(title='MA 3: ', defval=false, inline='4', group='Xact MA Settings')
+ma3_length = input.int(defval=20, title=' ', minval=1, inline='4', group='Xact MA Settings')
+ma3_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='4', group='Xact MA Settings')
+ma3_tf = input.timeframe(title=' ', defval='D', inline='4', group='Xact MA Settings')
+
+show_ma4 = input.bool(title='MA 4: ', defval=false, inline='5', group='Xact MA Settings')
+ma4_length = input.int(defval=100, title=' ', minval=1, inline='5', group='Xact MA Settings')
+ma4_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], inline='5', group='Xact MA Settings')
+ma4_tf = input.timeframe(title=' ', defval='D', inline='5', group='Xact MA Settings')
+
+ma1_color = input.color(color.new(color.silver, 30), title='MA 1 Color', inline='6', group='Xact MA Settings')
+ma2_color = input.color(color.new(color.aqua, 30), title='MA 2 Color', inline='6', group='Xact MA Settings')
+ma3_color = input.color(color.new(color.yellow, 30), title='MA 3 Color', inline='6', group='Xact MA Settings')
+ma4_color = input.color(color.new(color.orange, 30), title='MA 4 Color', inline='6', group='Xact MA Settings')
+
+ma1_value = request.security(syminfo.tickerid, ma1_tf, getMA(close, ma1_length, ma1_type), lookahead=barmerge.lookahead_on)
+ma2_value = request.security(syminfo.tickerid, ma2_tf, getMA(close, ma2_length, ma2_type), lookahead=barmerge.lookahead_on)
+ma3_value = request.security(syminfo.tickerid, ma3_tf, getMA(close, ma3_length, ma3_type), lookahead=barmerge.lookahead_on)
+ma4_value = request.security(syminfo.tickerid, ma4_tf, getMA(close, ma4_length, ma4_type), lookahead=barmerge.lookahead_on)
+
+plot(show_ma1 ? ma1_value : na, editable=true, color=ma1_color, title = 'MA 1')
+plot(show_ma2 ? ma2_value : na, editable=true, color=ma2_color, title = 'MA 2')
+plot(show_ma3 ? ma3_value : na, editable=true, color=ma3_color, title = 'MA 3')
+plot(show_ma4 ? ma4_value : na, editable=true, color=ma4_color, title = 'MA 4')
+//--XACT SECONDARY MAS--// 
+
+
+//--XACT VWAP--//
+show_vwap = input.bool(title='VWAP', defval=false, inline='1', group='Xact VWAP Settings', tooltip = "One of instituions favorite indicators. Depending on the period choosen by the user, VWAP (Volume-Weighted Average Price) calculates the average price.
+     VWAP can be used as a gauge to whether buyers or sellers are in control, or it can be used in combination with deviation bands to find areas where price may be extended from its mean.")
+show_vwap_dev = input.bool(title=' Show Deviation Bands', defval=false, inline='2', group='Xact VWAP Settings')
+var anchor = input.string(defval='Session', title='  -  Period', options=['Session', 'Week', 'Month', 'Quarter', 'Year', 'Decade', 'Century', 'Earnings', 'Dividends', 'Splits'], group='Xact VWAP Settings', inline='1')
+vwap_mid = input.color(color.new(#ffffff, 70), title='VWAP Color', inline='4', group='Xact VWAP Settings')
+vwap_bull = input.color(color.new(#05cd0e, 70), title='Bull Color', inline='4', group='Xact VWAP Settings')
+vwap_bear = input.color(color.new(#c30616, 70), title='Bear Color', inline='4', group='Xact VWAP Settings')
+
+//VWAP Functions
+computeVWAP(src, isNewPeriod) =>
+    var float sumSrcVol = na
+    var float sumVol = na
+    var float sumSrcSrcVol = na
+    sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+    sumVol := isNewPeriod ? volume : volume + sumVol[1]
+    // sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+    sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+    _vwap = sumSrcVol / sumVol
+    variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+    variance := variance < 0 ? 0 : variance
+    stDev = math.sqrt(variance)
+    [_vwap, stDev]
+
+timeChange(period) =>
+    ta.change(time(period))
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on)
+isNewPeriod = anchor == 'Days Back' ? true : anchor == 'Earnings' ? new_earnings : anchor == 'Dividends' ? new_dividends : anchor == 'Splits' ? new_split : na(close[1]) ? true : anchor == 'Session' ? timeChange('D') : anchor == 'Week' ? timeChange('W') : anchor == 'Month' ? timeChange('M') : anchor == 'Quarter' ? timeChange('3M') : anchor == 'Year' ? timeChange('12M') : anchor == 'Decade' ? timeChange('12M') and year % 10 == 0 : anchor == 'Century' ? timeChange('12M') and year % 100 == 0 : false
+
+//VWAP Variables
+float vwapValue = na
+float std = na
+float UpperBand1 = na
+float LowerBand1 = na
+float UpperBand2 = na
+float LowerBand2 = na
+float UpperBand3 = na
+float LowerBand3 = na
+
+[_vwap, _stddev] = computeVWAP(close, isNewPeriod)
+//VWAP Run
+if show_vwap
+    vwapValue := _vwap
+    std := _stddev
+    UpperBand1 := vwapValue + std * 2
+    LowerBand1 := vwapValue - std * 2
+    UpperBand2 := vwapValue + std * 2.5
+    LowerBand2 := vwapValue - std * 2.5
+    UpperBand3 := vwapValue + std * 3
+    LowerBand3 := vwapValue - std * 3
+
+//VWAP Plot
+plot(vwapValue, title='VWAP', color=color.new(vwap_mid, 60), editable=true)
+upperBand1 = plot(show_vwap_dev ? UpperBand1 : na, title='Upper Band 1', color=color.new(vwap_bear, 90), editable=true)
+lowerBand1 = plot(show_vwap_dev ? LowerBand1 : na, title='Lower Band 1', color=color.new(vwap_bull, 90), editable=true)
+upperBand2 = plot(show_vwap_dev ? UpperBand2 : na, title='Upper Band 2', color=color.new(vwap_bear, 90), editable=true)
+lowerBand2 = plot(show_vwap_dev ? LowerBand2 : na, title='Lower Band 2', color=color.new(vwap_bull, 90), editable=true)
+upperBand3 = plot(show_vwap_dev ? UpperBand3 : na, title='Upper Band 3', color=color.new(vwap_bear, 90), editable=true)
+lowerBand3 = plot(show_vwap_dev ? LowerBand3 : na, title='Lower Band 3', color=color.new(vwap_bull, 90), editable=true)
+fill(upperBand1, upperBand2, title='', color=show_vwap ? color.new(vwap_bear, 90) : na, editable=false)
+fill(upperBand2, upperBand3, title='', color=show_vwap ? color.new(vwap_bear, 80) : na, editable=false)
+fill(lowerBand1, lowerBand2, title='', color=show_vwap ? color.new(vwap_bull, 90) : na, editable=false)
+fill(lowerBand2, lowerBand3, title='', color=show_vwap ? color.new(vwap_bull, 80) : na, editable=false)
+//--XACT VWAP--//
+
+
+
+if barstate.islast and instructions
+    var label instruction_label = na
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//

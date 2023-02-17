@@ -1,0 +1,195 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_robertpaxton936", overlay = true, max_labels_count = 500)
+
+// sd length input
+sd_length = input.int(5, title = 'Length', group = 'Swing High/Low Settings', inline = '1', minval = 3, maxval = 50)
+
+
+// alert / symbol inputs
+main_smybol = input.symbol('USDX', title = 'Main Symbol', group = 'Alert Symbols', inline = '1')
+
+use_symbol1 = input.bool(true, title = 'Symbol 1', group = 'Alert Symbols', inline = '2')
+symbol1 = input.symbol('CAPITALCOM:GBPUSD', title = '', group = 'Alert Symbols', inline = '2')
+
+use_symbol2 = input.bool(true, title = 'Symbol 2', group = 'Alert Symbols', inline = '3')
+symbol2 = input.symbol('CAPITALCOM:EURUSD', title = '', group = 'Alert Symbols', inline = '3')
+
+use_symbol3 = input.bool(true, title = 'Symbol 3', group = 'Alert Symbols', inline = '4')
+symbol3 = input.symbol('CAPITALCOM:USDJPY', title = '', group = 'Alert Symbols', inline = '4')
+
+use_symbol4 = input.bool(false, title = 'Symbol 4', group = 'Alert Symbols', inline = '5')
+symbol4 = input.symbol('CAPITALCOM:USDCAD', title = '', group = 'Alert Symbols', inline = '5')
+
+use_symbol5 = input.bool(false, title = 'Symbol 5', group = 'Alert Symbols', inline = '6')
+symbol5 = input.symbol('CAPITALCOM:AUDUSD', title = '', group = 'Alert Symbols', inline = '6')
+
+// alert inputs
+trend_no_matching = input.bool(true, title = 'Trend Not Matching', group = 'Alert Settings', inline = '1')
+mainhh_matching = input.bool(true, title = 'Main HH & Secondary HL', group = 'Alert Settings', inline = '2')
+mainlh_matching = input.bool(true, title = 'Main LH & Secondary LL', group = 'Alert Settings', inline = '3')
+mainll_matching = input.bool(true, title = 'Main LL & Secondary LH', group = 'Alert Settings', inline = '4')
+mainhl_matching = input.bool(true, title = 'Main HL & Secondary LL', group = 'Alert Settings', inline = '5')
+
+// dashboard inputs
+color_candles = input.bool(true, title = 'Color Candles', group = 'Dashboard Settings', inline = '1')
+show_signals = input.bool(true, title = 'Show Divergence On Chart', group = 'Dashboard Settings', inline = '2')
+dashboard_bull =  input.color(color.new(color.green,0), title='Bull', inline='3', group='Dashboard Settings')
+dashboard_bear =  input.color(color.new(color.red,0), title='Bear', inline='3', group='Dashboard Settings')
+dashboard_neutral =  input.color(color.new(color.yellow,0), title='Neutral', inline='3', group='Dashboard Settings')
+dashboard_color = input.color(color.new(#131722, 0), title='Background', inline='4', group='Dashboard Settings')
+dashboard_text = input.color(#ffffff, title='Text', inline='4', group='Dashboard Settings')
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline= '5', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+    // trend := (lh and high > psh) ? 0 : (hl and low < psl) ? 0 : ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    root = syminfo.root
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, root, last_signal]
+
+// check for divergence function
+f_divergence(main_trend, main_root, main_lastsignal, s_trend, s_root, s_lastsignal, use_alert) =>
+    
+    var bool trend_alert = na 
+    var bool hh_alert = na 
+    var bool lh_alert = na 
+    var bool ll_alert = na 
+    var bool hl_alert = na 
+
+    // HH = 2
+    // LH = -1
+    // LL = -2
+    // HL = 1
+    main_type = main_lastsignal == 2 ? ' HH' : main_lastsignal == -1 ? ' LH' : main_lastsignal == -2 ? ' LL' : main_lastsignal == 1 ? ' LH' : na
+    s_type = s_lastsignal == 2 ? ' HH' : s_lastsignal == -1 ? ' LH' : s_lastsignal == -2 ? ' LL' : s_lastsignal == 1 ? ' LH' : na
+
+    trend_alert := (trend_no_matching) and (main_trend != s_trend and main_trend != 0 and s_trend != 0) ? true : false
+    hh_alert := (mainhh_matching) and (main_lastsignal == 2 and s_lastsignal == 1) ? true : false
+    lh_alert := (mainlh_matching) and (main_lastsignal == -1 and s_lastsignal == -2)  ? true : false
+    ll_alert := (mainll_matching) and (main_lastsignal == -2 and s_lastsignal == -1)  ? true : false
+    hl_alert := (mainhl_matching) and (main_lastsignal == 1 and s_lastsignal == 2)  ? true : false
+
+
+    var string trend_alert_string = ''
+    var string hh_alert_string = ''
+    var string lh_alert_string = ''
+    var string ll_alert_string = ''
+    var string hl_alert_string = ''
+    trend_alert_string := trend_alert ? str.tostring(main_root)  + (main_trend == 1 ? ' 🟩' : main_trend == -1 ? ' 🟥' : ' 🟨') + ' | ' + str.tostring(s_root) + (s_trend == 1 ? ' 🟩' : s_trend == -1 ? ' 🟥' : ' 🟨') : na
+    hh_alert_string := hh_alert ? str.tostring(main_root)  + str.tostring(main_type) + ' | ' + str.tostring(s_root) + str.tostring(s_type) : na
+    lh_alert_string := lh_alert ? str.tostring(main_root)  + str.tostring(main_type) + ' | ' + str.tostring(s_root) + str.tostring(s_type) : na
+    ll_alert_string := ll_alert ? str.tostring(main_root)  + str.tostring(main_type) + ' | ' + str.tostring(s_root) + str.tostring(s_type) : na
+    hl_alert_string := hl_alert ? str.tostring(main_root)  + str.tostring(main_type) + ' | ' + str.tostring(s_root) + str.tostring(s_type) : na
+
+
+    var bool is_alert = na 
+    var string alert_string = ''
+    is_alert := use_alert and ( (trend_alert and not trend_alert[1]) 
+         or (hh_alert and not hh_alert[1]) or (lh_alert and not lh_alert[1]) or (ll_alert and not ll_alert[1])  or (hl_alert and not hl_alert[1]) )
+
+    alert_string := is_alert ? (
+         (trend_alert ? ('\n' + trend_alert_string) : '') 
+         + (hh_alert ? ('\n' + hh_alert_string) : '') 
+         + (lh_alert ? ('\n' + lh_alert_string) : '') 
+         + (ll_alert ? ('\n' + ll_alert_string) : '') 
+         + (hl_alert ? ('\n' + hl_alert_string) : '')
+         ) : na
+
+    [is_alert, alert_string]
+
+
+// dxy values
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, root, last_signal] = f_get_swing_values(sd_length)
+plotshape(hl and sl, text="HL", title="Higher Low", style=shape.labelup, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.belowbar, offset = -sd_length)
+plotshape(ll and sl, text="LL", title="Lower Low", style=shape.labelup, color=dashboard_bear, textcolor=color.white, location=location.belowbar, offset = -sd_length)
+plotshape(hh and sh, text="HH", title="Higher High", style=shape.labeldown, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.abovebar, offset = -sd_length)
+plotshape(lh and sh, text="LH", title="Lower High", style=shape.labeldown, color=dashboard_bear, textcolor=color.white, location=location.abovebar, offset = -sd_length)
+barcolor(color_candles and trend == 1 ? dashboard_bull : color_candles and trend == -1 ? dashboard_bear : color_candles ? dashboard_neutral : na, title = 'Trend Bar Color')
+
+plot(csh, offset = -sd_length, color = dashboard_bear, title = 'Current Swing High (Repaints)', style = plot.style_stepline, display = display.none)
+plot(csl, offset = -sd_length, color = dashboard_bull, title = 'Current Swing Low (Repaints', style = plot.style_stepline, display = display.none)
+
+// call function to get values
+[sh_main, sl_main, psh_main, psl_main, csh_main, csl_main, hh_main, lh_main, ll_main, hl_main, trend_main, root_main, last_signal_main] = request.security(main_smybol, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_1, sl_1, psh_1, psl_1, csh_1, csl_1, hh_1, lh_1, ll_1, hl_1, trend_1, root_1, last_signal_1] = request.security(symbol1, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_2, sl_2, psh_2, psl_2, csh_2, csl_2, hh_2, lh_2, ll_2, hl_2, trend_2, root_2, last_signal_2] = request.security(symbol2, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_3, sl_3, psh_3, psl_3, csh_3, csl_3, hh_3, lh_3, ll_3, hl_3, trend_3, root_3, last_signal_3] = request.security(symbol3, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_4, sl_4, psh_4, psl_4, csh_4, csl_4, hh_4, lh_4, ll_4, hl_4, trend_4, root_4, last_signal_4] = request.security(symbol4, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_5, sl_5, psh_5, psl_5, csh_5, csl_5, hh_5, lh_5, ll_5, hl_5, trend_5, root_5, last_signal_5] = request.security(symbol5, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+
+// call function to check for divergence alert and alert string
+[symbol1_divergence, symbol1_divergence_str] = f_divergence(trend_main, root_main, last_signal_main, trend_1, root_1, last_signal_1, use_symbol1) 
+[symbol2_divergence, symbol2_divergence_str] = f_divergence(trend_main, root_main, last_signal_main, trend_2, root_2, last_signal_2, use_symbol2) 
+[symbol3_divergence, symbol3_divergence_str] = f_divergence(trend_main, root_main, last_signal_main, trend_3, root_3, last_signal_3, use_symbol3) 
+[symbol4_divergence, symbol4_divergence_str] = f_divergence(trend_main, root_main, last_signal_main, trend_4, root_4, last_signal_4, use_symbol4) 
+[symbol5_divergence, symbol5_divergence_str] = f_divergence(trend_main, root_main, last_signal_main, trend_5, root_5, last_signal_5, use_symbol5) 
+
+// compute alert
+var bool divergence_alert = na
+var string alert_string = na
+
+divergence_alert := symbol1_divergence or symbol2_divergence or symbol3_divergence or symbol4_divergence or symbol5_divergence
+alert_string := 'Divergence' + symbol1_divergence_str + symbol2_divergence_str + symbol3_divergence_str + symbol4_divergence_str + symbol5_divergence_str
+
+if divergence_alert  
+    if show_signals
+        // label.new(x = time, y = hl2, text = '\n     \n     \n     ', textalign = text.align_center, xloc = xloc.bar_time, yloc = yloc.price, color = color.new(color.white, 70), style = label.style_circle,
+        //  textcolor = color.new(color.white, 0), size = size.small, tooltip = alert_string)
+        label.new(x = time, y = hl2, text = alert_string, textalign = text.align_center, xloc = xloc.bar_time, yloc = yloc.abovebar, color = color.new(color.white, 70), style = label.style_label_down,
+         textcolor = color.new(color.white, 0), size = size.small)
+
+    alert(alert_string, alert.freq_once_per_bar_close)
+
+
+// table
+var table t = table.new(positioning, 9, 9, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)
+if barstate.islast
+    table.cell(t, 0, 0, text='🎯 Divergence', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    // dxy
+    table.cell(t, 0, 1, text=root_main, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 1, text= '', width=0, bgcolor=trend_main == 1 ? dashboard_bull : trend_main == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.merge_cells(t, 0, 0, 1, 0)
+
+    if use_symbol1
+        table.cell(t, 0, 2, text=root_1, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 2, text= symbol1_divergence ? '🎯' : '', width=0, bgcolor=trend_1 == 1 ? dashboard_bull : trend_1 == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    if use_symbol2
+        table.cell(t, 0, 3, text=root_2, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 3, text= symbol2_divergence ? '🎯' : '', width=0, bgcolor=trend_2 == 1 ? dashboard_bull : trend_2 == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    if use_symbol3
+        table.cell(t, 0, 4, text=root_3, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 4, text= symbol3_divergence ? '🎯' : '', width=0, bgcolor=trend_3 == 1 ? dashboard_bull : trend_3 == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    if use_symbol4
+        table.cell(t, 0, 5, text=root_4, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 5, text= symbol4_divergence ? '🎯' : '', width=0, bgcolor=trend_4 == 1 ? dashboard_bull : trend_4 == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    if use_symbol5
+        table.cell(t, 0, 6, text=root_5, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        table.cell(t, 1, 6, text= symbol5_divergence ? '🎯' : '', width=0, bgcolor=trend_5 == 1 ? dashboard_bull : trend_5 == -1 ? dashboard_bear : dashboard_neutral , text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+        

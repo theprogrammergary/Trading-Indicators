@@ -1,0 +1,113 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// ©atraderstoolbox
+
+//@version=5
+indicator("% Chg Lines", overlay = true)
+
+// inputs
+todayonly   = input.bool(false, "Show Today Only")
+pct1        = input.float(0.50, "% 1")
+pct2        = input.float(1.00, "% 2")
+pct3        = input.float(1.50, "% 3")
+pct4        = input.float(2.00, "% 4")
+pct5        = input.float(2.50, "% 5")
+
+label_color = input.color(color.new(color.white,30), title = "Label Color")
+label_offset = input.int(10, title = "Label Offset", minval = 5, maxval = 50)
+
+
+// calculate level values
+prevclose = request.security(syminfo.tickerid, "D", close[1], barmerge.gaps_off, barmerge.lookahead_on)
+pos_pctchg1 = prevclose + (pct1 / 100 * prevclose)
+pos_pctchg2 = prevclose + (pct2 / 100 * prevclose)
+pos_pctchg3 = prevclose + (pct3 / 100 * prevclose)
+pos_pctchg4 = prevclose + (pct4 / 100 * prevclose)
+pos_pctchg5 = prevclose + (pct5 / 100 * prevclose)
+
+neg_pctchg1 = + prevclose - (pct1 / 100 * prevclose)
+neg_pctchg2 = + prevclose - (pct2 / 100 * prevclose)
+neg_pctchg3 = + prevclose - (pct3 / 100 * prevclose)
+neg_pctchg4 = + prevclose - (pct4 / 100 * prevclose)
+neg_pctchg5 = + prevclose - (pct5 / 100 * prevclose)
+
+
+// calculate plot times
+var bool isToday = false
+timeadj = syminfo.type == "stock" ? 1
+ : syminfo.type == "crypto" ? 0 
+ : 1
+
+isToday := year(timenow) == year(time_tradingday) 
+ and month(timenow) == month(time_tradingday) 
+ and dayofmonth(timenow) == (dayofmonth(time_tradingday) + timeadj)
+
+oktoplot = (isToday and todayonly) or not todayonly
+
+
+
+// plot lines
+pclose = plot(oktoplot ? prevclose : na, title = "Previous Close", style = plot.style_cross, color = color.new(color.gray,70))
+upper1 = plot(oktoplot ? pos_pctchg1 : na, title = "+ Chg 1", style = plot.style_cross, color = color.new(color.gray,80))
+upper2 = plot(oktoplot ? pos_pctchg2 : na, title = "+ Chg 2", style = plot.style_cross, color = color.new(color.gray,80))
+upper3 = plot(oktoplot ? pos_pctchg3 : na, title = "+ Chg 3", style = plot.style_cross, color = color.new(color.gray,80))
+upper4 = plot(oktoplot ? pos_pctchg4 : na, title = "+ Chg 4", style = plot.style_cross, color = color.new(color.gray,80))
+upper5 = plot(oktoplot ? pos_pctchg5 : na, title = "+ Chg 5", style = plot.style_cross, color = color.new(color.gray,80))
+
+lower1 = plot(oktoplot ? neg_pctchg1 : na, title = "- Chg 1", style = plot.style_cross, color = color.new(color.gray,80))
+lower2 = plot(oktoplot ? neg_pctchg2 : na, title = "- Chg 2", style = plot.style_cross, color = color.new(color.gray,80))
+lower3 = plot(oktoplot ? neg_pctchg3 : na, title = "- Chg 3", style = plot.style_cross, color = color.new(color.gray,80))
+lower4 = plot(oktoplot ? neg_pctchg4 : na, title = "- Chg 4", style = plot.style_cross, color = color.new(color.gray,80))
+lower5 = plot(oktoplot ? neg_pctchg5 : na, title = "- Chg 5", style = plot.style_cross, color = color.new(color.gray,80))
+
+fill(pclose, upper5, color = color.new(color.green,90), title = "Upper % Fill")
+fill(pclose, lower5, color = color.new(color.red,90), title = "Lower % Fill")
+
+
+// labels
+var label pclose_label = na
+var label upper1_label = na
+var label upper2_label = na
+var label upper3_label = na
+var label upper4_label = na
+var label upper5_label = na
+
+var label lower1_label = na
+var label lower2_label = na
+var label lower3_label = na
+var label lower4_label = na
+var label lower5_label = na
+
+if barstate.islast
+    pclose_label := label.new(bar_index + label_offset, prevclose, text = "pClose", textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    upper1_label := label.new(bar_index + label_offset, pos_pctchg1, text = str.tostring(pct1), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    upper2_label := label.new(bar_index + label_offset, pos_pctchg2, text = str.tostring(pct2), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    upper3_label := label.new(bar_index + label_offset, pos_pctchg3, text = str.tostring(pct3), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    upper4_label := label.new(bar_index + label_offset, pos_pctchg4, text = str.tostring(pct4), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    upper5_label := label.new(bar_index + label_offset, pos_pctchg5, text = str.tostring(pct5), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+
+    lower1_label := label.new(bar_index + label_offset, neg_pctchg1, text = str.tostring(-pct1), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    lower2_label := label.new(bar_index + label_offset, neg_pctchg2, text = str.tostring(-pct2), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    lower3_label := label.new(bar_index + label_offset, neg_pctchg3, text = str.tostring(-pct3), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    lower4_label := label.new(bar_index + label_offset, neg_pctchg4, text = str.tostring(-pct4), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+    lower5_label := label.new(bar_index + label_offset, neg_pctchg5, text = str.tostring(-pct5), textcolor = label_color, style = label.style_label_center, textalign = text.align_right, color = color.new(label_color, 100))
+
+
+    if not na(pclose_label[1])
+        label.delete(pclose_label[1])
+        label.delete(upper1_label[1])
+        label.delete(upper2_label[1])
+        label.delete(upper3_label[1])
+        label.delete(upper4_label[1])
+        label.delete(upper5_label[1])
+
+        label.delete(lower1_label[1])
+        label.delete(lower2_label[1])
+        label.delete(lower3_label[1])
+        label.delete(lower4_label[1])
+        label.delete(lower5_label[1])
+
+
+
+
+
+

@@ -9,8 +9,10 @@ https://www.tradingview.com/u/theGary/#published-scripts
 
 ![Freelancer Reviews](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/reviews%20from%20dec-23.png)
 
-## Some Image Examples
+## Tradingview Examples
 
-![Example1](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/mtfCharting.png)
-![Example2](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/paCandles.png)
-![Example3](https://www.tradingview.com/x/wr7sPFIO)
+![Example1](https://www.tradingview.com/x/JC1CzGpR)
+![Example2](https://www.tradingview.com/x/KRK0c7QL)
+![Example3](https://www.tradingview.com/x/xVtTarYC)
+![Example4](https://www.tradingview.com/x/KRK0c7QL)
+![Example5](https://www.tradingview.com/x/wr7sPFIO)

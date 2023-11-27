@@ -1,0 +1,192 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © theGary
+
+//@version=5
+indicator("Price-Action Candles (Lower)", overlay = false, max_labels_count = 5)
+
+
+// inputs
+sdLength    = input.int(10, title = 'Price-Action Length', minval = 1)
+
+bullCSS     = input.color(color.lime, title = 'Bull')
+bearCSS     = input.color(color.rgb(255, 0, 0), title = 'Bear')
+neutCSS     = input.color(color.yellow, title = 'Neutral')
+
+
+use_mtf1        = input.bool(true, title = 'MTF 1', group = 'MTF Trend', inline = '1')
+mtf_1           = input.timeframe("1", title = '', group = 'MTF Trend', inline = '1')
+
+use_mtf2        = input.bool(true, title = 'MTF 2', group = 'MTF Trend', inline = '2')
+mtf_2           = input.timeframe("5", title = '', group = 'MTF Trend', inline = '2')
+
+use_mtf3        = input.bool(true, title = 'MTF 3', group = 'MTF Trend', inline = '3')
+mtf_3           = input.timeframe("15", title = '', group = 'MTF Trend', inline = '3')
+
+use_mtf4        = input.bool(true, title = 'MTF 4', group = 'MTF Trend', inline = '4')
+mtf_4           = input.timeframe("60", title = '', group = 'MTF Trend', inline = '4')
+
+use_mtf5        = input.bool(true, title = 'MTF 5', group = 'MTF Trend', inline = '5')
+mtf_5           = input.timeframe("D", title = '', group = 'MTF Trend', inline = '5')
+
+
+
+// functions
+f_getSwingValues(sdLength, offset) =>
+    sh = ta.pivothigh(high, sdLength, sdLength)
+    sl = ta.pivotlow(low, sdLength, sdLength)
+
+    csh = ta.valuewhen(not na(sh), high[sdLength], 0)
+    csl = ta.valuewhen(not na(sl), low[sdLength], 0)
+
+    psh = ta.valuewhen(not na(sh), high[sdLength], 1)
+    psl = ta.valuewhen(not na(sl), low[sdLength], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh[offset], sl[offset], psh[offset], psl[offset], csh[offset], csl[offset], hh[offset], lh[offset], ll[offset], hl[offset], trend[offset], last_signal[offset]]
+
+
+
+// calculate mtf
+f_ltf_values(tf) =>
+    var int returnTrend = na
+
+    adjusted_timeframe = timeframe.in_seconds(tf) >= timeframe.in_seconds() ? '' : tf
+    [ltf_sh, ltf_sl, ltf_psh, ltf_psl, ltf_csh, ltf_csl, ltf_hh, ltf_lh, ltf_ll, ltf_hl, ltf_trend, ltf_last_signal] = 
+     request.security_lower_tf(syminfo.tickerid, adjusted_timeframe, f_getSwingValues(sdLength, 0))
+
+    if array.size(ltf_trend) > 0
+        returnTrend := array.last(ltf_trend)
+    else
+        returnTrend := 0
+
+    returnTrend
+
+
+
+f_htf_values(tf) =>
+    [htf_sh, htf_sl, htf_psh, htf_psl, htf_csh, htf_csl, htf_hh, htf_lh, htf_ll, htf_hl, htf_trend, htf_last_signal] = 
+     request.security(syminfo.tickerid, tf, f_getSwingValues(sdLength, 1), lookahead = barmerge.lookahead_on)
+
+    htf_trend
+
+
+f_sametf_values() =>
+    [sametf_sh, sametf_sl, sametf_psh, sametf_psl, sametf_csh, sametf_csl, sametf_hh, sametf_lh, sametf_ll, sametf_hl, sametf_trend, sametf_last_signal] =
+     f_getSwingValues(sdLength, 0)
+
+    sametf_trend
+
+
+var int mtf1_trend = na
+var int mtf2_trend = na
+var int mtf3_trend = na
+var int mtf4_trend = na
+var int mtf5_trend = na
+
+if use_mtf1
+    if timeframe.in_seconds() == timeframe.in_seconds(mtf_1)
+        mtf1_trend := f_sametf_values()
+    else if timeframe.in_seconds() > timeframe.in_seconds(mtf_1)
+        mtf1_trend := f_ltf_values(mtf_1)
+    else
+        mtf1_trend := f_htf_values(mtf_1)
+
+if use_mtf2
+    if timeframe.in_seconds() == timeframe.in_seconds(mtf_2)
+        mtf2_trend := f_sametf_values()
+    else if timeframe.in_seconds() > timeframe.in_seconds(mtf_2)
+        mtf2_trend := f_ltf_values(mtf_2)
+    else
+        mtf2_trend := f_htf_values(mtf_2)
+
+if use_mtf3
+    if timeframe.in_seconds() == timeframe.in_seconds(mtf_3)
+        mtf3_trend := f_sametf_values()
+    else if timeframe.in_seconds() > timeframe.in_seconds(mtf_3)
+        mtf3_trend := f_ltf_values(mtf_3)
+    else
+        mtf3_trend := f_htf_values(mtf_3)
+
+if use_mtf4
+    if timeframe.in_seconds() == timeframe.in_seconds(mtf_4)
+        mtf4_trend := f_sametf_values()
+    else if timeframe.in_seconds() > timeframe.in_seconds(mtf_4)
+        mtf4_trend := f_ltf_values(mtf_4)
+    else
+        mtf4_trend := f_htf_values(mtf_4)
+
+if use_mtf5
+    if timeframe.in_seconds() == timeframe.in_seconds(mtf_5)
+        mtf5_trend := f_sametf_values()
+    else if timeframe.in_seconds() > timeframe.in_seconds(mtf_5)
+        mtf5_trend := f_ltf_values(mtf_5)
+    else
+        mtf5_trend := f_htf_values(mtf_5)
+
+
+// plot mtf lines
+plot(5, title = 'MTF 1', color = mtf1_trend == 1 ? bullCSS : mtf1_trend == -1 ? bearCSS : neutCSS, style = plot.style_cross, linewidth = 5, display = use_mtf1 ? display.all : display.none, editable = false)
+plot(4, title = 'MTF 2', color = mtf2_trend == 1 ? bullCSS : mtf2_trend == -1 ? bearCSS : neutCSS, style = plot.style_cross, linewidth = 5, display = use_mtf2 ? display.all : display.none, editable = false)
+plot(3, title = 'MTF 3', color = mtf3_trend == 1 ? bullCSS : mtf3_trend == -1 ? bearCSS : neutCSS, style = plot.style_cross, linewidth = 5, display = use_mtf3 ? display.all : display.none, editable = false)
+plot(2, title = 'MTF 4', color = mtf4_trend == 1 ? bullCSS : mtf4_trend == -1 ? bearCSS : neutCSS, style = plot.style_cross, linewidth = 5, display = use_mtf4 ? display.all : display.none, editable = false)
+plot(1, title = 'MTF 5', color = mtf5_trend == 1 ? bullCSS : mtf5_trend == -1 ? bearCSS : neutCSS, style = plot.style_cross, linewidth = 5, display = use_mtf5 ? display.all : display.none, editable = false)
+
+
+// labels
+var label mtf1_label = na
+var label mtf2_label = na
+var label mtf3_label = na
+var label mtf4_label = na
+var label mtf5_label = na
+
+
+if barstate.islast
+    if use_mtf1
+        if na(mtf1_label[1])
+            mtf1_label := label.new(x=bar_index+5, y=5, text = str.tostring(mtf_1), color = mtf1_trend == 1 ? bullCSS : mtf1_trend == -1 ? bearCSS : neutCSS,
+             textcolor = color.black, style = label.style_label_center, textalign = text.align_center)
+        else
+            label.set_x(mtf1_label[1], bar_index+5)
+            label.set_color(mtf1_label[1], color = mtf1_trend == 1 ? bullCSS : mtf1_trend == -1 ? bearCSS : neutCSS)
+
+    if use_mtf2
+        if na(mtf2_label[1])
+            mtf2_label := label.new(x=bar_index+5, y=4, text = str.tostring(mtf_2), color = mtf2_trend == 1 ? bullCSS : mtf2_trend == -1 ? bearCSS : neutCSS,
+             textcolor = color.black, style = label.style_label_center, textalign = text.align_center)
+        else
+            label.set_x(mtf2_label[1], bar_index+5)
+            label.set_color(mtf2_label[1], color = mtf2_trend == 1 ? bullCSS : mtf2_trend == -1 ? bearCSS : neutCSS)
+
+    if use_mtf3
+        if na(mtf3_label[1])
+            mtf3_label := label.new(x=bar_index+5, y=3, text = str.tostring(mtf_3), color = mtf3_trend == 1 ? bullCSS : mtf3_trend == -1 ? bearCSS : neutCSS,
+             textcolor = color.black, style = label.style_label_center, textalign = text.align_center)
+        else
+            label.set_x(mtf3_label[1], bar_index+5)
+            label.set_color(mtf3_label[1], color = mtf3_trend == 1 ? bullCSS : mtf3_trend == -1 ? bearCSS : neutCSS)
+
+    if use_mtf4
+        if na(mtf4_label[1])
+            mtf4_label := label.new(x=bar_index+5, y=2, text = str.tostring(mtf_4), color = mtf4_trend == 1 ? bullCSS : mtf4_trend == -1 ? bearCSS : neutCSS,
+             textcolor = color.black, style = label.style_label_center, textalign = text.align_center)
+        else
+            label.set_x(mtf4_label[1], bar_index+5)
+            label.set_color(mtf4_label[1], color = mtf4_trend == 1 ? bullCSS : mtf4_trend == -1 ? bearCSS : neutCSS)
+
+    if use_mtf5
+        if na(mtf5_label[1])
+            mtf5_label := label.new(x=bar_index+5, y=1, text = str.tostring(mtf_5), color = mtf5_trend == 1 ? bullCSS : mtf5_trend == -1 ? bearCSS : neutCSS,
+             textcolor = color.black, style = label.style_label_center, textalign = text.align_center)
+        else
+            label.set_x(mtf5_label[1], bar_index+5)
+            label.set_color(mtf5_label[1], color = mtf5_trend == 1 ? bullCSS : mtf5_trend == -1 ? bearCSS : neutCSS)

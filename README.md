@@ -5,3 +5,8 @@ This repository features a mix of trading indicators from Thinkorswim, TradingVi
 ## Freelancer Reviews
 
 ![Freelancer Reviews](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/reviews%20from%20dec-23.png)
+
+## Some Image Examples
+
+![Example1](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/mtfCharting.png)
+![Example2](https://github.com/theprogrammergary/Trading-Indicators/blob/main/images/paCandles.png)

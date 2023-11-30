@@ -1,0 +1,169 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("Bankai DTEK Strategy", overlay=true, margin_long=100, margin_short=100, max_bars_back=4999, max_lines_count=500, max_labels_count=10)
+
+// --BANKAI + DTEK-- //
+RSI_Period = input(14, title='RSI Length', group = 'Bankai + DTEK Settings')
+SF = input(5, title='RSI Smoothing', group = 'Bankai + DTEK Settings')
+QQE = input(4.238, title='Fast QQE Factor', group = 'Bankai + DTEK Settings')
+ThreshHold = input(10, title='Thresh-hold', group = 'Bankai + DTEK Settings')
+
+src = close
+Wilders_Period = RSI_Period * 2 - 1
+
+Rsi = ta.rsi(src, RSI_Period)
+RsiMa = ta.ema(Rsi, SF)
+AtrRsi = math.abs(RsiMa[1] - RsiMa)
+MaAtrRsi = ta.ema(AtrRsi, Wilders_Period)
+dar = ta.ema(MaAtrRsi, Wilders_Period) * QQE
+
+longband = 0.0
+shortband = 0.0
+trend = 0
+
+DeltaFastAtrRsi = dar
+RSIndex = RsiMa
+newshortband = RSIndex + DeltaFastAtrRsi
+newlongband = RSIndex - DeltaFastAtrRsi
+longband := RSIndex[1] > longband[1] and RSIndex > longband[1] ? math.max(longband[1], newlongband) : newlongband
+shortband := RSIndex[1] < shortband[1] and RSIndex < shortband[1] ? math.min(shortband[1], newshortband) : newshortband
+cross_1 = ta.cross(longband[1], RSIndex)
+trend := ta.cross(RSIndex, shortband[1]) ? 1 : cross_1 ? -1 : nz(trend[1], 1)
+FastAtrRsiTL = trend == 1 ? longband : shortband
+
+// FINDING QQE CROSSES
+
+QQExlong = 0
+QQExlong := nz(QQExlong[1])
+QQExshort = 0
+QQExshort := nz(QQExshort[1])
+QQExlong := FastAtrRsiTL < RSIndex ? QQExlong + 1 : 0
+QQExshort := FastAtrRsiTL > RSIndex ? QQExshort + 1 : 0
+
+
+// DTEK CANDLES
+getMA(src, len, type) =>
+    ma_value = type == 'SMA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : ta.sma(src, len)
+    ma_value
+
+ST_Atr_Mult = input.float(1.0, title = 'ST ATR Mult', group = 'Bankai + DTEK Settings')
+ST_Length = input.int(4, title = 'ST Length', group = 'Bankai + DTEK Settings')
+ST_AvgType = input.string('HMA', title = 'ST AvgType', options = ['SMA', 'WMA','VWMA', 'EMA', 'HMA'], group = 'Bankai + DTEK Settings')
+
+ATR = getMA( ta.tr(false), ST_Length, ST_AvgType )
+UP = hl2 + (ST_Atr_Mult* ATR) 
+DN = hl2 + (-ST_Atr_Mult * ATR) 
+var float ST = na
+ST := close < ST[1] ? UP : DN 
+
+SuperTrend = ST 
+
+lengthCCI = input.int(50, title = 'CCI Length', group = 'Bankai + DTEK Settings')
+lengthATR = input.int(21, title = 'CCI ATR Length', group = 'Bankai + DTEK Settings')
+AtrFactor = input.float(1.0, title = 'CCI ATR Factor', group = 'Bankai + DTEK Settings')
+
+ATRcci = ta.sma( ta.tr(false), lengthATR) * AtrFactor
+price = close + low + high
+pricedata = hl2
+CCI = (price - ta.sma(price, lengthCCI)) / (0.015 * ta.dev(price, lengthCCI))
+
+var float MT1 = 0
+MT1 := CCI > 0 ? math.max(nz(MT1[1],0), pricedata - ATRcci) : math.min(nz(MT1[1],0), pricedata + ATRcci)
+CCI_ATR_TREND = MT1
+
+green_candles =  close > MT1 and close > ST
+red_candles =  close < MT1 and close < ST
+
+barcolor(green_candles ? color.green : red_candles ? color.red : color.gray)
+// DTEK CANDLES
+
+
+qqeLong = QQExlong == 1 and green_candles ? FastAtrRsiTL[1] - 50 : na
+qqeShort = QQExshort == 1 and red_candles ? FastAtrRsiTL[1] - 50 : na
+
+plotshape(qqeLong, title='QQE long', text='Long', textcolor=color.new(color.white, 0), style=shape.labelup, location=location.belowbar, color=color.new(color.teal, 0), size=size.tiny)
+plotshape(qqeShort, title='QQE short', text='Short', textcolor=color.new(color.white, 0), style=shape.labeldown, location=location.abovebar, color=color.new(color.maroon, 0), size=size.tiny)
+// --BANKAI + DTEK-- //
+
+
+// --REVERSAL-- //
+// inputs
+length = input.int(19, title="BBands Length", minval=1, tooltip="Bollinger band length used in calculation",  group="Reversal Bar Settings")   
+mult = input.float(2, title="BBands Multiplier", minval=0.001, maxval=50, tooltip="Bollinger band multiplier used in calculation",  group="Reversal Bar Settings") 
+showCheckmarks = input.bool( true , title="Show Checkmarks", tooltip="Checkmarks provide confirmation",  group="Reversal Bar Settings") 
+isRsi = input.bool( false , title="RSI confluence", tooltip="Show reversal signal only when RSI is overbought/oversold",  group="Reversal Bar Settings") 
+rsiLen = input.int( 14 , title="RSI Length",  group="Reversal Bar Settings") 
+overSold = input.int( 30 , title="RSI Oversold",  group="Reversal Bar Settings") 
+overBought = input.int ( 70 , title="RSI Overbought",  group="Reversal Bar Settings") 
+
+//calculate bollinger bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upper = basis + dev
+lower = basis - dev
+
+//calculate RSI
+vrsi = ta.rsi(close, rsiLen)
+rsiBull = ta.crossover(vrsi, overSold)
+rsiBear = ta.crossunder(vrsi, overBought)
+
+// Reversal Bar - Bullish Signal
+// Pseudo: went out lower band AND red candle AND came back in AND green candle
+bullReversal =  low[1]<lower[1] and close[1]<open[1] and close>lower and close>open  
+// Pseudo: everything above AND candle close above signal candles wick.
+bullReversalConfirm =   low[2]<lower[2] and close[2]<open[2] and close[1]>lower[1] and close[1]>open[1] and close>high[1]
+
+//  Reversal Bar - Bearish Signal
+// Pseudo: went out upper band AND green candle AND came back in AND red candle
+bearReversal  = high[1]>upper[1] and close[1]>open[1] and close<upper and close<open 
+// Pseudo: everything above AND candle close below signal candles wick.
+bearReversalConfirm =  high[2]>upper[2] and close[2]>open[2] and close[1]<upper[1] and close[1]<open[1] and close<low[1]
+
+if isRsi
+    bullReversal:=bullReversal and rsiBull
+    bearReversal:=bearReversal and rsiBear
+    bullReversalConfirm:=false
+    bearReversalConfirm:=false
+    
+// UI    
+plotchar(bullReversal, "Bull Reversal", "R", location.belowbar,color.rgb(124, 251, 216),size=size.tiny)
+plotchar(bearReversal, "Bear Reversal", "R", location.abovebar,color=color.yellow,size=size.tiny)
+plotchar(showCheckmarks?bullReversalConfirm:na, "Bull Reversal Confirm", "", location.belowbar, text="✓", color=color.rgb(124, 251, 216),size=size.tiny)
+plotchar(showCheckmarks?bearReversalConfirm:na, "Bear Reversal Confirm", "", location.abovebar, text="✓", color=color.yellow,size=size.tiny)
+// --REVERSAL-- //
+
+// --STRATEGY INPUTS-- //
+strategy_start = input.time(timestamp("01 January 2020 00:00:00 UTC-5"), "Strategy Start Date", group = "StrategySettings", inline = '1')
+use_trading_hours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "StrategySettings", inline = '2')
+trading_time = input.session("0930-1600", title = " ", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "StrategySettings", inline = '2')
+trading_hours_cond = not use_trading_hours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "StrategySettings", inline = '3')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "StrategySettings", inline = '4')
+
+long_entry = long_trades and trading_hours_cond and qqeLong
+long_exit = long_trades and (not green_candles or bearReversal or (showCheckmarks and bearReversalConfirm))
+
+short_entry = short_trades and trading_hours_cond and  qqeShort
+short_exit = short_trades and (not red_candles or bullReversal or (showCheckmarks and bullReversalConfirm))
+
+past_strategy_start_date = time >= strategy_start ? true : false
+// --STRATEGY INPUTS-- //
+
+
+// --ORDERS-- //
+if past_strategy_start_date
+    if long_exit
+        strategy.close("LE", comment = 'LX')
+
+    if short_exit
+        strategy.close("SS_E", comment = 'SS_X')
+
+    if long_entry
+        strategy.entry("LE", strategy.long)
+
+    if short_entry
+        strategy.entry("SS_E", strategy.short)
+// --ORDERS-- //
+

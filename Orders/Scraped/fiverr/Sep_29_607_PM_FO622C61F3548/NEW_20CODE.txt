@@ -1,0 +1,25 @@
+input length = 1000;
+input bars_to_remain_true = 5;
+
+
+
+
+
+
+
+
+def highs_length = highest(high, length);
+def lows_length = lowest(low, length);
+
+plot new_highs = high == highs_length;
+new_highs.hide();
+
+plot new_lows = low == lows_length;
+new_lows.hide();
+
+input color_candles = yes;
+input show_labels = yes;
+
+assignBackgroundColor(if new_highs is true within bars_to_remain_true bars then color.cyan else if new_lows is true within bars_to_remain_true bars then color.magenta else color.black);
+
+addlabel(yes, if new_highs is true within bars_to_remain_true bars then "HIGHS" else if new_lows is true within bars_to_remain_true bars then "LOWS" else " ", color.black);

@@ -1,0 +1,87 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("VWAP Bars", overlay = true, timeframe="", timeframe_gaps=true)
+
+
+
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings")
+var anchor = input.string(defval = "Session", title="Anchor Period",
+ options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group="VWAP Settings")
+src = input(title = "Source", defval = hlc3, group="VWAP Settings")
+offset = input(0, title="Offset", group="VWAP Settings")
+
+showBand_1 = input(true, title="", group="Standard Deviation Bands Settings", inline="band_1")
+stdevMult_1 = input(1.0, title="Bands Multiplier #1", group="Standard Deviation Bands Settings", inline="band_1")
+showBand_2 = input(true, title="", group="Standard Deviation Bands Settings", inline="band_2")
+stdevMult_2 = input(2.0, title="Bands Multiplier #2", group="Standard Deviation Bands Settings", inline="band_2")
+showBand_3 = input(true, title="", group="Standard Deviation Bands Settings", inline="band_3")
+stdevMult_3 = input(3.0, title="Bands Multiplier #3", group="Standard Deviation Bands Settings", inline="band_3")
+
+if barstate.islast and ta.cum(volume) == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+	"Earnings"  => not na(new_earnings)
+	"Dividends" => not na(new_dividends)
+	"Splits"    => not na(new_split)
+	"Session"   => timeframe.change("D")
+	"Week"      => timeframe.change("W")
+	"Month"     => timeframe.change("M")
+	"Quarter"   => timeframe.change("3M")
+	"Year"      => timeframe.change("12M")
+	"Decade"    => timeframe.change("12M") and year % 10 == 0
+	"Century"   => timeframe.change("12M") and year % 100 == 0
+	=> false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(src[1]) and not isEsdAnchor
+	isNewPeriod := true
+
+float vwapValue = na
+float upperBandValue1 = na
+float lowerBandValue1 = na
+float upperBandValue2 = na
+float lowerBandValue2 = na
+float upperBandValue3 = na
+float lowerBandValue3 = na
+
+if not (hideonDWM and timeframe.isdwm)
+    [_vwap, _stdevUpper, _] = ta.vwap(src, isNewPeriod, 1)
+	vwapValue := _vwap
+    stdevAbs = _stdevUpper - _vwap
+	upperBandValue1 := _vwap + stdevAbs * stdevMult_1
+	lowerBandValue1 := _vwap - stdevAbs * stdevMult_1
+	upperBandValue2 := _vwap + stdevAbs * stdevMult_2
+	lowerBandValue2 := _vwap - stdevAbs * stdevMult_2
+	upperBandValue3 := _vwap + stdevAbs * stdevMult_3
+	lowerBandValue3 := _vwap - stdevAbs * stdevMult_3
+
+vwap_plot = plot(vwapValue, title="VWAP", color=close > vwapValue ? color.green : color.red, offset=offset)
+
+upperBand_1 = plot(showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.rgb(116, 88, 45), offset=offset)
+lowerBand_1 = plot(showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.rgb(116, 88, 45), offset=offset)
+
+upperBand_2 = plot(showBand_2 ? upperBandValue2 : na, title="Upper Band #2", color=color.rgb(116, 88, 45), offset=offset)
+lowerBand_2 = plot(showBand_2 ? lowerBandValue2 : na, title="Lower Band #2", color=color.rgb(116, 88, 45), offset=offset)
+
+upperBand_3 = plot(showBand_3 ? upperBandValue3 : na, title="Upper Band #3", color=color.rgb(116, 88, 45), offset=offset)
+lowerBand_3 = plot(showBand_3 ? lowerBandValue3 : na, title="Lower Band #3", color=color.rgb(116, 88, 45), offset=offset)
+
+
+fill(vwap_plot, lowerBand_1, title="Lower Fill 1", color= color.new(color.orange, 97))
+fill(lowerBand_1, lowerBand_2, title="Lower Fill 2", color= color.new(color.orange, 96))
+fill(lowerBand_2, lowerBand_3, title="Lower Fill 3", color= color.new(color.orange, 93))
+
+fill(vwap_plot, upperBand_1, title="Upper Fill 1", color= color.new(color.orange, 97))
+fill(upperBand_1, upperBand_2, title="Upper Fill 2", color= color.new(color.orange, 96)) 
+fill(upperBand_2, upperBand_3, title="Upper Fill 3", color= color.new(color.orange, 93))
+
+barcolor(close > vwapValue ? color.green : color.red)
+
+

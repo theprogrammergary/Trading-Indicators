@@ -1,0 +1,191 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("LinReg Bands", overlay=true)
+
+
+//
+//TF1
+//
+tf1_price = input.source(close, inline='2', title = 'Source',  group='Settings')
+tf1_linreg_length = input.int(title='Length ', defval=100, inline='2', maxval = 1000, minval = 10, group='Settings')
+tf1_linreg_deviation1 = input.float(title='Deviation 1', defval=2.00, step=0.25, minval=0.1, maxval=10.00, inline='3', group='Settings')
+tf1_linreg_deviation2 = input.float(title='Deviation 2', defval=3.00, step=0.25, minval=0.1, maxval=10.00, inline='4', group='Settings')
+tf1_linreg_deviation3 = input.float(title='Deviation 3', defval=4.00, step=0.25, minval=0.1, maxval=10.00, inline='5', group='Settings')
+
+
+tf1_color = input.color(color.new(#353865, 0), title='Zone 1 Color', inline='6', group='Settings')
+tf2_color = input.color(color.new(#383d84, 0), title='Zone 2 Color', inline='6', group='Settings')
+tf3_color = input.color(color.new(#5763ff, 0), title='Zone 3 Color', inline='6', group='Settings')
+
+tf1_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='7', group='Settings')
+tf1_width = input.int(1, title = 'Width', minval = 1, maxval = 5, inline='7', group='Settings')
+tf1_bg = 90
+tf1_extendStyle = switch
+    tf1_extend == "Both" => extend.both
+    tf1_extend == "Left" => extend.left
+    tf1_extend == "Right" => extend.right
+    => extend.none
+//
+//FUNCTION TO CALCULATE VALUES
+//
+calculate_linreg(source, length, deviation1, deviation2, deviation3) =>
+    a = ta.wma(source, length)
+    b = ta.sma(source, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(source[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation1
+    linreg_2 = math.sqrt(d / (length - 1)) * deviation2
+    linreg_3 = math.sqrt(d / (length - 1)) * deviation3
+    
+
+    // mid 
+    y1_midvalue = A + 0
+    y2_midvalue = -m + (B + 0)
+    
+    // zone 1
+    y1_lowervalue = A - linreg_1
+    y2_lowervalue = -m + (B - linreg_1)
+    y1_uppervalue = A + linreg_1
+    y2_uppervalue = -m + (B + linreg_1)
+
+    // zone 2
+    y1_lowervalue2 = A - linreg_2
+    y2_lowervalue2 = -m + (B - linreg_2)
+    y1_uppervalue2 = A + linreg_2
+    y2_uppervalue2 = -m + (B + linreg_2)
+
+    // zone 3
+    y1_lowervalue3 = A - linreg_3
+    y2_lowervalue3 = -m + (B - linreg_3)
+    y1_uppervalue3 = A + linreg_3
+    y2_uppervalue3 = -m + (B + linreg_3)
+
+    
+    x1_value = time[length]
+    
+    [x1_value, y1_midvalue, y2_midvalue, y1_uppervalue, y2_uppervalue, y1_lowervalue, y2_lowervalue,
+     y1_uppervalue2, y2_uppervalue2, y1_lowervalue2, y2_lowervalue2,
+     y1_uppervalue3, y2_uppervalue3, y1_lowervalue3, y2_lowervalue3]
+//
+//
+
+//
+//FUNCTION TO DRAW LINES
+//
+drawLinReg(color_input, extension_input, width_input, x1_value, y1_value, y2_value, linreg_length) =>
+        
+    line line_variable = line.new(x1_value, y1_value, time, y2_value, extend = extension_input, color = color_input, width = width_input, xloc = xloc.bar_time)
+    line_variable
+    
+//
+//
+[tf1_x1_value, tf1_y1_midvalue, tf1_y2_midvalue, tf1_y1_uppervalue, tf1_y2_uppervalue, tf1_y1_lowervalue, tf1_y2_lowervalue,
+     y1_uppervalue2, y2_uppervalue2, y1_lowervalue2, y2_lowervalue2,
+     y1_uppervalue3, y2_uppervalue3, y1_lowervalue3, y2_lowervalue3]
+
+ = calculate_linreg(tf1_price, tf1_linreg_length, tf1_linreg_deviation1, tf1_linreg_deviation2, tf1_linreg_deviation3)
+
+
+plot(tf1_y2_uppervalue, title = 'Upper 1', color = tf1_color, display = display.none, style = plot.style_stepline)
+plot(tf1_y2_lowervalue, title = 'Lower 1', color = tf1_color, display = display.none, style = plot.style_stepline)
+
+plot(y2_uppervalue2, title = 'Upper 2', color = tf2_color, display = display.none, style = plot.style_stepline)
+plot(y2_lowervalue2, title = 'Lower 2', color = tf2_color, display = display.none, style = plot.style_stepline)
+
+plot(y2_uppervalue3, title = 'Upper 3', color = tf3_color, display = display.all, style = plot.style_stepline)
+plot(y2_lowervalue3, title = 'Lower 3', color = tf3_color, display = display.all, style = plot.style_stepline)
+//
+//DRAW LINES AND RUN ALERTS  
+//
+if barstate.islast
+
+    //TF1
+    tf1_mid = drawLinReg(color.new(tf1_color, 20), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_midvalue, tf1_y2_midvalue, tf1_linreg_length)
+    tf1_upper1 = drawLinReg(color.new(tf1_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_uppervalue, tf1_y2_uppervalue, tf1_linreg_length)
+    tf1_lower1 = drawLinReg(color.new(tf1_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_lowervalue, tf1_y2_lowervalue, tf1_linreg_length)
+
+    tf1_upper2 = drawLinReg(color.new(tf2_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, y1_uppervalue2, y2_uppervalue2, tf1_linreg_length)
+    tf1_lower2 = drawLinReg(color.new(tf2_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, y1_lowervalue2, y2_lowervalue2, tf1_linreg_length)
+
+    tf1_upper3 = drawLinReg(color.new(tf3_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, y1_uppervalue3, y2_uppervalue3, tf1_linreg_length)
+    tf1_lower3 = drawLinReg(color.new(tf3_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, y1_lowervalue3, y2_lowervalue3, tf1_linreg_length)
+
+    linefill tf1_fill1 = linefill.new(tf1_upper1, tf1_lower1, color.new(tf1_color,100)) 
+    linefill tf1_fill2 = linefill.new(tf1_upper2, tf1_upper3, color.new(tf3_color,tf1_bg)) 
+    linefill tf1_fill3 = linefill.new(tf1_lower2, tf1_lower3, color.new(tf3_color,tf1_bg)) 
+
+    linefill tf1_fill4 = linefill.new(tf1_lower1, tf1_lower2, color.new(tf2_color,tf1_bg)) 
+    linefill tf1_fill5 = linefill.new(tf1_upper1, tf1_upper2, color.new(tf2_color,tf1_bg)) 
+    
+
+    if not na(tf1_mid[1])
+
+        // mid
+        line.delete(tf1_mid[1])
+
+        // zone 1
+        line.delete(tf1_upper1[1])
+        line.delete(tf1_lower1[1])
+        linefill.delete(tf1_fill1[1])
+
+        // zone 2
+        line.delete(tf1_upper2[1])
+        line.delete(tf1_lower2[1])
+        linefill.delete(tf1_fill2[1])
+
+        // zone 3
+        line.delete(tf1_upper3[1])
+        line.delete(tf1_lower3[1])
+        linefill.delete(tf1_fill3[1])
+    
+
+    
+
+    
+    
+var bool high_alert = na
+var bool low_alert = na
+
+high_alert := ta.crossover(high, y2_uppervalue3)
+low_alert := ta.crossunder(low, y2_lowervalue3)
+
+if low_alert and barstate.isconfirmed
+    long_label = label.new(x = bar_index,y = low, text = 'CALL ' + str.tostring(close),
+     color = color.green, style = label.style_label_up, yloc =  yloc.belowbar,
+     textcolor = color.black, size = size.normal, textalign = text.align_left)
+
+    
+if high_alert and barstate.isconfirmed
+    short_label = label.new(bar_index, y = high , text = 'PUT ' + str.tostring(close),
+     color = color.red, style = label.style_label_down , yloc =  yloc.abovebar,
+     textcolor = color.black, size = size.normal, textalign = text.align_left)
+
+ 
+// show_exit_bubble = input.bool(true, title = 'Show Exit Bubble')
+// if show_exit_bubble and barstate.isconfirmed
+//     if (dtek_bull[1] and not dtek_bull and last_signal[1] == 1)
+//         exit_long = label.new(bar_index, y = close , text = 'Exit ' + str.tostring(close), color = color.white, style = label.style_label_down, yloc =  yloc.abovebar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+//     if (dtek_bear[1] and not dtek_bear and last_signal[1] == -1)
+//         exit_short = label.new(bar_index, y = close , text = 'Exit ' + str.tostring(close), color = color.white, style = label.style_label_up, yloc =  yloc.belowbar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+       
+
+//ALERTS
+if high_alert
+    alert("Upper Band Alert", alert.freq_once_per_bar_close)
+if low_alert
+    alert("Lower Band Alert", alert.freq_once_per_bar_close)
+
+    
+    
+    
+    
+    

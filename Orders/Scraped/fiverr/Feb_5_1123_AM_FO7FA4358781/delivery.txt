@@ -1,0 +1,9 @@
+Please read the disclaimer.
+
+I slightly tweaked the Tradestation codes to help match with TOS better. So overwrite your tradestaion indicators with the .eld file attached. 
+
+They will not match 100% of the time because Tradestation and TOS use different data feeds therefore the math comes out slightly different. This is mainly with how Tradestation aggregates their daily and weekly data. If your multiple timeframes are lower they should match better.
+
+The thinkorswim study only requires one data feed. You set the other data feeds within the study settings. With thinkorswim your main chart timeperiod cannot be more than any of the four time periods in the settings. If it is then nothing will appear until you lower the chart timeframe. For the labels to appear again you must set the right time axis to 0.
+
+https://tos.mx/UYw6QiD

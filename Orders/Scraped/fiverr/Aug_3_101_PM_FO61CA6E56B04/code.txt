@@ -1,0 +1,374 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © nkwdesmond
+
+//@version=5
+indicator('Hooplah High Low + table', overlay=true)
+
+levelSettingOption = input.string('Individual level for each day', title='Display', options=['Individual level for each day', 'Most recent level on most recent day', 'Most recent level across the chart'], group='Price level')
+levelSetting = levelSettingOption == 'Most recent level on most recent day' ? 'b' : levelSettingOption == 'Most recent level across the chart' ? 'c' : 'a'
+
+show_labels     = input.bool(true, title = 'Show Labels for Lines', group='Price level', inline='Labels')
+label_spacing   = input.int(75, title = '  -  Spacing', group='Price level', inline='Labels')
+
+pmHighLevel     = input.bool(true, title='Pre-market high', group='Price level', inline='pmHigh')
+pmLowLevel      = input.bool(true, title='Pre-market low', group='Price level', inline='pmLow')
+priorHighLevel  = input.bool(true, title='Prior day high', group='Price level', inline='priorHigh')
+priorLowLevel   = input.bool(true, title='Prior day low', group='Price level', inline='priorLow')
+
+pmHighPrice     = input.bool(true, title='Pre-market high', group='Price axis')
+pmLowPrice      = input.bool(true, title='Pre-market low', group='Price axis')
+priorHighPrice  = input.bool(true, title='Prior day high', group='Price axis')
+priorLowPrice   = input.bool(true, title='Prior day low', group='Price axis')
+
+secondBool  = input.bool(true, title='Seconds', group='Price axis visibility', inline='second')
+minuteBool  = input.bool(true, title='Minutes', group='Price axis visibility', inline='minute')
+hourBool    = input.bool(true, title='Hours', group='Price axis visibility', inline='hour')
+dayBool     = input.bool(false, title='Days', group='Price axis visibility', inline='day')
+weekBool    = input.bool(false, title='Weeks', group='Price axis visibility', inline='week')
+monthBool   = input.bool(false, title='Months', group='Price axis visibility', inline='month')
+
+noPeriodBool = input.bool(false, title='No alert period', group='No alert period', inline='period', tooltip='Time period where alerts will not be triggered')
+noPeriod = input.session('0930-0935', title='', group='No alert period', inline='period')
+t = time(timeframe.period, noPeriod)
+alertbool = not (noPeriodBool and t)
+
+secondMin   = input.int(1, '', 1, 59, group='Price axis visibility', inline='second')
+secondMax   = input.int(59, '-', 1, 59, group='Price axis visibility', inline='second')
+minuteMin   = input.int(1, '', 1, 59, group='Price axis visibility', inline='minute')
+minuteMax   = input.int(59, '-', 1, 59, group='Price axis visibility', inline='minute')
+hourMin     = input.int(1, '', 1, 24, group='Price axis visibility', inline='hour')
+hourMax     = input.int(24, '-', 1, 24, group='Price axis visibility', inline='hour')
+dayMin      = input.int(1, '', 1, 366, group='Price axis visibility', inline='day')
+dayMax      = input.int(366, '-', 1, 366, group='Price axis visibility', inline='day')
+weekMin     = input.int(1, '', 1, 52, group='Price axis visibility', inline='week')
+weekMax     = input.int(52, '-', 1, 52, group='Price axis visibility', inline='week')
+monthMin    = input.int(1, '', 1, 12, group='Price axis visibility', inline='month')
+monthMax    = input.int(12, '-', 1, 12, group='Price axis visibility', inline='month')
+
+timeframeNumberstr = str.match(timeframe.period, '[0-9]*')
+timeframeNumber = str.tonumber(timeframeNumberstr)
+timeframeLetter = str.match(timeframe.period, '[A-Z]')
+
+bool timeframePlot = false
+
+if secondBool and timeframeLetter=='S' and secondMin<=timeframeNumber and secondMax>=timeframeNumber
+    timeframePlot := true
+if minuteBool and timeframeLetter=='' and minuteMin<=timeframeNumber and minuteMax>=timeframeNumber
+    timeframePlot := true
+if hourBool and timeframeLetter=='' and hourMin*60<=timeframeNumber and hourMax*60>=timeframeNumber
+    timeframePlot := true
+if dayBool and timeframeLetter=='D' and dayMin<=timeframeNumber and dayMax>=timeframeNumber
+    timeframePlot := true
+if weekBool and timeframeLetter=='W' and weekMin<=timeframeNumber and weekMax>=timeframeNumber
+    timeframePlot := true
+if monthBool and timeframeLetter=='M' and monthMin<=timeframeNumber and monthMax>=timeframeNumber
+    timeframePlot := true
+
+pmHighColour    = input(title='', defval=#81c583, group='Price level', inline='pmHigh')
+pmLowColour     = input(title='', defval=#ee9899, group='Price level', inline='pmLow')
+priorHighColour = input(title='', defval=#00ff00, group='Price level', inline='priorHigh')
+priorLowColour  = input(title='', defval=#ff80ff, group='Price level', inline='priorLow')
+
+pmHighLineWidth     = input(1, 'Thickness', group='Price level', inline='pmHigh')
+pmLowLineWidth      = input(1, 'Thickness', group='Price level', inline='pmLow')
+priorHighLineWidth  = input(1, 'Thickness', group='Price level', inline='priorHigh')
+priorLowLineWidth   = input(1, 'Thickness', group='Price level', inline='priorLow')
+
+pmHighStyleOption       = input.string('solid (─)', title='', options=['solid (─)', 'dotted (┈)', 'dashed (╌)', 'arrow left (←)', 'arrow right (→)', 'arrows both (↔)'], group='Price level', inline='pmHigh')
+pmLowStyleOption        = input.string('solid (─)', title='', options=['solid (─)', 'dotted (┈)', 'dashed (╌)', 'arrow left (←)', 'arrow right (→)', 'arrows both (↔)'], group='Price level', inline='pmLow')
+priorHighStyleOption    = input.string('solid (─)', title='', options=['solid (─)', 'dotted (┈)', 'dashed (╌)', 'arrow left (←)', 'arrow right (→)', 'arrows both (↔)'], group='Price level', inline='priorHigh')
+priorLowStyleOption     = input.string('solid (─)', title='', options=['solid (─)', 'dotted (┈)', 'dashed (╌)', 'arrow left (←)', 'arrow right (→)', 'arrows both (↔)'], group='Price level', inline='priorLow')
+
+pmHighLineStyle = pmHighStyleOption == 'dotted (┈)' ? line.style_dotted : pmHighStyleOption == 'dashed (╌)' ? line.style_dashed : pmHighStyleOption == 'arrow left (←)' ? line.style_arrow_left :
+     pmHighStyleOption == 'arrow right (→)' ? line.style_arrow_right : pmHighStyleOption == 'arrows both (↔)' ? line.style_arrow_both : line.style_solid
+pmLowLineStyle = pmLowStyleOption == 'dotted (┈)' ? line.style_dotted : pmLowStyleOption == 'dashed (╌)' ? line.style_dashed : pmLowStyleOption == 'arrow left (←)' ? line.style_arrow_left :
+     pmLowStyleOption == 'arrow right (→)' ? line.style_arrow_right : pmLowStyleOption == 'arrows both (↔)' ? line.style_arrow_both : line.style_solid
+priorHighLineStyle = priorHighStyleOption == 'dotted (┈)' ? line.style_dotted : priorHighStyleOption == 'dashed (╌)' ? line.style_dashed : priorHighStyleOption == 'arrow left (←)' ? line.style_arrow_left :
+     priorHighStyleOption == 'arrow right (→)' ? line.style_arrow_right : priorHighStyleOption == 'arrows both (↔)' ? line.style_arrow_both : line.style_solid
+priorLowLineStyle = priorLowStyleOption == 'dotted (┈)' ? line.style_dotted : priorLowStyleOption == 'dashed (╌)' ? line.style_dashed : priorLowStyleOption == 'arrow left (←)' ? line.style_arrow_left :
+     priorLowStyleOption == 'arrow right (→)' ? line.style_arrow_right : priorLowStyleOption == 'arrows both (↔)' ? line.style_arrow_both : line.style_solid
+
+var line pmHighLine = na
+var line pmLowLine = na
+var line priorHighLine = na
+var line priorLowLine = na
+var float pmHigh = na
+var float pmLow = na
+var float priorHigh = na
+var float priorLow = na
+var float currentHigh = na
+var float currentLow = na
+
+if session.isfirstbar and session.ispremarket
+    pmHigh := high
+    pmLow := low
+
+if session.isfirstbar_regular
+    currentHigh := high
+    currentLow := low
+
+if high > pmHigh and session.ispremarket
+    pmHigh := high
+    line.set_y1(pmHighLine, pmHigh)
+    line.set_y2(pmHighLine, pmHigh)
+
+if low < pmLow and session.ispremarket
+    pmLow := low
+    line.set_y1(pmLowLine, pmLow)
+    line.set_y2(pmLowLine, pmLow)
+
+if high > currentHigh and session.ismarket
+    currentHigh := high
+
+if low < currentLow and session.ismarket
+    currentLow := low
+
+if session.isfirstbar
+    line.set_extend(pmHighLine, extend.none)
+    line.set_extend(pmLowLine, extend.none)
+    line.set_extend(priorHighLine, extend.none)
+    line.set_extend(priorLowLine, extend.none)
+    priorHigh := currentHigh[1]
+    priorLow := currentLow[1]
+    if levelSetting!='a'
+        line.delete(pmHighLine)
+        line.delete(pmLowLine)
+        line.delete(priorHighLine)
+        line.delete(priorLowLine)
+    if timeframe.isintraday and pmHighLevel
+        pmHighLine := line.new(bar_index, pmHigh, bar_index, pmHigh, color=pmHighColour, style=pmHighLineStyle, width=pmHighLineWidth, extend=levelSetting=='c' ? extend.both : extend.right)
+    if timeframe.isintraday and pmLowLevel
+        pmLowLine := line.new(bar_index, pmLow, bar_index, pmLow, color=pmLowColour, style=pmLowLineStyle, width=pmLowLineWidth, extend=levelSetting=='c' ? extend.both : extend.right)
+    if timeframe.isintraday and priorHighLevel
+        priorHighLine := line.new(bar_index, priorHigh, bar_index, priorHigh, color=priorHighColour, style=priorHighLineStyle, width=priorHighLineWidth, extend=levelSetting=='c' ? extend.both : extend.right)
+    if timeframe.isintraday and priorLowLevel
+        priorLowLine := line.new(bar_index, priorLow, bar_index, priorLow, color=priorLowColour, style=priorLowLineStyle, width=priorLowLineWidth, extend=levelSetting=='c' ? extend.both : extend.right)
+    
+line.set_x2(pmHighLine, bar_index)
+line.set_x2(pmLowLine, bar_index)
+line.set_x2(priorHighLine, bar_index)
+line.set_x2(priorLowLine, bar_index)
+
+plot(timeframe.isintraday and pmHighPrice and timeframePlot ? pmHigh : na, color=pmHighColour, editable=false, display=display.price_scale)
+plot(timeframe.isintraday and pmLowPrice and timeframePlot? pmLow : na, color=pmLowColour, editable=false, display=display.price_scale)
+plot(timeframe.isintraday and priorHighPrice and timeframePlot ? priorHigh : na, color=priorHighColour, editable=false, display=display.price_scale)
+plot(timeframe.isintraday and priorLowPrice and timeframePlot ? priorLow : na, color=priorLowColour, editable=false, display=display.price_scale)
+
+alertcondition(alertbool and session.ismarket and close>=pmHigh and close[1]<pmHigh, title='Cross abv pm high (do not use Once Per Bar Close)', message='Price crossed above pre-market high!')
+alertcondition(alertbool and session.ismarket and close<=pmLow and close[1]>pmLow, title='Cross blw pm low (do not use Once Per Bar Close)', message='Price crossed below pre-market low!')
+
+alertcondition(alertbool and session.ismarket and close>=pmHigh and open<pmHigh, title='Close abv pm high (use Once Per Bar Close)', message='Price closed above pre-market high!')
+alertcondition(alertbool and session.ismarket and close<=pmLow and open>pmLow, title='Close blw pm low (use Once Per Bar Close)', message='Price closed below pre-market low!')
+
+
+
+// add label
+var label pmh_label = na
+var label pml_label = na
+
+if barstate.islast
+    if na(pmh_label[1])
+        pmh_label := label.new(bar_index + label_spacing, pmHigh, xloc = xloc.bar_index, yloc = yloc.price, color = pmHighColour, style = label.style_none,
+         text = 'CALLS ABOVE ' + str.tostring(pmHigh), textcolor = chart.fg_color)
+
+    if na(pml_label[1])
+        pml_label := label.new(bar_index + label_spacing, pmLow, xloc = xloc.bar_index, yloc = yloc.price, color = pmLowColour, style = label.style_none,
+         text = 'PUTS BELOW ' + str.tostring(pmLow), textcolor = chart.fg_color)
+
+    else
+        label.set_xy(pmh_label, bar_index + label_spacing, pmHigh)
+        label.set_xy(pml_label, bar_index + label_spacing, pmLow)
+
+        label.set_text(pmh_label, 'CALLS ABOVE ' + str.tostring(pmHigh))
+        label.set_text(pml_label, 'PUTS BELOW ' + str.tostring(pmLow))
+
+
+
+
+// table
+table_bull = input.color(color.green, title = 'Table Bull', group = 'Table Settings')
+table_bear = input.color(color.red, title = 'Table Bear', group = 'Table Settings')
+table_neut = input.color(color.silver, title = 'Table Bear', group = 'Table Settings')
+table_head = input.color(color.rgb(71, 76, 90), title = ' Header')
+table_bg   = input.color(color.black, title = 'Background')
+table_text = input.color(color.white, title = 'Text')
+var table = table.new(position = position.bottom_right, columns = 2, rows = 6, bgcolor = table_bg, border_width = 1)
+
+
+
+// row 1 volume
+volume_period   = 20
+volume_factor   = 1.25
+volume_up       = close > open
+volume_down     = open > close
+volume_pesado   = volume>(ta.ema(volume,volume_period)*volume_factor)
+volume_bg       = volume_pesado and volume_up ? table_bull
+ : volume_pesado and volume_down ? table_bear 
+ : volume_up ? table_neut
+ : table_neut
+volume_text    = volume_pesado and volume_up ? 'Bullish'
+ : volume_pesado and volume_down ? "Bearish"
+ : volume_up ? "Neutral"
+ : "Neutral"
+
+
+
+// row 2 dtek
+getMA(src, len, type) =>
+    ma_value = type == 'SMA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : ta.sma(src, len)
+    ma_value
+
+ST_Atr_Mult = 1.0
+ST_Length = 4
+ST_AvgType = 'HMA'
+
+ATR = getMA( ta.tr(false), ST_Length, ST_AvgType )
+UP = hl2 + (ST_Atr_Mult* ATR) 
+DN = hl2 + (-ST_Atr_Mult * ATR) 
+var float ST = na
+ST := close < ST[1] ? UP : DN 
+SuperTrend = ST 
+
+lengthCCI = 50
+lengthATR = 21
+AtrFactor = 1.0
+
+ATRcci = ta.sma( ta.tr(false), lengthATR) * AtrFactor
+price = close + low + high
+pricedata = hl2
+CCI = (price - ta.sma(price, lengthCCI)) / (0.015 * ta.dev(price, lengthCCI))
+
+var float MT1 = 0
+MT1 := CCI > 0 ? math.max(nz(MT1[1],0), pricedata - ATRcci) : math.min(nz(MT1[1],0), pricedata + ATRcci)
+CCI_ATR_TREND = MT1
+
+green_candles =  close > MT1 and close > ST
+red_candles   =  close < MT1 and close < ST
+
+dtek_bg       = green_candles ? table_bull : red_candles ? table_bear : table_neut
+dtek_text     = green_candles ? 'Bullish' : red_candles ? 'Bearish' : 'Neutral'
+// barcolor(green_candles ? color.green : red_candles ? color.red : color.gray)
+
+
+
+// row 3 pre market
+pm_bg         = close > pmHigh ? table_bull : close < pmLow ? table_bear : table_neut
+pm_text       = close > pmHigh ? 'Bullish' : close < pmLow ? 'Bearish' : 'Neutral'
+
+
+
+
+// row 4 Trend BG
+UseMATrendFilter = true
+MAType = 'SMA'
+MASource = close
+MATrendPeriod = 200
+UseMASlopeTrendFilter = true
+SMATrendLevel = 5
+UseAroonTrendFilter = false
+AroonTFLen = 50
+AroonTFLevel = 50.0
+
+
+// SMA Trend Function
+MATrend(MAType, Source, MALength, UseSlope, Percentile) =>
+    MAValue = MAType == "SMA" ? ta.sma(Source, MALength) : MAType == "EMA" ? ta.ema(Source, MALength) : MAType == "VWMA" ? ta.vwma(Source, MALength) : MAType == "RMA" ? ta.rma(Source, MALength) : MAType == "Hull" ? ta.wma(2*ta.wma(Source, MALength/2)-ta.wma(Source, MALength), math.floor(math.sqrt(MALength))) :na
+    
+    MASlope = ta.change(MAValue)
+    MAPercentRankOK = ta.percentrank(math.abs(MASlope), 200) > Percentile
+
+    MA_Uptrend = UseSlope ? MAPercentRankOK and MASlope > 0 : close > MAValue
+    MA_Downtrend = UseSlope ? MAPercentRankOK and MASlope < 0 : close < MAValue
+
+    if MA_Uptrend and MA_Downtrend
+        MA_Uptrend := false
+        MA_Downtrend := false
+        MA_Downtrend
+    [MA_Uptrend, MA_Downtrend,MAValue]
+
+[MAUptrend, MADowntrend,MAValue] = MATrend(MAType,MASource,MATrendPeriod, UseMASlopeTrendFilter, SMATrendLevel)
+
+// Aroon Trend Function
+AroonTrend(AroonLength, AroonTrendLevel) =>
+    upper = 100 * (ta.highestbars(high, AroonLength + 1) + AroonLength) / AroonLength
+    lower = 100 * (ta.lowestbars(low, AroonLength + 1) + AroonLength) / AroonLength
+
+    Aroon_Uptrend = upper >= AroonTrendLevel
+    Aroon_Downtrend = lower >= AroonTrendLevel
+
+    if Aroon_Uptrend and Aroon_Downtrend
+        Aroon_Uptrend := false
+        Aroon_Downtrend := false
+        Aroon_Downtrend
+    [Aroon_Uptrend, Aroon_Downtrend]
+
+[AroonUptrend, AroonDowntrend] = AroonTrend(AroonTFLen, AroonTFLevel)
+
+// Define Trend
+Uptrend = UseMATrendFilter and UseAroonTrendFilter ? AroonUptrend and MAUptrend : (AroonUptrend or not UseAroonTrendFilter) and (MAUptrend or not UseMATrendFilter)
+Downtrend = UseMATrendFilter and UseAroonTrendFilter ? AroonDowntrend and MADowntrend : (AroonDowntrend or not UseAroonTrendFilter) and (MADowntrend or not UseMATrendFilter)
+
+trend_bg         = Uptrend ? table_bull : Downtrend ? table_bear : table_neut
+trend_text       = Uptrend ? 'Bullish' : Downtrend ? 'Bearish' : 'Neutral'
+
+
+// row 5 volume pressure
+
+//Moving Average On/Off
+maOn = true
+maColor = color.aqua
+maLength = 20
+
+//DMI
+[plus, minus, adx] = ta.dmi(1, 1)
+
+//Volume
+vol = volume[0]
+avg = ta.sma(vol, maLength)
+
+if not maOn
+    avg := na
+
+//Colors
+bcolor = #00e67600
+pressureLabel = string("Bullish")
+labelColor = color.lime
+volColor = #00e67600
+
+//Logic
+if plus > minus
+    bcolor := #00E67630
+    pressureLabel := string("Bullish")
+    labelColor := color.lime
+    volColor := color.lime
+else if plus == minus
+    bcolor := #00bcd430
+    pressureLabel := string("Neutral")
+    labelColor := color.aqua
+    volColor := color.aqua
+else
+    bcolor := #FF525230
+    pressureLabel := string("Bearish")
+    labelColor := color.red
+    volColor := color.red
+    
+
+
+
+if barstate.islast
+    table.clear(table, 0, 0, 1, 5)
+
+    table.cell(table, 0, 0, text = 'TITLE HERE', text_color = table_text, bgcolor = table_head)
+    table.merge_cells(table, 0,0,1,0)
+
+    table.cell(table, 0, 1, text = 'Volume', text_color = table_text, bgcolor = table_bg)
+    table.cell(table, 0, 2, text = 'Dtek', text_color = table_text, bgcolor = table_bg)
+    table.cell(table, 0, 3, text = 'PMH/PML', text_color = table_text, bgcolor = table_bg)
+    table.cell(table, 0, 4, text = 'Trend BG', text_color = table_text, bgcolor = table_bg)
+    table.cell(table, 0, 5, text = 'Volume Pressure', text_color = table_text, bgcolor = table_bg)
+
+    table.cell(table, 1, 1, text = volume_text, text_color = table_text, bgcolor = volume_bg)
+    table.cell(table, 1, 2, text = dtek_text, text_color = table_text, bgcolor = dtek_bg)
+    table.cell(table, 1, 3, text = pm_text, text_color = table_text, bgcolor = pm_bg)
+    table.cell(table, 1, 4, text = trend_text, text_color = table_text, bgcolor = trend_bg)
+    table.cell(table, 1, 5, text = pressureLabel, text_color = table_text, bgcolor = labelColor)

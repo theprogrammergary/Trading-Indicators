@@ -1,0 +1,16 @@
+Article if you have any questions. I would suggest skimming through it.
+
+https://intercom.help/simpler-trading/en/articles/3294156-how-to-configure-a-multi-time-frame-label-study-on-tos
+
+1.Squeeze or No Squeeze
+https://tos.mx/PI014Ti
+
+2.Long or Short
+https://tos.mx/LLheMbw
+
+3. HidePricePlot
+https://tos.mx/ClUMuk6
+
+Watch this video on how to install the indicators and then create one for each timeframe that you need.
+
+Let me know if you have any questions

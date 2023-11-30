@@ -1,0 +1,62 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Daily Levels", overlay = true)
+
+hide_on_daily = timeframe.isdwm ? true : false
+
+//inputs
+timeframe = input.timeframe('D', title = 'Time Period', group = 'Settings')
+add_on_one = input.float(5.00, title = 'Add On #1', group = 'Settings')
+add_on_two = input.float(10.00, title = 'Add On #2', group = 'Settings')
+show_previous_days = input.bool(true, title = 'Show Previous Days', group = 'Settings')
+extend_today = input.bool(false, title = 'Extend Today Across Chart', group = 'Settings')
+
+// barcolor(session.ispremarket ? color.yellow : color.black)
+
+todays_o = request.security(syminfo.tickerid, timeframe, open, lookahead = barmerge.lookahead_on)
+todays_c = request.security(syminfo.tickerid, timeframe, close, lookahead = barmerge.lookahead_on) //because it doesnt plot on PM correctly
+yesterdays_c = request.security(syminfo.tickerid, timeframe, close[1], lookahead = barmerge.lookahead_on)
+
+today_open = session.ispremarket ? na : todays_o
+y_close = session.ispremarket ? todays_c : yesterdays_c
+
+plot_cond = not hide_on_daily and show_previous_days
+
+//colors
+one_color = input.color(color.new(color.yellow,0), title = 'One Color', group = 'Visual Settings')
+two_color = input.color(color.new(color.yellow,0), title = 'Two Color', group = 'Visual Settings')
+
+yc0_color = input.color(color.new(color.orange,0), title = 'yc0 Color', group = 'Visual Settings')
+yc1_color = input.color(color.new(color.orange,0), title = 'yc1 Color', group = 'Visual Settings')
+
+new_day = dayofmonth != dayofmonth[1]
+
+
+//plots
+one_plot = plot(plot_cond ? today_open + add_on_one : na, title = 'One', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : one_color, editable = false)
+two_plot = plot(plot_cond ? today_open + add_on_two : na, title = 'Two', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : two_color, editable = false)
+
+yc0_plot = plot(plot_cond ? y_close + add_on_one : na, title = 'yC0', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc0_color, editable = false)
+yc1_plot = plot(plot_cond ? y_close + add_on_two : na, title = 'yC1', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc1_color, editable = false)
+
+
+if extend_today
+
+    one_line = line.new(x1=bar_index - 10, x2=bar_index, y1=today_open + add_on_one, y2=today_open + add_on_one, xloc=xloc.bar_index, width=1, color=one_color, extend=extend.both, style=line.style_solid)
+    line.delete(one_line[1])
+    
+    two_line = line.new(x1=bar_index - 10, x2=bar_index, y1=today_open + add_on_two, y2=today_open + add_on_two, xloc=xloc.bar_index, width=1, color=two_color, extend=extend.both, style=line.style_solid)
+    line.delete(two_line[1])
+
+    yc0_line = line.new(x1=bar_index - 10, x2=bar_index, y1=y_close + add_on_one, y2=y_close + add_on_one, xloc=xloc.bar_index, width=1, color=yc0_color, extend=extend.both, style=line.style_solid)
+    line.delete(yc0_line[1])
+
+    yc1_line = line.new(x1=bar_index - 10, x2=bar_index, y1=y_close + add_on_two, y2=y_close + add_on_two, xloc=xloc.bar_index, width=1, color=yc1_color, extend=extend.both, style=line.style_solid)
+    line.delete(yc1_line[1])
+
+
+    
+    
+    
+    

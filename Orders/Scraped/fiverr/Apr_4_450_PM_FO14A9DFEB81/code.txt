@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_goldfpv", overlay = true, max_lines_count = 500)
+
+start_price = input.price(title="Starting Value", defval=100, confirm = true)
+number_of_lines = input.int(500, minval = 1, maxval = 500, title = '# of Lines')
+distance_between_lines = input.float(200, minval = 0, title = 'Distance in ticks / pips')
+sr_color = input.color(color.new(color.gray,0), title='Line Color')
+
+//Draw Lines
+allLines = line.all
+true_distance = distance_between_lines * syminfo.mintick
+
+drawSR(start_value , distance, line_color) =>
+    for i = 1 to number_of_lines/2 by 1
+    
+        support_level = start_value - (distance * i)
+        line s_line = line.new(x1=bar_index[1], x2=bar_index, y1=support_level, y2=support_level, xloc=xloc.bar_index, width=1, color=color.new(line_color,0), extend=extend.both, style = line.style_dotted)
+        
+        resistance_level = start_value + (distance * i)
+        line r_line = line.new(x1=bar_index[1], x2=bar_index, y1=resistance_level, y2=resistance_level, xloc=xloc.bar_index, width=1, color=color.new(line_color,0), extend=extend.both, style = line.style_dotted)
+        
+if barstate.islast
+    
+    line.new(x1=bar_index[1], x2=bar_index, y1=start_price, y2=start_price, xloc=xloc.bar_index, width=1, color=color.new(sr_color,0), extend=extend.both, style = line.style_dotted)
+    drawSR(start_price, true_distance, sr_color)
+
+    if array.size(allLines) > 0
+    	for i = 0 to array.size(allLines) - 1
+		    line.delete(array.get(allLines, i))

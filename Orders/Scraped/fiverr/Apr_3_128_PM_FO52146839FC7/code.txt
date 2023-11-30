@@ -1,0 +1,37 @@
+//@version=5
+indicator("MyVIXFIX", overlay=false)
+
+pd      = input.int(22, title="LookBack Period Standard Deviation High")
+bbl     = input.int(20, title="Bolinger Band Length")
+mult    = input.float(2.0    , minval=1, maxval=5, title="Bollinger Band Standard Devaition Up")
+lb      = input.int(50  , title="Look Back Period Percentile High")
+ph      = input.float(.85, title="Highest Percentile - 0.90=90%, 0.95=95%, 0.99=99%")
+pl      = input.float(1.01, title="Lowest Percentile - 1.10=90%, 1.05=95%, 1.01=99%")
+hp      = input.bool(false, title="Show High Range - Based on Percentile and LookBack Period?")
+sd      = input.bool(false, title="Show Standard Deviation Line?")
+vixfix_alert = input.int(5, title="Consecutive Bars for VIXFIX")
+
+wvf = ((ta.highest(close, pd)-low)/(ta.highest(close, pd)))*100
+
+sDev = mult * ta.stdev(wvf, bbl)
+midLine = ta.sma(wvf, bbl)
+lowerBand = midLine - sDev
+upperBand = midLine + sDev
+
+rangeHigh = (ta.highest(wvf, lb)) * ph
+rangeLow = (ta.lowest(wvf, lb)) * pl
+
+var bool color_histogram = na
+var int color_count = na
+
+color_histogram :=  wvf >= upperBand or wvf >= rangeHigh 
+color_count := color_histogram ? color_count[1] + 1 : 0
+
+col = color_histogram ? color.new(#ff0000,0) : color.gray
+plot(hp and rangeHigh ? rangeHigh : na, title="Range High Percentile", style=plot.style_line, linewidth=4, color=color.orange)
+plot(hp and rangeLow ? rangeLow : na, title="Range High Percentile", style=plot.style_line, linewidth=4, color=color.orange)
+plot(wvf, title="Williams Vix Fix", style=plot.style_columns, linewidth = 4, color=col)
+plot(sd and upperBand ? upperBand : na, title="Upper Band", style=plot.style_line, linewidth = 3, color=color.aqua)
+
+alertcondition(color_histogram, 'Histogram Color Alert', 'Histogram Color Alert')
+alertcondition(color_count == vixfix_alert, 'Consectuive VIXFIX Alert', 'Consectuive VIXFIX Alert')

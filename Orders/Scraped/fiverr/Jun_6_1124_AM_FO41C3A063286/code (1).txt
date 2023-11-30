@@ -1,0 +1,173 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Limitless Trading Indicator", overlay = true)
+
+// password
+password = input.int(29321, title = 'Password', group = 'Password', inline = '1')
+if password != 29321
+    runtime.error('Invalid Password') 
+
+
+// inputs
+show_emacloud = input.bool(true, title = 'Show EMA Cloud', group = 'Settings', inline = '1')
+show_trendchg = input.bool(true, title = 'Show Trend Changes', group = 'Settings', inline = '2')
+trend_tf = input.timeframe('60', title = 'Trend Timeframe', group = 'Settings', inline = '3')
+_ema_bs = input.int(200, title = 'How Long to Allow Signals from Cross', group = 'Settings', inline = '4')
+
+// rsi_settings
+_rsi_bs = input.int(3, title = 'Bars For RSI Cross', group = 'RSI Settings', inline = '1')
+_rsi_buy_below = input.int(50, title = 'Buy Below', group = 'RSI Settings', inline = '2')
+_rsi_sell_above = input.int(50, title = 'Sell Above', group = 'RSI Settings', inline = '2')
+
+
+// rsi
+var int bs_rsi_buy = na
+var int bs_rsi_sell = na
+
+rsi_value = ta.rsi(close, 14)
+rsi_ma = ta.sma(rsi_value, 14)
+
+rsi_buy_cond = ta.crossover(rsi_value, rsi_ma) and rsi_value >= _rsi_buy_below 
+rsi_sell_cond = ta.crossunder(rsi_value, rsi_ma) and rsi_value <= _rsi_sell_above
+
+bs_rsi_buy := rsi_buy_cond ? 1 : bs_rsi_buy[1] + 1
+bs_rsi_sell := rsi_sell_cond ? 1 : bs_rsi_sell[1] + 1
+
+rsi_buy = bs_rsi_buy <= _rsi_bs
+rsi_sell = bs_rsi_sell <= _rsi_bs
+
+// barcolor(rsi_sell ? color.red : na)
+
+// alert_type = input.string('Both', title = 'Regular Alerts   ', options = ['Up', 'Down', 'Both', 'None'], group = 'Settings', inline = '4')
+// ltalert_type = input.string('Both', title = 'LT Alerts        ', options = ['Up', 'Down', 'Both', 'None'], group = 'Settings', inline = '5')
+
+// ema
+ema1_length = 13
+ema2_length = 62
+
+// chart ema
+ema1 = ta.ema(close, ema1_length)
+ema2 = ta.ema(close, ema2_length)
+ema_side = ema1 >= ema2 ? 1 : -1
+
+// trend_ema
+ema_source = trend_tf == '' ? close : close[1]
+
+trend_isdwm = request.security(syminfo.tickerid, trend_tf, timeframe.isdwm, lookahead = barmerge.lookahead_on)
+trend_ema1 = request.security(syminfo.tickerid, trend_tf, ta.ema(ema_source, ema1_length), lookahead = barmerge.lookahead_on)
+trend_ema2 = request.security(syminfo.tickerid, trend_tf, ta.ema(ema_source, ema2_length), lookahead = barmerge.lookahead_on)
+trend_ema_side = trend_ema1 >= trend_ema2 ? 1 : -1
+
+// trend vertical
+trend_bull = ta.crossover(trend_ema_side, 0)
+trend_bear =  ta.crossunder(trend_ema_side, 0)
+
+var int bs_trendbull = 0
+var int bs_trendbear = 0
+
+bs_trendbull := trend_bull ? 1 : bs_trendbull[1] + 1
+bs_trendbear := trend_bear ? 1 : bs_trendbear[1] + 1
+
+trend_buy_cond = bs_trendbull <= _ema_bs
+trend_sell_cond = bs_trendbear <= _ema_bs
+
+bgcolor(show_trendchg and trend_bull ? color.new(color.green, 50) : show_trendchg and trend_bear ? color.new(color.red,50) : na, title = 'Trend Change')
+
+// trend horizontal
+var float trend_high = na
+var float trend_low = na
+
+trend_low := trend_bull ? low : trend_ema_side == 1 ? math.min(low, trend_low[1]) : trend_low[1]
+trend_high := trend_bear ? high : trend_ema_side == -1 ? math.max(high, trend_high[1]) : trend_high[1]
+
+var line trend_low_line = na
+var label trend_bull_label = na
+
+tf_string_start = (trend_tf == '' ? str.tostring(timeframe.period) : (str.tonumber(trend_tf) % 60 == 0) ? str.tostring(str.tonumber(trend_tf)/60) : trend_tf) 
+tf_string_end =  (trend_isdwm ? '' : ( str.tonumber(trend_tf) % 60 == 0) ? 'hr' : 'min')
+
+if trend_bull and barstate.isconfirmed
+    trend_low_line := line.new(x1 = time, y1 = trend_low, x2 = time, y2 = trend_low, xloc = xloc.bar_time, extend = extend.none, color = color.green, style = line.style_solid, width = 2)
+    trend_bull_label := label.new(x = time, y = close, text = tf_string_start + tf_string_end, xloc = xloc.bar_time, yloc = yloc.belowbar, color = color.green, style = label.style_label_up, textcolor = color.new(#000000, 0), size = size.small
+     , textalign = text.align_center)
+else if trend_ema_side == 1 and barstate.isconfirmed
+    line.set_y1(trend_low_line, trend_low)
+    line.set_y2(trend_low_line, trend_low)
+    line.set_x2(trend_low_line, time)
+
+var line trend_high_line = na
+var label trend_bear_label = na
+if trend_bear and barstate.isconfirmed
+    trend_high_line := line.new(x1 = time, y1 = trend_high, x2 = time, y2 = trend_high, xloc = xloc.bar_time, extend = extend.none, color = color.red, style = line.style_solid, width = 2)
+    trend_bear_label := label.new(x = time, y = close, text = tf_string_start + tf_string_end, xloc = xloc.bar_time, yloc = yloc.abovebar, color = color.red, style = label.style_label_down, textcolor = color.new(#000000, 0), size = size.small
+     , textalign = text.align_center)
+else if trend_ema_side == -1 and barstate.isconfirmed
+    line.set_y1(trend_high_line, trend_high)
+    line.set_y2(trend_high_line, trend_high)
+    line.set_x2(trend_high_line, time)
+
+// green and red arrows
+var bool bull_cross = na
+var bool bear_cross = na
+
+var bool green_cond = na
+var bool red_cond = na
+
+var bool green_arrow = na
+var bool red_arrow = na
+
+bull_cross := ta.crossover(close, ema1)
+bear_cross := ta.crossunder(close, ema1)
+
+// ema is bull, close crosses over ema1, recently we have traded below ema2 and we havent had bull cross in 3 bars
+green_cond := ema_side == 1 and bull_cross and ta.lowest(low, 3) <= ema2
+green_arrow := green_cond and barstate.isconfirmed
+
+// ema is bull, close crosses over ema1, recently we have traded below ema2  and we havent had bull cross in 3 bars
+red_cond := ema_side == -1 and bear_cross and ta.highest(high, 3) >= ema2 
+red_arrow := red_cond and barstate.isconfirmed
+
+// black arrows
+blackup_arrow = green_arrow and trend_ema_side == 1
+blackdown_arrow = red_arrow and trend_ema_side == -1
+
+lt_buy = blackup_arrow and ta.barssince(green_arrow[1]) > 3 and rsi_buy and trend_buy_cond
+lt_sell = blackdown_arrow and ta.barssince(red_arrow[1]) > 3 and rsi_sell and trend_sell_cond
+
+// plot arrows
+plotshape(lt_buy, title = 'LT Arrow Up', style = shape.labelup, size = size.small, color = color.rgb(88, 202, 92), location = location.belowbar)
+plotshape(lt_sell, title = 'LT Arrow Down', style = shape.labeldown, size = size.small, color = color.red, location = location.abovebar)
+
+// plotshape(green_arrow and ta.barssince(green_arrow[1]) > 3, title = 'Arrow Up', style = shape.triangleup, size = size.small, color = color.green, location = location.belowbar)
+// plotshape(red_arrow and ta.barssince(red_arrow[1]) > 3, title = 'Arrow Down', style = shape.triangledown, size = size.small, color = color.red, location = location.abovebar)
+
+// alerts
+// if ltalert_type == 'Both' or alert_type == 'Up' and blackup_arrow and ta.barssince(green_arrow[1]) > 3
+//     alert('LT Up Alert', alert.freq_once_per_bar_close)
+
+// if ltalert_type == 'Both' or alert_type == 'Down' and blackdown_arrow and ta.barssince(red_arrow[1]) > 3
+//     alert('LT Down Alert', alert.freq_once_per_bar_close)
+
+// if alert_type == 'Both' or alert_type == 'Up' and green_arrow and ta.barssince(green_arrow[1]) > 3
+//     alert('Up Alert', alert.freq_once_per_bar_close)
+
+// if alert_type == 'Both' or alert_type == 'Down' and red_arrow and ta.barssince(red_arrow[1]) > 3
+//     alert('Down Alert', alert.freq_once_per_bar_close)
+
+
+// alertcondition
+alertcondition(lt_buy, "LT UP", "LT UP Arrow Fired")
+alertcondition(lt_sell, "LT DOWN", "LT DOWN Arrow Fired")
+alertcondition(lt_buy or lt_sell , "LT UP or DOWN", "LT Arrow Fired")
+
+// alertcondition(green_arrow and ta.barssince(green_arrow[1]) > 3, "Arrow UP", "UP Arrow Fired")
+// alertcondition(red_arrow and ta.barssince(red_arrow[1]) > 3, "Arrow DOWN", "DOWN Arrow Fired")
+// alertcondition(green_arrow and ta.barssince(green_arrow[1]) > 3 or (red_arrow and ta.barssince(red_arrow[1]) > 3) , "Arrow UP or DOWN", "Arrow Fired")
+
+
+// cloud
+ema1_plot = plot(show_emacloud ? ema1 : na, title = "EMA 1", color = color.new(color.blue, 50))
+ema2_plot = plot(show_emacloud ? ema2 : na, title = "EMA 2", color = color.new(color.blue, 50))
+fill(ema1_plot, ema2_plot, ema_side == 1 ? color.new(color.green,70) : color.new(color.red, 70))

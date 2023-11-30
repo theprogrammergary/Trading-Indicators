@@ -1,0 +1,1 @@
+Thats because whoever programmed the study made the line a 50 period moving average so the bars do 30 for the stats but the line is 50. Go figure.

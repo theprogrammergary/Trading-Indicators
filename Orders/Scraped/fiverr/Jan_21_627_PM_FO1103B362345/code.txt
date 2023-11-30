@@ -1,0 +1,55 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_optiontrader123", overlay = true)
+
+color_candles = input.bool(true, title = 'Color Candles')
+show_signals = input.bool(true, title = 'Show Signals')
+// ma_length1 = input.int(9, title = 'MA Length 1', group = 'MA Settings', inline = '1')
+// ma_length2 = input.int(20, title = 'MA Length 2', group = 'MA Settings', inline = '2')
+// ma_length3 = input.int(30, title = 'MA Length 3', group = 'MA Settings', inline = '3')
+ma_length1 = 9
+ma_length2 = 20
+ma_length3 = 50
+
+sg1 = input.color(color.teal, title = 'SG1')
+sg2 = input.color(color.red, title = 'SG2')
+sg3 = input.color(color.gray, title = 'SG3')
+
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+
+ma_value1 = ta.ema(close, ma_length1)
+ma_value2 = ta.ema(close, ma_length2)
+ma_value3 = ta.sma(close, ma_length3)
+
+ma_plot1 = plot(ma_value1, color = color.new(color.white, 90), title = 'MA1', editable = false)
+ma_plot2 = plot(ma_value2, color = color.new(color.white, 90), title = 'MA2', editable = false)
+ma_plot3 = plot(ma_value3, color = color.new(color.white, 90), title = 'MA3', editable = false)
+
+bull_condition = ma_value1 > ma_value2 and close > ma_value3
+bear_condition = ma_value1 < ma_value2 and close < ma_value3
+
+fill(ma_plot1, ma_plot2, bull_condition ? color.new(sg1,30) : bear_condition ? color.new(sg2,30) : color.new(sg3,30), title = 'SG Cloud', editable = false)
+
+fill_plot = plot(close > ma_value3 ? math.min(ma_value1, ma_value2) : math.max(ma_value1, ma_value2), color = color.new(color.white, 99), title = 'Connecting Line', editable = false)
+fill(fill_plot, ma_plot3, close > ma_value3 ? color.new(sg1,70) : close < ma_value3 ? color.new(sg2,70) : color.new(sg3,70), title = 'SGS Cloud', editable = false)
+
+barcolor(color_candles and bull_condition ? sg1 : color_candles and bear_condition ? sg2 : color_candles ? sg3 : na, editable = false)
+
+var int last_signal = 0
+long_entry = bull_condition and not bull_condition[1] and last_signal[1] != 1
+short_entry = bear_condition and not bear_condition[1] and last_signal[1] != -1
+last_signal := bull_condition ? 1 : bear_condition ? -1 : last_signal[1]
+
+plotshape(show_signals and long_entry ? math.min(low, ma_value3) - syminfo.mintick * 10 : na, style=shape.labelup, editable=false, text= "BUY", textcolor=color.white, location= location.belowbar, color=color.new(sg1, 30), size=size.tiny)
+plotshape(show_signals and short_entry ? math.max(high, ma_value3) - syminfo.mintick * 10 : na, style=shape.labeldown, editable=false, text='SELL', textcolor=color.white, location=location.abovebar, color=color.new(sg2, 30), size=size.tiny)
+
+
+alertcondition(long_entry, 'Long Entry', 'Long Entry')
+alertcondition(short_entry, 'Short Entry', 'Short Entry')
+
+alertcondition(bull_condition, 'Now Bullish', 'Now Bullish')
+alertcondition(bear_condition, 'Now Bearish', 'Now Bearish')

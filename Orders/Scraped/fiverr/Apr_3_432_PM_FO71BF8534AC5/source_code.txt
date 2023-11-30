@@ -1,0 +1,78 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_harmonyojehomon Alert System", overlay = true)
+
+tf1 = input.timeframe('1', title = 'Timeframe 1')
+tf2 = input.timeframe('3', title = 'Timeframe 2')
+tf3 = input.timeframe('5', title = 'Timeframe 3')
+tf4 = input.timeframe('15', title = 'Timeframe 4')
+
+ma_length1 = input.int(8, title = 'MA Length 1')
+ma_length2 = input.int(34, title = 'MA Length 2')
+
+plot(ta.ema(close, ma_length1), title = "MA 1", color = color.yellow)
+plot(ta.ema(close, ma_length2), title = "MA 2", color = color.teal)
+
+cross_function(tf, length1, length2) =>
+    cross_type = request.security(syminfo.tickerid, tf, ta.crossover(ta.ema(close[1], length1), ta.ema(close[1], length2)) ? 1 : ta.crossunder(ta.ema(close[1], length1), ta.ema(close[1], length2)) ? -1 : 0, lookahead = barmerge.lookahead_on)
+    
+    var last_cross = 0
+    last_cross := cross_type == 1 ? 1 : cross_type == -1 ? -1 : last_cross[1]
+    
+    [cross_type, last_cross]
+    
+
+[tf1_function_value, tf1_last] = cross_function(tf1, ma_length1, ma_length2)
+[tf2_function_value, tf2_last]  = cross_function(tf2, ma_length1, ma_length2)
+[tf3_function_value, tf3_last]  = cross_function(tf3, ma_length1, ma_length2)
+[tf4_function_value, tf4_last]  = cross_function(tf4, ma_length1, ma_length2)
+
+//DASHBOARD
+panelbull_color = input.color(#27a69b, title='Bull Color', inline='1', group='Visual Settings')
+panelbear_color = input.color(#b63632, title='Bear Color', inline='1', group='Visual Settings')
+
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Visual Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Visual Settings')
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Visual Settings')
+dashboard_bull = color.new(panelbull_color,40)
+dashboard_bear = color.new(panelbear_color,40)
+
+tf1_color = tf1_last == 1 ? panelbull_color : panelbear_color
+tf2_color = tf2_last == 1 ? panelbull_color : panelbear_color
+tf3_color = tf3_last == 1 ? panelbull_color : panelbear_color
+tf4_color = tf4_last == 1 ? panelbull_color : panelbear_color
+
+if tf1_function_value == 1 and tf1_function_value != 1
+    alert(tf1 + 'min Cross Above' , alert.freq_once_per_bar)
+if tf2_function_value == 1 and tf2_function_value != 1
+    alert(tf2 + 'min Cross Above' , alert.freq_once_per_bar)
+if tf3_function_value == 1 and tf3_function_value != 1
+    alert(tf3 + 'min Cross Above' , alert.freq_once_per_bar)
+if tf4_function_value == 1 and tf4_function_value != 1
+    alert(tf4 + 'min Cross Above' , alert.freq_once_per_bar)
+
+if tf1_function_value == -1 and tf1_function_value != -1
+    alert(tf1 + 'min Cross Below' , alert.freq_once_per_bar)
+if tf2_function_value == -1 and tf2_function_value != -1
+    alert(tf2 + 'min Cross Below' , alert.freq_once_per_bar)
+if tf3_function_value == -1 and tf3_function_value != -1
+    alert(tf3 + 'min Cross Below' , alert.freq_once_per_bar)
+if tf4_function_value == -1 and tf4_function_value != -1
+    alert(tf4 + 'min Cross Below' , alert.freq_once_per_bar)
+
+
+//TABLE
+var table t = table.new(positioning, 4, 1, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)
+if barstate.islast
+    table.cell(t, 0, 0, text= tf1 , width=0, bgcolor=tf1_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 1, 0, text= tf2, width=0, bgcolor=tf2_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 0, text= tf3, width=0, bgcolor=tf3_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 3, 0, text= tf4, width=0, bgcolor=tf4_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    
+
+
+

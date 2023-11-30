@@ -1,0 +1,217 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_sesskalex4142", overlay = true)
+
+
+// prior day settings
+pd_display_max = input.timeframe('D', title = 'Max TF to Display On', group = 'Prior Day Settings', inline = '0')
+
+use_pdh_levels = input.bool(true, title = 'PDH', group = 'Prior Day Settings', inline = '1')
+css_pdh = input.color(color.new(color.gray,35), title = '', group = 'Prior Day Settings', inline = '1')
+style_pdh = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Day Settings', inline = '1')
+width_pdh = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Day Settings', inline = '1')
+
+use_pdl_levels = input.bool(true, title = 'PDL', group = 'Prior Day Settings', inline = '2')
+css_pdl = input.color(color.new(color.gray,35), title = '', group = 'Prior Day Settings', inline = '2')
+style_pdl = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Day Settings', inline = '2')
+width_pdl = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Day Settings', inline = '2')
+
+use_pdc_levels = input.bool(false, title = 'PDC', group = 'Prior Day Settings', inline = '3')
+css_pdc = input.color(color.new(color.gray,35), title = '', group = 'Prior Day Settings', inline = '3')
+style_pdc = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Day Settings', inline = '3')
+width_pdc = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Day Settings', inline = '3')
+
+use_pdm_levels = input.bool(true, title = 'PDM', group = 'Prior Day Settings', inline = '4')
+css_pdm = input.color(color.new(color.gray,35), title = '', group = 'Prior Day Settings', inline = '4')
+style_pdm = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Day Settings', inline = '4')
+width_pdm = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Day Settings', inline = '4')
+
+
+// prior week settings
+pw_display_max = input.timeframe('D', title = 'Max TF to Display on', group = 'Prior Week Settings', inline = '0')
+
+use_pwh_levels = input.bool(true, title = 'PWH', group = 'Prior Week Settings', inline = '1')
+css_pwh = input.color(color.new(color.yellow,35), title = '', group = 'Prior Week Settings', inline = '1')
+style_pwh = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Week Settings', inline = '1')
+width_pwh = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Week Settings', inline = '1')
+
+use_pwl_levels = input.bool(true, title = 'PWL', group = 'Prior Week Settings', inline = '2')
+css_pwl = input.color(color.new(color.yellow,35), title = '', group = 'Prior Week Settings', inline = '2')
+style_pwl = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Week Settings', inline = '2')
+width_pwl = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Week Settings', inline = '2')
+
+use_pwc_levels = input.bool(false, title = 'PWC', group = 'Prior Week Settings', inline = '3')
+css_pwc = input.color(color.new(color.yellow,35), title = '', group = 'Prior Week Settings', inline = '3')
+style_pwc = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Week Settings', inline = '3')
+width_pwc = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Week Settings', inline = '3')
+
+use_pwm_levels = input.bool(true, title = 'PWM', group = 'Prior Week Settings', inline = '4')
+css_pwm = input.color(color.new(color.yellow,35), title = '', group = 'Prior Week Settings', inline = '4')
+style_pwm = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Prior Week Settings', inline = '4')
+width_pwm = input.int(1, title = '', minval = 1, maxval = 5, group = 'Prior Week Settings', inline = '4')
+
+
+
+// session settings
+sess_display_max = input.timeframe('30', title = 'Max TF to Display on', group = 'Session Settings', inline = '0')
+session_time = input.session('1600-0000', title = 'Session Time', group = 'Session Settings', inline = 'a')
+
+use_sessh_levels = input.bool(false, title = 'Session H', group = 'Session Settings', inline = '1')
+css_sessh = input.color(color.new(color.blue,35), title = '', group = 'Session Settings', inline = '1')
+style_sessh = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session Settings', inline = '1')
+width_sessh = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session Settings', inline = '1')
+
+use_sessl_levels = input.bool(false, title = 'Session L', group = 'Session Settings', inline = '2')
+css_sessl = input.color(color.new(color.blue,35), title = '', group = 'Session Settings', inline = '2')
+style_sessl = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session Settings', inline = '2')
+width_sessl = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session Settings', inline = '2')
+
+use_sessm_levels = input.bool(true, title = 'Session M', group = 'Session Settings', inline = '4')
+css_sessm = input.color(color.new(color.blue,35), title = '', group = 'Session Settings', inline = '4')
+style_sessm = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session Settings', inline = '4')
+width_sessm = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session Settings', inline = '4')
+
+// calc prior levels
+tf_sec = timeframe.in_seconds('')
+pd_can_display = tf_sec <= timeframe.in_seconds(pd_display_max) 
+pw_can_display = tf_sec <= timeframe.in_seconds(pw_display_max)
+sess_can_display = tf_sec <= timeframe.in_seconds(sess_display_max)
+
+[pdh, pdl, pdc, pdm] = request.security(syminfo.tickerid, 'D', [high[1], low[1], close[1], (high[1] + low[1]) / 2], lookahead = barmerge.lookahead_on)
+[pwh, pwl, pwc, pwm] = request.security(syminfo.tickerid, 'W', [high[1], low[1], close[1], (high[1] + low[1]) / 2], lookahead = barmerge.lookahead_on)
+
+is_session = time(timeframe.period, str.format('{0}:1234567', session_time), 'America/New_York')
+var sess_high = 0.0
+var sess_low = 0.0
+var sess_mid = 0.0
+var int sess_bn = 0
+
+var line l_sess_high = na
+var line l_sess_low = na
+var line l_sess_mid = na
+
+if is_session
+    if not is_session[1]
+        sess_low := low
+        sess_high := high
+        sess_bn := time
+    else 
+        sess_low := math.min(low, sess_low)
+        sess_high := math.max(high, sess_high)
+else if not is_session
+    sess_low := sess_low[1]
+    sess_high := sess_high[1]
+    
+sess_mid := (sess_high + sess_low) / 2
+
+
+// display levels
+var int new_day_bn = 0
+var int new_week_bn = 0
+new_day_bn := ta.change(time('D')) ? time : new_day_bn[1]
+new_week_bn := ta.change(time('W')) ? time : new_week_bn[1]
+
+var line pdh_line = na
+var line pdl_line = na
+var line pdc_line = na
+var line pdm_line = na
+
+var line pwh_line = na
+var line pwl_line = na
+var line pwc_line = na
+var line pwm_line = na
+
+f_styles(style_input) =>
+    return_style = switch style_input
+        "Solid" => line.style_solid
+        "Dotted" => line.style_dotted
+        "Dashed" => line.style_dashed
+
+
+// draw on chart load
+if barstate.islastconfirmedhistory
+    if pd_can_display
+        if use_pdh_levels
+            pdh_line := line.new(x1 = new_day_bn, y1 = pdh, x2 = time, y2 = pdh, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pdh, width = width_pdh, style = f_styles(style_pdh))
+        if use_pdl_levels
+            pdl_line := line.new(x1 = new_day_bn, y1 = pdl, x2 = time, y2 = pdl, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pdl, width = width_pdl, style = f_styles(style_pdl))
+        if use_pdc_levels
+            pdc_line := line.new(x1 = new_day_bn, y1 = pdc, x2 = time, y2 = pdc, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pdc, width = width_pdc, style = f_styles(style_pdc))
+        if use_pdm_levels
+            pdm_line := line.new(x1 = new_day_bn, y1 = pdm, x2 = time, y2 = pdm, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pdm, width = width_pdm, style = f_styles(style_pdm))
+         
+    if pw_can_display
+        if use_pwh_levels
+            pwh_line := line.new(x1 = new_week_bn, y1 = pwh, x2 = time, y2 = pwh, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pwh, width = width_pwh, style = f_styles(style_pwh))
+        if use_pwl_levels
+            pwl_line := line.new(x1 = new_week_bn, y1 = pwl, x2 = time, y2 = pwl, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pwl, width = width_pwl, style = f_styles(style_pwl))
+        if use_pwc_levels
+            pwc_line := line.new(x1 = new_week_bn, y1 = pwc, x2 = time, y2 = pwc, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pwc, width = width_pwc, style = f_styles(style_pwc))
+        if use_pwm_levels
+            pwm_line := line.new(x1 = new_week_bn, y1 = pwm, x2 = time, y2 = pwm, xloc = xloc.bar_time,
+             extend = extend.right, color = css_pwm, width = width_pwm, style = f_styles(style_pwm))
+
+
+    if sess_can_display         
+        if use_sessh_levels
+            l_sess_high := line.new(x1 = sess_bn, y1 = sess_high, x2 = time, y2 = sess_high, xloc = xloc.bar_time,
+             extend = extend.right, color = css_sessh, width = width_sessh, style = f_styles(style_sessh))
+        if use_sessl_levels
+            l_sess_low := line.new(x1 = sess_bn, y1 = sess_low, x2 = time, y2 = sess_low, xloc = xloc.bar_time,
+             extend = extend.right, color = css_sessl, width = width_sessl, style = f_styles(style_sessl))
+        if use_sessm_levels
+            l_sess_mid := line.new(x1 = sess_bn, y1 = sess_mid, x2 = time, y2 = sess_mid, xloc = xloc.bar_time,
+             extend = extend.right, color = css_sessm, width = width_sessm, style = f_styles(style_sessm))
+
+
+// update on new day or week session
+if barstate.islast
+    if pd_can_display
+        if new_day_bn != new_day_bn[1]
+            if use_pdh_levels
+                line.set_xy1(pdh_line, new_day_bn, pdh)
+                line.set_xy2(pdh_line, time+1, pdh)
+            if use_pdl_levels
+                line.set_xy1(pdl_line, new_day_bn, pdl)
+                line.set_xy2(pdl_line, time+1, pdl)
+            if use_pdc_levels
+                line.set_xy1(pdc_line, new_day_bn, pdc)
+                line.set_xy2(pdc_line, time+1, pdc)
+            if use_pdm_levels
+                line.set_xy1(pdm_line, new_day_bn, pdm)
+                line.set_xy2(pdm_line, time+1, pdm)
+
+    if pw_can_display
+        if new_week_bn != new_week_bn[1]
+            if use_pwh_levels
+                line.set_xy1(pwh_line, new_week_bn, pwh)
+                line.set_xy2(pwh_line, time+1, pwh)
+            if use_pwl_levels
+                line.set_xy1(pwl_line, new_week_bn, pwl)
+                line.set_xy2(pwl_line, time+1, pwl)
+            if use_pwc_levels
+                line.set_xy1(pwc_line, new_week_bn, pwc)
+                line.set_xy2(pwc_line, time+1, pwc)
+            if use_pwm_levels
+                line.set_xy1(pwm_line, new_week_bn, pwm)
+                line.set_xy2(pwm_line, time+1, pwm)
+
+    if sess_can_display
+        if use_sessh_levels
+            line.set_xy1(l_sess_high, sess_bn, sess_high)
+            line.set_xy2(l_sess_high, time+1, sess_high)
+        if use_sessl_levels
+            line.set_xy1(l_sess_low, sess_bn, sess_low)
+            line.set_xy2(l_sess_low, time+1, sess_low)
+        if use_sessm_levels
+            line.set_xy1(l_sess_mid, sess_bn, sess_mid)
+            line.set_xy2(l_sess_mid, time+1, sess_mid)

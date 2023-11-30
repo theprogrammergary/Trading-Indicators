@@ -1,0 +1,93 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_mattmoheeka_candles", overlay = true, max_labels_count = 500)
+
+
+// candle color settings
+default_bullbody        = input.color(color.new(#ffffff,0), title = 'Bull Body', group = 'Default Candles')
+default_bulloutline     = input.color(color.new(#3b3b3b, 0), title = 'Bull Outline', group = 'Default Candles')
+default_bullwick        = input.color(color.new(#3b3b3b,0), title = 'Bull Wick', group = 'Default Candles')
+
+default_bearbody        = input.color(color.new(#000000, 0), title = 'Bear Body', group = 'Default Candles')
+default_bearoutline     = input.color(color.new(#000000, 0), title = 'Bear Outline', group = 'Default Candles')
+default_bearwick        = input.color(color.new(#000000,0), title = 'Bear Wick', group = 'Default Candles')
+
+
+// wick settings
+_wickratio_size = input.float(2.0, title = 'Wick Compared Against Body Ratio', group = 'Wick Candles')
+_wicktowickratio_size = input.float(1.5, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Wick Candles', minval = 1.0)
+wick_bullbody        = input.color(color.new(#55d562, 0), title = 'Bull Body', group = 'Wick Candles')
+wick_bulloutline     = input.color(color.new(#2f7736, 0), title = 'Bull Outline', group = 'Wick Candles')
+wick_bullwick        = input.color(color.new(#2f7736,0), title = 'Bull Wick', group = 'Wick Candles')
+
+wick_bearbody        = input.color(color.new(#ff1010, 0), title = 'Bear Body', group = 'Wick Candles')
+wick_bearoutline     = input.color(color.new(#a42525, 0), title = 'Bear Outline', group = 'Wick Candles')
+wick_bearwick        = input.color(color.new(#a42525,0), title = 'Bear Wick', group = 'Wick Candles')
+
+
+// doji settings
+_color_dojis = input.bool(true, title = 'Color Doji Candles', group = 'Doji Candles')
+_dojiratio_size = input.float(2.0, title = 'Wick Compared Against Body Ratio', group = 'Doji Candles')
+_dojitodojiratio_size = input.float(1.5, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Doji Candles')
+doji_body        = input.color(color.new(#fffb27, 0), title = 'Doji Body', group = 'Doji Candles')
+doji_outline     = input.color(color.new(#8f8127, 0), title = 'Doji Outline', group = 'Doji Candles')
+doji_wick        = input.color(color.new(#8f8127,0), title = 'Doji Wick', group = 'Doji Candles')
+
+
+// wick calculations
+var float body_size = na
+var float topwick_size = na
+var float bottomwick_size = na
+var float wick_size = na
+var float body_wick_ratio = na
+
+var bool top_wicked = na
+var bool bottom_wicked = na
+
+body_size := math.abs(close-open)
+topwick_size := high - math.max(close,open)
+bottomwick_size := math.min(close,open) - low
+wick_size := topwick_size + bottomwick_size
+body_wick_ratio := wick_size / body_size
+
+top_wicked := barstate.isconfirmed and (topwick_size/body_size) >= _wickratio_size and (topwick_size/bottomwick_size >= _wicktowickratio_size)
+bottom_wicked := barstate.isconfirmed and (bottomwick_size/body_size) >= _wickratio_size and (bottomwick_size/topwick_size >= _wicktowickratio_size)
+
+
+// doji calculations
+var bool is_doji = na
+is_doji := barstate.isconfirmed and _color_dojis and math.min(topwick_size/body_size, bottomwick_size/body_size) >= _wickratio_size and (math.max(topwick_size/bottomwick_size, bottomwick_size/topwick_size) <= _dojitodojiratio_size)
+// bgcolor(is_doji ? color.yellow : na)
+
+
+// color calculations
+var color css_body = na
+var color css_wick = na
+var color css_outline = na
+var bool  bullish_candle = na
+var bool  bearish_candle = na
+
+bullish_candle := close > open
+bearish_candle := close < open
+
+css_body := is_doji ? doji_body : top_wicked ? wick_bearbody : bottom_wicked ? wick_bullbody : bullish_candle ? default_bullbody : bearish_candle ? default_bearbody : default_bullbody
+css_wick := is_doji ? doji_wick : top_wicked ? wick_bearwick : bottom_wicked ? wick_bullwick : bullish_candle ? default_bullwick : bearish_candle ? default_bearwick : default_bullwick
+css_outline := is_doji ? doji_outline : top_wicked ? wick_bearoutline : bottom_wicked ? wick_bulloutline : bullish_candle ? default_bulloutline : bearish_candle ? default_bearoutline : default_bulloutline
+
+plotcandle(open,high,low,close,title='Custom Candles', color = css_body, wickcolor = css_wick, bordercolor = css_outline)
+
+
+// alerts
+alertcondition(is_doji, 'Doji Candle', 'Doji Candle')
+alertcondition(bottom_wicked, 'Bottom Wicked', 'Bottom Wicked')
+alertcondition(top_wicked, 'Top Wicked', 'Top Candlwicked')
+
+
+
+// debugging
+// label.new(bar_index, high, text = str.tostring(topwick_size/bottomwick_size), style = label.style_label_center, yloc=yloc.abovebar)
+// label.new(bar_index, low, text = str.tostring(bottomwick_size/topwick_size), style = label.style_label_center, yloc=yloc.belowbar)
+// label.new(bar_index, high, text = str.tostring(topwick_size/body_size), style = label.style_label_center, yloc=yloc.abovebar)
+// label.new(bar_index, low, text = str.tostring(bottomwick_size/body_size), style = label.style_label_center, yloc=yloc.belowbar)

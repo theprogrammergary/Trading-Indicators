@@ -1,0 +1,95 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_moises1118", overlay=true, margin_long=100, margin_short=100, default_qty_value = 100)
+
+
+// moving averages
+input_ma1length = input.int(20, title = 'MA 1', group = 'MA Settings', inline = '1')
+input_ma1price = input.source(close, title = '', group = 'MA Settings', inline = '1')
+
+input_ma2length = input.int(50, title = 'MA 2', group = 'MA Settings', inline = '2')
+input_ma2price = input.source(close, title = '', group = 'MA Settings', inline = '2')
+
+ma1_value = ta.sma(input_ma1price, input_ma1length)
+ma2_value = ta.sma(input_ma2price, input_ma2length)
+
+p_ma1 = plot(ma1_value, title = 'MA 1', color = color.orange) 
+p_ma2 = plot(ma2_value, title = 'MA 2', color = color.yellow) 
+
+ma_trend = ma1_value >= ma2_value ? 1 : -1 
+fill(p_ma1, p_ma2, title = 'MA Cloud', color = ma_trend == 1 ? color.new(color.teal, 70) : color.new(color.red, 70))
+
+
+// bollinger band
+input_bblength = input.int(20, title = 'BB Length', group = 'BB Settings')
+input_bbmult = input.float(2.00, title = 'BB Mult', group = 'BB Settings')
+input_bbsrc = input.source(close, title = 'BB Source', group = 'BB Settings')
+[bb_middle, bb_upper, bb_lower] = ta.bb(input_bbsrc, input_bblength, input_bbmult)
+
+p_bbupper = plot(bb_upper, title = 'BB Upper', color = color.new(color.gray,85))
+p_bblower = plot(bb_lower, title = 'BB Lower', color = color.new(color.gray,85))
+bb_sell = high >= bb_upper
+bb_buy = low <= bb_lower
+
+
+// rsi
+input_rsisource = input.source(close, title = 'RSI Source', group = 'RSI Settings')
+input_rsilength = input.int(14, title = 'RSI Length', group = 'RSI Settings')
+input_rsibuy = input.int(30, title = 'RSI Buy', group = 'RSI Settings')
+input_rsisell = input.int(70, title = 'RSI Sell', group = 'RSI Settings')
+rsi_value = ta.rsi(input_rsisource, input_rsilength)
+
+rsi_buy = rsi_value <= input_rsibuy
+rsi_sell = rsi_value >= input_rsisell
+
+
+// swing 
+input_swinglength = input.int(5, title = 'Swing Length For Stops', group = 'Swing Settings')
+
+csh = ta.valuewhen(ta.pivothigh(high, input_swinglength, input_swinglength), high[input_swinglength], 0)
+csl = ta.valuewhen(ta.pivotlow(low, input_swinglength, input_swinglength), low[input_swinglength], 0)
+// plot(csh, color = color.red)
+// plot(csl, color = color.green)
+
+// entry logic
+var bool long_entry = false
+var bool long_exit = false
+
+var bool short_entry = false
+var bool short_exit = false
+
+long_entry := (ma_trend == 1 and bb_buy and rsi_buy) and strategy.position_size <= 0 
+short_entry := (ma_trend == -1 and bb_sell and rsi_sell) and strategy.position_size >= 0
+
+
+// exit logic
+var float long_stop = na
+var float short_stop = na
+
+alt_longstop = ta.lowest(low, input_swinglength)
+alt_shortstop = ta.highest(high, input_swinglength)
+
+long_stop := long_entry ? math.min(csl, alt_longstop) : long_stop[1]
+short_stop := short_entry ? math.max(csh, alt_shortstop) : short_stop[1]
+
+barcolor(strategy.position_size > 0 ? color.green : strategy.position_size < 0 ? color.red : na)
+
+// send orders
+if long_entry
+    strategy.entry(id="LE", comment="LE", direction = strategy.long)
+
+if short_entry
+    strategy.entry(id="SS_E", comment="SS_E", direction =  strategy.short)
+
+if long_entry or strategy.position_size > 0
+    strategy.exit("LE", comment = 'LX', limit = bb_upper, stop = long_stop)
+if short_entry or strategy.position_size < 0
+    strategy.exit("SS_E", comment = 'SS_X', limit = bb_lower, stop = short_stop)
+
+
+// plot
+p_entry = plot(strategy.position_avg_price, title = 'Entry Line', color = color.blue, style = plot.style_linebr)
+p_stop = plot(strategy.position_size > 0 ? long_stop : strategy.position_size < 0 ? short_stop : na
+ , title = 'Stop Line', color = color.fuchsia, style = plot.style_linebr)

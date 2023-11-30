@@ -1,0 +1,1 @@
+Please read the discalimer. In the scan use scan_signal as the plot for the scan settings. Scan_visual is just for the chart.

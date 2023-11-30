@@ -1,0 +1,53 @@
+\
+#CHANGE THESE
+input start_time_1 = 0930;
+input end_time_1 = 0940;
+
+input start_time_2 = 0930;
+input end_time_2 = 1000;
+
+input use_absvalue = no;
+input slope_mult = 100;
+
+input slope_difference_value_max = 3.0;
+input slope_difference_value_min = 1.5;
+
+
+
+
+
+#IGNORE BELOW
+def new_day = getday() != getday()[1];
+def mult = getaggregationPeriod() / 60000;
+
+
+##1
+def is_time_1 = secondsFromTime(start_time_1) >= 0 and secondstillTime(end_time_1) > 0;
+def todays_open_1 =  if is_time_1 and !is_time_1[1] then round(open,2) else if new_day then double.nan else todays_open_1[1];
+def end_price_1 =  if !is_time_1 and is_time_1[1] then round(close[1],2) else if new_day then double.nan else end_price_1[1];
+def bars_for_time_1 =  if new_day and  secondsFromTime(start_time_1) >= 0 then 1 else if new_day then 0 else if !isnan(todays_open_1) then bars_for_time_1[1] + 1 else bars_for_time_1[1];
+def time_between_1 = bars_for_time_1 * mult;
+
+def slope_1 = if use_absvalue then round(absValue(((close - todays_open_1) / time_between_1)) * slope_mult,2) else round(((close - todays_open_1) / time_between_1) * slope_mult,2);
+
+def slope_at_1 = if new_day then double.nan else if is_time_1[1] and !is_time_1 then slope_1[1] else slope_at_1[1];
+def slope_at_time_1 = slope_at_1;
+
+
+##2
+def is_time_2 = secondsFromTime(start_time_2) >= 0 and secondstillTime(end_time_2) > 0;
+def todays_open_2 =  if is_time_2 and !is_time_2[1] then round(open,2) else if new_day then double.nan else todays_open_2[1];
+def end_price_2 =  if !is_time_2 and is_time_2[1] then round(close[1],2) else if new_day then double.nan else end_price_2[1];
+def bars_for_time_2 =  if new_day and  secondsFromTime(start_time_2) >= 0 then 1 else if new_day then 0 else if !isnan(todays_open_2) then bars_for_time_2[1] + 1 else bars_for_time_2[1];
+def time_between_2 = bars_for_time_2 * mult;
+
+def slope_2 = if use_absvalue then round(absValue(((close - todays_open_2) / time_between_2)) * slope_mult,2) else round(((close - todays_open_2) / time_between_2) * slope_mult,2);
+
+def slope_at_2 = if new_day then double.nan else if is_time_2[1] and !is_time_2 then slope_2[1] else slope_at_2[1];
+def slope_at_time_2 = slope_at_2;
+
+def slope_difference = if use_absvalue then round(absvalue(slope_at_time_2  - slope_at_time_1),2) else round(slope_at_time_2  - slope_at_time_1,2);
+
+plot triggered = slope_difference <= slope_difference_value_max and slope_difference >= slope_difference_value_min;
+
+

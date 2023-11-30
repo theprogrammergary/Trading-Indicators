@@ -1,0 +1,37 @@
+###SOURCE CODE
+#1
+#CHANGE THIS
+#The trigger is how many atrs (how much we move in a day on average) away from last weeks high
+#1 would be 1 atr
+#0.5 would be half atr
+input trigger = 1; 
+
+
+#IGNORE
+def atr = reference atr();
+def lw_high = round(high(period = aggregationPeriod.WEEK)[1],2);
+def trigger_price = round(lw_high - (atr * trigger),2);
+def value = if close >= lw_high then 2 else if close >= trigger_price then 1 else 0;
+addlabel(yes, if value == 2 then "Above: " + lw_high else if value == 1 then "Approaching: " + lw_high else "Below: " + lw_high, if value == 2 then color.white else if value == 1 then color.black  else color.white);
+assignbackgroundColor(if value == 2 then color.dark_green else if value == 1 then createColor(219,206,29) else color.dark_red);
+
+
+
+
+#2
+#CHANGE THIS
+#The trigger is how many atrs (how much we move in a day on average) away from last weeks high
+#1 would be 1 atr
+#0.5 would be half atr
+input trigger = 1; 
+
+
+#IGNORE
+def atr = reference atr();
+def lw_high = round(high(period = aggregationPeriod.WEEK)[1],2);
+def trigger_price = round(lw_high - (atr * trigger),2);
+def value = if close >= lw_high then 2 else if close >= trigger_price then 1 else 0;
+addlabel(yes, if value == 2 then "Above: " + lw_high else if value == 1 then "Approaching: " + lw_high else "Below: " + lw_high, if value == 2 then color.white else if value == 1 then color.black  else color.white);
+assignbackgroundColor(if value == 2 then color.dark_green else if value == 1 then createColor(219,206,29) else color.dark_red);
+
+

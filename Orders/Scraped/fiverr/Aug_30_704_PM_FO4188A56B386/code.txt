@@ -1,0 +1,209 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_jacobdmoss", overlay = true)
+
+//MA
+use_ma = input.bool(true, title = 'Use EMA ?', group = 'MA Settings', inline = '1')
+ma_price = input.source(close, title = 'EMA Price', group = 'MA Settings', inline = '2')
+ma_length = input.int(50, title = 'EMA Length', group = 'MA Settings', inline = '2')
+ma_value = ta.ema(ma_price, ma_length)
+ma_buy = use_ma and close >= ma_value
+ma_sell = use_ma and close < ma_value
+plot(use_ma ? ma_value : na, title = 'Separate EMA', color = ma_buy ? color.teal : color.red, linewidth = 3)
+
+
+//MA RIBBON
+use_ma_ribbon = input.bool(true, title = 'Use EMA Ribbon ?', group = 'EMA Ribbon Settings', inline = '1')
+color_ribbon_cloud = input.bool(true, title = 'Color Ribbon Cloud ?', group = 'EMA Ribbon Settings', inline = '2')
+ema_ribbon_price = input.source(close, title = 'EMA Ribbon Price', group = 'EMA Ribbon Settings', inline = '3')
+
+ema_length_1 = input.int(21, title = 'EMA Length 1', group = 'EMA Ribbon Settings', inline = '3')
+ema_length_2 = input.int(25, title = 'EMA Length 2', group = 'EMA Ribbon Settings', inline = '4')
+ema_length_3 = input.int(30, title = 'EMA Length 3', group = 'EMA Ribbon Settings', inline = '5')
+ema_length_4 = input.int(35, title = 'EMA Length 4', group = 'EMA Ribbon Settings', inline = '6')
+ema_length_5 = input.int(40, title = 'EMA Length 5', group = 'EMA Ribbon Settings', inline = '7')
+ema_length_6 = input.int(45, title = 'EMA Length 6', group = 'EMA Ribbon Settings', inline = '8')
+ema_length_7 = input.int(50, title = 'EMA Length 7', group = 'EMA Ribbon Settings', inline = '9')
+ema_length_8 = input.int(55, title = 'EMA Length 8', group = 'EMA Ribbon Settings', inline = '10')
+
+ema_value_1 = ta.ema(ema_ribbon_price, ema_length_1)
+ema_value_2 = ta.ema(ema_ribbon_price, ema_length_2)
+ema_value_3 = ta.ema(ema_ribbon_price, ema_length_3)
+ema_value_4 = ta.ema(ema_ribbon_price, ema_length_4)
+ema_value_5 = ta.ema(ema_ribbon_price, ema_length_5)
+ema_value_6 = ta.ema(ema_ribbon_price, ema_length_6)
+ema_value_7 = ta.ema(ema_ribbon_price, ema_length_7)
+ema_value_8 = ta.ema(ema_ribbon_price, ema_length_8)
+
+plot(use_ma_ribbon ? ema_value_1 : na, title = 'EMA Ribbon 1', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_2 : na, title = 'EMA Ribbon 2', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_3 : na, title = 'EMA Ribbon 3', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_4 : na, title = 'EMA Ribbon 4', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_5 : na, title = 'EMA Ribbon 5', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_6 : na, title = 'EMA Ribbon 6', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_7 : na, title = 'EMA Ribbon 7', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+plot(use_ma_ribbon ? ema_value_8 : na, title = 'EMA Ribbon 8', color = ma_buy ? color.teal : ma_sell ? color.red : color.gray, linewidth = 1)
+
+
+max_cloud_value = math.max(ema_value_1, math.max(ema_value_2, math.max(ema_value_3, math.max(ema_value_4, math.max(ema_value_5, math.max(ema_value_6, math.max(ema_value_7, ema_value_8)))))))
+min_cloud_value = math.min(ema_value_1, math.min(ema_value_2, math.min(ema_value_3, math.min(ema_value_4, math.min(ema_value_5, math.min(ema_value_6, math.min(ema_value_7, ema_value_8)))))))
+
+max_cloud_plot = plot(max_cloud_value, color = color.new(#000000, 100), editable = false)
+min_cloud_plot = plot(min_cloud_value, color = color.new(#000000, 100), editable = false)
+fill(max_cloud_plot, min_cloud_plot, color = ma_buy ? color.new(color.teal,85) : color.new(color.red,85), title = 'EMA Ribbon Cloud')
+
+in_ribbon = use_ma_ribbon and ((high > min_cloud_value and low < max_cloud_value))
+barcolor(in_ribbon ? color.yellow : na, title = 'In EMA Ribbon Cloud')
+
+
+//VUMANCHU DOTS
+small_dots = input.bool(true, 'Small BUY/SELL Dots', group = 'VuManChu B Divergences Small Dots', inline = '1')
+
+wtMASource = input(hlc3, title='WT MA Source', group = 'VuManChu B Divergences Small Dots', inline = '2')
+wtChannelLen = input(9, title='WT Channel Length', group = 'VuManChu B Divergences Small Dots', inline = '3')
+wtAverageLen = input(12, title='WT Average Length', group = 'VuManChu B Divergences Small Dots', inline = '4')
+wtMALen = input(3, title='WT MA Length', group = 'VuManChu B Divergences Small Dots', inline = '5')
+
+obLevel = input(53, title='WT Overbought Level 1', group = 'VuManChu B Divergences Small Dots', inline = '6')
+osLevel = input(-53, title='WT Oversold Level 1', group = 'VuManChu B Divergences Small Dots', inline = '7')
+
+// WaveTrend
+f_wavetrend(src, chlen, avg, malen, tf) =>
+    tfsrc = request.security(syminfo.tickerid, tf, src)
+    esa = ta.ema(tfsrc, chlen)
+    de = ta.ema(math.abs(tfsrc - esa), chlen)
+    ci = (tfsrc - esa) / (0.015 * de)
+    wt1 = request.security(syminfo.tickerid, tf, ta.ema(ci, avg))
+    wt2 = request.security(syminfo.tickerid, tf, ta.sma(wt1, malen))
+    wtVwap = wt1 - wt2
+    wtOversold = wt2 <= osLevel
+    wtOverbought = wt2 >= obLevel
+    wtCross = ta.cross(wt1, wt2)
+    wtCrossUp = wt2 - wt1 <= 0
+    wtCrossDown = wt2 - wt1 >= 0
+    wtCrosslast = ta.cross(wt1[2], wt2[2])
+    wtCrossUplast = wt2[2] - wt1[2] <= 0
+    wtCrossDownlast = wt2[2] - wt1[2] >= 0
+    [wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCrosslast, wtCrossUplast, wtCrossDownlast, wtVwap]
+
+
+
+//SMALL DOTS CALCULATION
+[wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCross_last, wtCrossUp_last, wtCrossDown_last, wtVwap] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen, timeframe.period)
+
+buySignal = wtCross and wtCrossUp and wtOversold
+sellSignal = wtCross and wtCrossDown and wtOverbought
+
+plotchar(small_dots and buySignal ? true : false, title='Buy circle', char='·', color=color.new(color.teal, 50), location=location.bottom, size=size.small)
+plotchar(small_dots and sellSignal ? true : false, title='Sell circle', char='·', color=color.new(color.red, 50), location=location.top, size=size.small)
+
+
+//REGULAR DOTS CALCULATION
+regular_dots = input.bool(true, 'Regular BUY/SELL Dots', group = 'VuManChu B Divergences Regular Dots', inline = '1')
+
+
+// Divergence WT
+wtShowDiv = input(true, title='Show WT Regular Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '2')
+wtShowHiddenDiv = input(false, title='Show WT Hidden Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '3')
+showHiddenDiv_nl = input(true, title='Not apply OB/OS Limits on Hidden Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '4')
+wtDivOBLevel = input(45, title='WT Bearish Divergence min', group = 'VuManChu B Divergences Regular Dots', inline = '5')
+wtDivOSLevel = input(-65, title='WT Bullish Divergence min', group = 'VuManChu B Divergences Regular Dots', inline = '6')
+
+// Divergence extra range
+wtDivOBLevel_addshow = input(true, title='Show 2nd WT Regular Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '7')
+wtDivOBLevel_add = input(15, title='WT 2nd Bearish Divergence', group = 'VuManChu B Divergences Regular Dots', inline = '8')
+wtDivOSLevel_add = input(-40, title='WT 2nd Bullish Divergence 15 min', group = 'VuManChu B Divergences Regular Dots', inline = '9')
+
+// RSI Stochastic
+stochShow = input(true, title='Show Stochastic RSI', group = 'VuManChu B Divergences Regular Dots', inline = '10')
+stochUseLog = input(true, title=' Use Log?', group = 'VuManChu B Divergences Regular Dots', inline = '11')
+stochAvg = input(false, title='Use Average of both K & D', group = 'VuManChu B Divergences Regular Dots', inline = '12')
+stochSRC = input(close, title='Stochastic RSI Source', group = 'VuManChu B Divergences Regular Dots', inline = '13')
+stochLen = input(14, title='Stochastic RSI Length', group = 'VuManChu B Divergences Regular Dots', inline = '14')
+stochRsiLen = input(14, title='RSI Length ', group = 'VuManChu B Divergences Regular Dots', inline = '15')
+stochKSmooth = input(3, title='Stochastic RSI K Smooth', group = 'VuManChu B Divergences Regular Dots', inline = '16')
+stochDSmooth = input(3, title='Stochastic RSI D Smooth', group = 'VuManChu B Divergences Regular Dots', inline = '17')
+
+// Divergence stoch
+stochShowDiv = input(false, title='Show Stoch Regular Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '18')
+stochShowHiddenDiv = input(false, title='Show Stoch Hidden Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '19')
+
+
+// RSI
+rsiShow = input(false, title='Show RSI', group = 'VuManChu B Divergences Regular Dots', inline = '20')
+rsiSRC = input(close, title='RSI Source', group = 'VuManChu B Divergences Regular Dots', inline = '21')
+rsiLen = input(14, title='RSI Length', group = 'VuManChu B Divergences Regular Dots', inline = '22')
+rsiOversold = input.int(30, title='RSI Oversold', minval=0, maxval=100, group = 'VuManChu B Divergences Regular Dots', inline = '23')
+rsiOverbought = input.int(60, title='RSI Overbought', minval=0, maxval=100, group = 'VuManChu B Divergences Regular Dots', inline = '24')
+
+// Divergence RSI
+rsiShowDiv = input(false, title='Show RSI Regular Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '25')
+rsiShowHiddenDiv = input(false, title='Show RSI Hidden Divergences', group = 'VuManChu B Divergences Regular Dots', inline = '26')
+rsiDivOBLevel = input(60, title='RSI Bearish Divergence min', group = 'VuManChu B Divergences Regular Dots', inline = '27')
+rsiDivOSLevel = input(30, title='RSI Bullish Divergence min', group = 'VuManChu B Divergences Regular Dots', inline = '28')
+
+// Divergences
+f_top_fractal(src) =>
+    src[4] < src[2] and src[3] < src[2] and src[2] > src[1] and src[2] > src[0]
+f_bot_fractal(src) =>
+    src[4] > src[2] and src[3] > src[2] and src[2] < src[1] and src[2] < src[0]
+f_fractalize(src) =>
+    f_top_fractal(src) ? 1 : f_bot_fractal(src) ? -1 : 0
+
+f_findDivs(src, topLimit, botLimit, useLimits) =>
+    fractalTop = f_fractalize(src) > 0 and (useLimits ? src[2] >= topLimit : true) ? src[2] : na
+    fractalBot = f_fractalize(src) < 0 and (useLimits ? src[2] <= botLimit : true) ? src[2] : na
+    highPrev = ta.valuewhen(fractalTop, src[2], 0)[2]
+    highPrice = ta.valuewhen(fractalTop, high[2], 0)[2]
+    lowPrev = ta.valuewhen(fractalBot, src[2], 0)[2]
+    lowPrice = ta.valuewhen(fractalBot, low[2], 0)[2]
+    bearSignal = fractalTop and high[2] > highPrice and src[2] < highPrev
+    bullSignal = fractalBot and low[2] < lowPrice and src[2] > lowPrev
+    bearDivHidden = fractalTop and high[2] < highPrice and src[2] > highPrev
+    bullDivHidden = fractalBot and low[2] > lowPrice and src[2] < lowPrev
+    [fractalTop, fractalBot, lowPrev, bearSignal, bullSignal, bearDivHidden, bullDivHidden]
+
+// Stochastic RSI
+f_stochrsi(_src, _stochlen, _rsilen, _smoothk, _smoothd, _log, _avg) =>
+    src = _log ? math.log(_src) : _src
+    rsi = ta.rsi(src, _rsilen)
+    kk = ta.sma(ta.stoch(rsi, rsi, rsi, _stochlen), _smoothk)
+    d1 = ta.sma(kk, _smoothd)
+    avg_1 = math.avg(kk, d1)
+    k = _avg ? avg_1 : kk
+    [k, d1]
+
+// RSI
+rsi = ta.rsi(rsiSRC, rsiLen)
+
+// Stochastic RSI
+[stochK, stochD] = f_stochrsi(stochSRC, stochLen, stochRsiLen, stochKSmooth, stochDSmooth, stochUseLog, stochAvg)
+
+[wtFractalTop, wtFractalBot, wtLow_prev, wtBearDiv, wtBullDiv, wtBearDivHidden, wtBullDivHidden] = f_findDivs(wt2, wtDivOBLevel, wtDivOSLevel, true)
+[wtFractalTop_add, wtFractalBot_add, wtLow_prev_add, wtBearDiv_add, wtBullDiv_add, wtBearDivHidden_add, wtBullDivHidden_add] = f_findDivs(wt2, wtDivOBLevel_add, wtDivOSLevel_add, true)
+[stochFractalTop, stochFractalBot, stochLow_prev, stochBearDiv, stochBullDiv, stochBearDivHidden, stochBullDivHidden] = f_findDivs(stochK, 0, 0, false)
+[rsiFractalTop, rsiFractalBot, rsiLow_prev, rsiBearDiv, rsiBullDiv, rsiBearDivHidden, rsiBullDivHidden] = f_findDivs(rsi, rsiDivOBLevel, rsiDivOSLevel, true)
+
+
+buySignalDiv = wtShowDiv and wtBullDiv or wtShowDiv and wtBullDiv_add or stochShowDiv and stochBullDiv or rsiShowDiv and rsiBullDiv
+sellSignalDiv = wtShowDiv and wtBearDiv or wtShowDiv and wtBearDiv_add or stochShowDiv and stochBearDiv or rsiShowDiv and rsiBearDiv
+
+plotchar(regular_dots and buySignalDiv ? true : false, title='Divergence buy circle', char='•', color=color.new(color.teal,15), location=location.bottom, size=size.small, offset=-2)
+plotchar(regular_dots and sellSignalDiv ? true : false, title='Divergence sell circle', char='•', color=color.new(color.red,15), location=location.top, size=size.small, offset=-2)
+
+
+
+
+//buy_cond
+buy_cond = ((use_ma and ma_buy) or not use_ma) and ((use_ma_ribbon and in_ribbon) or not in_ribbon) and ( ((small_dots and buySignal)) or ((regular_dots and buySignalDiv)) )
+
+//sell_cond
+sell_cond = ((use_ma and ma_sell) or not use_ma) and ((use_ma_ribbon and in_ribbon) or not in_ribbon) and ( ((small_dots and sellSignal)) or ((regular_dots and sellSignalDiv)) )
+
+
+//PLOTTING SIGNAL CODE
+//MAIN
+plotshape(buy_cond ? true : false, style=shape.labelup, editable=true, text= "Buy", textcolor=color.white, location= location.belowbar, color=color.new(color.teal, 30), size=size.tiny)
+plotshape(sell_cond ? true : false, style=shape.labeldown, editable=true, text='Sell', textcolor=color.white, location=location.abovebar, color=color.new(color.red, 30), size=size.tiny)

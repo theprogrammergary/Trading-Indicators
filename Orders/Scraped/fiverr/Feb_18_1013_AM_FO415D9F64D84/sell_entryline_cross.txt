@@ -1,0 +1,33 @@
+# SELL ENTRY LINE SCAN
+
+
+
+input BuyEntry = 3;
+input SellEntry = 3;
+input BuyExit = 75;
+input SellExit = 50;
+
+def hb1= fold hi1 = 1 to SellExit with ht1= 0 do if ht1>=0 and (GetValue(high, hi1) < GetValue(high, ht1)) then ht1  else hi1;
+def hb2= fold hi2 = 1 to SellExit with ht2= 0 do if hi2 == hb1 or (ht2>=0 and GetValue(high, hi2) < GetValue(high, ht2)) then ht2 else hi2;
+def hb3= fold hi3 = 1 to SellExit with ht3= 0 do if hi3 == hb1 or hi3 == hb2 or (ht3>=0 and GetValue(high, hi3) < GetValue(high, ht3)) then ht3  else hi3;
+
+def h1 = GetValue(high, hb1);
+def h2 = GetValue(high, hb2);
+def h3 = GetValue(high, hb3);
+def HH = round(((h2 + h3) / 2.0)/ticksize(),0)*ticksize();
+
+def QS = Lowest(low, SellEntry);
+def co = BarNumber() > BuyExit;
+def exit;  def exit_fixna = if isnan(exit) then exit_fixna[1] else exit;
+
+def switchside = if co and low < QS[1] and !switchside[1] then yes else if  high > exit_fixna[1] then no else switchside[1];
+def switchside_fixna = if isnan(switchside) then switchside_fixna[1] else switchside;
+exit = if switchside_fixna and !switchside_fixna[1] then HH else if switchside_fixna then min(exit_fixna[1], HH) else HH;
+
+def EntryPr = if low < QS[1] and switchside_fixna and !switchside_fixna[1] then QS[1] else if !switchside_fixna then 0 else EntryPr[1];
+def EntryLine = if HH > EntryPr then EntryPr else 0;
+def pEntryLine = if co then EntryLine else 0;
+
+plot scan = pEntryLine > 0 and close crosses pEntryLine;
+scan.assignvalueColor(if scan then color.yellow else color.black);
+assignbackgroundcolor(if scan then color.yellow else color.black);

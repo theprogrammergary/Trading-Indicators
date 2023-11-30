@@ -1,0 +1,113 @@
+##CHANGE THESE
+input slope_start_time = 0930;
+input slope_end_time = 0940;
+
+input slope_use_absvalue = no;
+input slope_mult = 100;
+
+input slope_low = 0.05;
+input slope_high = 3.00;
+
+
+input dmi_length = 14;
+input dmi_averageType = AverageType.WILDERS;
+
+
+input rvi_stDevLength = 10;
+input rvi_averageLength = 14;
+input rvi_averageType = AverageType.EXPONENTIAL;
+
+
+input rvi_low = 39.00;
+input rvi_high = 57.00;
+
+#IGNORE BELOW
+
+
+
+
+
+
+#
+#SLOPE
+#
+
+
+def new_day = getday() != getday()[1];
+def is_time = secondsFromTime(slope_start_time) >= 0 and secondstillTime(slope_end_time) > 0;
+
+#assignpricecolor(if is_time then color.yellow else color.gray);
+#assignpricecolor(if  is_time and !is_time[1] then color.yellow else color.gray);
+
+def todays_open =  if is_time and !is_time[1] then round(open,2) else if new_day then double.nan else todays_open[1];
+def end_price =  if !is_time and is_time[1] then round(close[1],2) else if new_day then double.nan else end_price[1];
+def bars_for_time =  if new_day and  secondsFromTime(slope_start_time) >= 0 then 1 else if new_day then 0 else if !isnan(todays_open) then bars_for_time[1] + 1 else bars_for_time[1];
+
+def mult = getaggregationPeriod() / 60000;
+def time_between = bars_for_time * mult;
+
+#(current price)-(open price) / time_between
+def slope = if slope_use_absvalue then round(absValue(((close - todays_open) / time_between)) * slope_mult,2) else round(((close - todays_open) / time_between) * slope_mult,2);
+def slope_at= if new_day then double.nan else if is_time[1] and !is_time then slope[1] else slope_at[1];
+
+def slope_scan = if slope_at >= slope_low and slope_at <= slope_high then 1 else 0;
+
+
+#
+#DMI
+#
+
+def hiDiff = high - high[1];
+def loDiff = low[1] - low;
+
+def plusDM = if hiDiff > loDiff and hiDiff > 0 then hiDiff else 0;
+def minusDM =  if loDiff > hiDiff and loDiff > 0 then loDiff else 0;
+
+def ATR = MovingAverage(dmi_averageType, TrueRange(high, close, low), dmi_length);
+def di_plus = 100 * MovingAverage(dmi_averageType, plusDM, dmi_length) / ATR;
+def di_minus = 100 * MovingAverage(dmi_averageType, minusDM, dmi_length) / ATR;
+
+def di_scan_at = if new_day then double.nan else if is_time[1] and !is_time then di_plus[1] > di_minus[1] else di_scan_at[1];
+
+def di_scan = if di_scan_at then 1 else 0;
+
+
+#
+#RVI
+#
+
+def stDevHi = stDev(high, rvi_stDevLength);
+def stDevLo = stDev(low, rvi_stDevLength);
+
+def avgStDevHiUp = MovingAverage(rvi_averageType, if high > high[1] then stDevHi else 0, rvi_averageLength);
+def avgStDevHiDown = MovingAverage(rvi_averageType, if high < high[1] then stDevHi else 0, rvi_averageLength);
+
+def avgStDevLoUp = MovingAverage(rvi_averageType, if low > low[1] then stDevLo else 0, rvi_averageLength);
+def avgStDevLoDown = MovingAverage(rvi_averageType, if low < low[1] then stDevLo else 0, rvi_averageLength);
+
+def rviHi = if avgStDevHiUp + avgStDevHiDown == 0 then 50 else 100 * avgStDevHiUp / (avgStDevHiUp + avgStDevHiDown);
+def rviLo = if avgStDevLoUp + avgStDevLoDown == 0 then 50 else 100 * avgStDevLoUp / (avgStDevLoUp + avgStDevLoDown);
+
+def RVI = round((rviHi + rviLo) / 2,2);
+def RVI_at= if new_day then double.nan else if is_time[1] and !is_time then RVI[1] else RVI_at[1];
+
+def rvi_scan = if RVI_at >= rvi_low and RVI_at <= rvi_high then 1 else 0;
+
+
+
+#
+#Closing
+#
+def close_green_scan =  if new_day then double.nan else if is_time[1] and !is_time then close[1] > open[1] else close_green_scan[1];
+
+def scan_sum = slope_scan + di_scan + rvi_scan + close_green_scan;
+
+
+
+
+
+
+plot scan = scan_sum >= 3;
+
+
+

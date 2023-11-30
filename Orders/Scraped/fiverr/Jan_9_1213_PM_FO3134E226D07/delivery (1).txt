@@ -1,0 +1,13 @@
+Again read the disclaimer if you haven't.
+
+https://tos.mx/DQUbW6h
+
+I don't know if you know but Thinkorswim has limitations in their scans.
+
+If you ever get a runtime execution error you need to either:
+
+1. Scan in a smaller basket of stocks(picture 1)
+-For this you can scan in all NYSE stocks, Nasdaq stocks, all ETFS, etc. Or you can create your own watchlist and scan within the watchlist. This error happens because you are scanning across tens of thousands of stocks/symbols and it is too much for TOS to handle.
+
+2. Not scan as far back (picture 2)
+-For this anything over 250 bars usually is too much for TOS to handle.

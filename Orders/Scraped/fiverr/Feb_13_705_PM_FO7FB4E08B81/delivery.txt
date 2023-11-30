@@ -1,0 +1,8 @@
+Please read the disclaimer.
+
+The file you need is the .eld file. Import that using the video how-to below and then apply it to a chart. From the strategy input settings you can change the atr length, x larger by, stoploss, and take profit, and signal max waiting.
+
+Here is a video on how to import any .eld file into tradestation.
+https://markplex.com/free-tutorials/tutorial-43-importing-eld-tradestation/
+
+Let me know if you have any questions.

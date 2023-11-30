@@ -1,0 +1,6 @@
+#DISCLAIMER
+GM accepts no liability or responsiblity for any losses that arise from using indicators or strategies coded by GM.  GM provides coding and automation services 
+ in the Thinkorswim, TradeStation, and Python programming languages. GM provides a coding SERVICE to customers. GM is not selling a financial market strategy.
+Anything coded by GM is requested by the client and not an original idea from GM.
+GM is not a licensed professional therefore any advice is his opinion. 
+Past performance indicated by any strategy or indicator does not gurantee future returns. 

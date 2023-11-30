@@ -1,0 +1,130 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_youngjules", overlay = true)
+
+ma1_length = input.int(8, title = 'MA1', group = 'Signal Settings', inline = '1')
+ma1_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'],  group='Signal Settings', inline = '1')
+ma1_price = input.source(close, title = '',  group='Signal Settings', inline = '1')
+
+ma2_length = input.int(21, title = 'MA2', group = 'Signal Settings', inline = '2')
+ma2_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'],  group='Signal Settings', inline = '2')
+ma2_price = input.source(close, title = '',  group='Signal Settings', inline = '2')
+
+tgt1_mult = input.float(2.0, title = 'Target 1', group = 'Signal Settings', inline = '3')
+tgt2_mult = input.float(2.5, title = 'Target 2', group = 'Signal Settings', inline = '4')
+tgt3_mult = input.float(3.0, title = 'Target 3', group = 'Signal Settings', inline = '5')
+
+// --FUNCTION TO CALCULATE MA-- //
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+// --FUNCTION TO CALCULATE MA-- //
+
+
+
+// define vars
+var in_trade = false
+var trade_side = 0
+
+var float tgt1 = na
+var float tgt2 = na
+var float tgt3 = na
+var float stop = na
+var float entry_price = na
+var float distance = na
+
+var long_entry = false
+var short_entry = false
+
+var tgt_hit = false
+var stop_hit = false
+
+// calculate vars
+ma1_value = getMA(ma1_price, ma1_length, ma1_type)
+ma2_value = getMA(ma2_price, ma2_length, ma2_type)
+
+long_entry := barstate.isconfirmed and ta.crossover(ma1_value, ma2_value) and trade_side != 1
+short_entry := barstate.isconfirmed and ta.crossunder(ma1_value, ma2_value) and trade_side != -1
+
+entry_price := long_entry[1] or short_entry[1] ? close[1] :  in_trade == true ? entry_price[1] : na
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]
+
+stop := long_entry[1] or short_entry[1] ? open[1] : in_trade ? stop[1] : na
+distance := math.abs(entry_price - stop)
+
+tgt1 := long_entry[1] ? entry_price + distance * tgt1_mult : short_entry[1] ? entry_price - distance * tgt1_mult : in_trade ? tgt1[1] : na
+tgt2 := long_entry[1] ? entry_price + distance * tgt2_mult : short_entry[1] ? entry_price - distance * tgt2_mult : in_trade ? tgt2[1] : na
+tgt3 := long_entry[1] ? entry_price + distance * tgt3_mult : short_entry[1] ? entry_price - distance * tgt3_mult : in_trade ? tgt3[1] : na
+
+tgt_hit := trade_side == 1 and high >= tgt3 or trade_side == -1 and low <= tgt3
+stop_hit := trade_side == 1 and low <= stop or trade_side == -1 and high >= stop
+
+in_trade := long_entry or short_entry ? true : tgt_hit or stop_hit ?  false : in_trade[1]
+// bgcolor(trade_side == 1 ? color.green : trade_side ==  -1 ? color.red : na)
+// barcolor(long_entry ? color.green : short_entry ? color.red : na)
+
+//  calculate variables for text
+profit_pct = math.round(math.abs((tgt3 - entry_price) / tgt3 * 100),2)
+stop_pct = math.round(math.abs((stop - entry_price) / stop * 100),2)
+
+
+target_text = 'TG 3 ' + str.tostring(math.round_to_mintick(tgt3))
+stoploss_text = 'SL ' + str.tostring(math.round_to_mintick(stop)) 
+
+// display vars
+plot(ma1_value, title = 'MA1', color = color.green)
+plot(ma2_value, title = 'MA2', color = color.red)
+
+show_lines = input.bool(true, title = 'Show Lines', inline='1', group='Visual Settings')
+show_positionlabels = input.bool(true, title = 'Show Trade Labels', inline='2', group='Visual Settings')
+position_label_size = input.string('Medium', title = '', options = ['Small', 'Medium', 'Large'], inline='2', group='Visual Settings')
+show_pricelabels = input.bool(true, title = 'Show Price Labels', inline='3', group='Visual Settings')
+price_label_size = input.string('Small', title = '', options = ['Small', 'Medium', 'Large'], inline='3', group='Visual Settings')
+
+entry_color = input.color(color.blue, title = 'Entry Color', group = 'Visual Settings', inline = '5')
+tgt_color = input.color(color.green, title = 'Tgt Color', group = 'Visual Settings', inline = '5')
+stop_color = input.color(color.red, title = 'Stop Color', group = 'Visual Settings', inline = '5')
+
+position_labelsize = position_label_size == 'Small' ? size.tiny : position_label_size == 'Medium' ? size.small : position_label_size == 'Large' ? size.normal : size.small
+if long_entry and show_positionlabels
+    label.new(x = time, y = close, text = close > open ? 'CALL' : 'P.CALL', xloc = xloc.bar_time, yloc = yloc.belowbar, color = close > open ? tgt_color: color.gray, 
+     textcolor = color.white, size = position_labelsize, textalign = text.align_center, style = label.style_label_up)
+    
+if short_entry and show_positionlabels
+    label.new(x = time, y = close, text = close < open ? 'PUT' : 'P.PUT', xloc = xloc.bar_time, yloc = yloc.abovebar, color = close < open ? stop_color : color.gray, 
+     textcolor = color.white, size = position_labelsize, textalign = text.align_center, style = label.style_label_down)
+
+
+
+// lines
+entry_plot = plot(show_lines ? entry_price : na, title = 'Entry Line', color = entry_color, style = plot.style_linebr, editable = true, offset = -1)
+tp1_plot = plot(show_lines ? tgt1 : na, title = 'TP1', color = tgt_color, style = plot.style_linebr, editable = true, offset = -1)
+tp2_plot = plot(show_lines ? tgt2 : na, title = 'TP2', color = tgt_color, style = plot.style_linebr, editable = true, offset = -1)
+tp3_plot = plot(show_lines ? tgt3 : na, title = 'TP3', color = tgt_color, style = plot.style_linebr, editable = true, offset = -1)
+stop_plot = plot(show_lines ? stop : na, title = 'SL', color = stop_color, style = plot.style_linebr, editable = true, offset = -1)
+
+// background
+fill(entry_plot, tp3_plot, color = color.new(color.green, 70), title = 'Profit BG')
+fill(entry_plot, stop_plot, color = color.new(color.red, 70), title = 'Loss BG')
+
+// labels
+price_labelsize = price_label_size == 'Small' ? size.tiny : price_label_size == 'Medium' ? size.small : price_label_size == 'Large' ? size.normal : size.small
+if (long_entry[1] or short_entry[1]) and show_pricelabels
+    label.new(x = time[2], y = entry_price, text = (long_entry[1] ? '📈 ' : '📉 ') + str.tostring(entry_price), xloc = xloc.bar_time, yloc = yloc.price, color = entry_color, 
+     textcolor = color.white, size = price_labelsize, textalign = text.align_center, style = label.style_label_center)
+    label.new(x = time[2], y = tgt1, text = 'TP1 ' + str.tostring(tgt1), xloc = xloc.bar_time, yloc = yloc.price, color = tgt_color, 
+     textcolor = color.white, size = price_labelsize, textalign = text.align_center, style = label.style_label_center)
+    label.new(x = time[2], y = tgt2, text = 'TP2 ' + str.tostring(tgt2), xloc = xloc.bar_time, yloc = yloc.price, color = tgt_color, 
+     textcolor = color.white, size = price_labelsize, textalign = text.align_center, style = label.style_label_center)
+    label.new(x = time[2], y = tgt3, text = 'TP3 ' + str.tostring(tgt3), xloc = xloc.bar_time, yloc = yloc.price, color = tgt_color, 
+     textcolor = color.white, size = price_labelsize, textalign = text.align_center, style = label.style_label_center)
+    label.new(x = time[2], y = stop, text = 'SL ' + str.tostring(stop), xloc = xloc.bar_time, yloc = yloc.price, color = stop_color, 
+     textcolor = color.white, size = price_labelsize, textalign = text.align_center, style = label.style_label_center)
+
+// alerts
+alertcondition(long_entry, 'CALL', 'CALL')
+alertcondition(short_entry, 'PUT', 'PUT')
+alertcondition(stop_hit, 'STOP HIT', 'STOP HIT')
+alertcondition(tgt_hit, 'TP3 HIT', 'TP3 HIT')

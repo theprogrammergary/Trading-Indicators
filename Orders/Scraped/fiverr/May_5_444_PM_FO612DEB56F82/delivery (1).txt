@@ -1,0 +1,1 @@
+So I took a peek and the formulas match. The difference is in the data feeds. You can see the image attached and see that the candles are completely different. You can see at the arrow one candle has a huge wick and the other does not. That day had a big sell off during earnings. Some data feeds use the 5pm close and some data feeds use the CME settlement price.

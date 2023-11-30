@@ -1,0 +1,21 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study("fortylermuto candle")
+bullbc = input(title = "Bullish Body Color", defval = #48ff00)
+bullwc = input(title = "Bullish Wick Color", defval = #48ff00)
+bullboc = input(title = "Bullish Border Color", defval = #48ff00)
+
+bearbc = input(title = "Bearish Body Color", defval = #ff0000)
+bearwc = input(title = "Bearish Wick Color", defval = #ff0000)
+bearboc = input(title = "Bearish Border Color", defval = #ff0000)
+
+type = 0
+type := close > high[1] ? 1 : close < low[1] ? -1 : type[1]
+bullcandle = type == 1
+plotcandle(bullcandle ? open : na, bullcandle ? high : na, bullcandle ? low : na, bullcandle ? close : na, title='Bullish', color = bullbc , wickcolor=bullwc, bordercolor=bullboc)
+plotcandle(bullcandle ? na : open, bullcandle ? na : high, bullcandle ? na : low, bullcandle ? na : close, title='Bearish', color = bearbc , wickcolor=bearwc, bordercolor=bearboc)
+
+
+

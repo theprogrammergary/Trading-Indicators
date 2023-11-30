@@ -1,0 +1,158 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=5
+indicator("Fractal Liquidity Raid v4.1", overlay = true)
+
+//FRACTAL CODE
+show_fractals = input.bool(true, title = "Show Fractals", group = "Fractal Settings")
+n = input.int(title='Fractal Period', defval=2, minval=2, group = "Fractal Settings")
+fractalBars = input.string(title='3 or 5 Bar Fractal', defval='3', options=['3', '5'], group = "Fractal Settings")
+
+// Logic 
+dnFractal = if fractalBars == '5'
+    dnFractal5 = high[n - 2] < high[n] and high[n - 1] < high[n] and high[n + 1] < high[n] and high[n + 2] < high[n]
+    dnFractal5
+else
+    if fractalBars == '3'
+        dnFractal3 = high[n - 1] < high[n] and high[n + 1] < high[n]
+        dnFractal3
+
+upFractal = if fractalBars == '5'
+    upFractal5 = low[n - 2] > low[n] and low[n - 1] > low[n] and low[n + 1] > low[n] and low[n + 2] > low[n]
+    upFractal5
+else
+    if fractalBars == '3'
+        upFractal3 = low[n - 1] > low[n] and low[n + 1] > low[n]
+        upFractal3
+// END FRACTAL
+
+
+//LIQUIDITY RAID
+must_be_fractal = input.bool(false, title = "Raid Must Be Fractal", group = "Liquidity Raid Settings")
+use_high_or_low_filter = input.bool(true, title = "Raid High/Low Filter", group = "Liquidity Raid Settings")
+show_raid= input.string("Both",options = ["Both", "Up", "Down", "None"], title = "Show Raids", group = "Liquidity Raid Settings")
+up_lookback = input.int(title='Up Fractal Lookback', defval=1, minval=1, group = "Liquidity Raid Settings")
+down_lookback = input.int(title='Down Fractal Lookback', defval=1, minval=1, group = "Liquidity Raid Settings")
+raid_offset = input.int(title='Icon Offset Value', defval=15, group = "Liquidity Raid Settings")
+
+session_alerts = input.bool(false, title = "Session Alerts Only", group = "Liquidity Raid Settings")
+seesion_time = input.session("0930-1600", title = "Session (EST Timezone)", group = "Liquidity Raid Settings")
+
+//UP FRACTALS
+var float[] upFractals_body = array.new_float(up_lookback+1,0.00)
+var float[] upFractals_wick = array.new_float(up_lookback+1,0.00)
+if upFractal
+    array.unshift(upFractals_body, math.min(open[n],close[n]))
+    array.pop(upFractals_body)
+    array.unshift(upFractals_wick, low[n])
+    array.pop(upFractals_wick)
+    
+show_up_raids = show_raid == "Both" or show_raid == "Up"
+
+
+//Is a fractal and a raid    
+up_fractal_AND_raid() =>
+    num_of_raids = 0
+    current_wick = 0.00
+    //get previous wick
+    current_wick := array.get(upFractals_wick, 1)
+    
+    for i = 1 to array.size(upFractals_body) - 1 by 1
+        body_level = array.get(upFractals_body, i)
+        wick_level = array.get(upFractals_wick, i)
+        if upFractal and low[n] < wick_level and math.min(open[n],close[n]) >= body_level and (low[n] <= current_wick or not use_high_or_low_filter)
+            num_of_raids := num_of_raids + 1
+    num_of_raids > 0
+is_up_fractal_and_raid = up_fractal_AND_raid()
+plotchar(show_up_raids and is_up_fractal_and_raid ? low[n] - (syminfo.mintick * raid_offset) : na ,  offset=-n, title = "Up Fractal & Raid", char = "✪", location = location.absolute, color= color.white, size = size.auto)
+
+//Is a raid only
+up_raid() =>
+    num_of_raids = 0
+    current_wick = 0.00
+    //get previous wick
+    current_wick := array.get(upFractals_wick,0)
+            
+    for i = 1 to array.size(upFractals_body) - 1 by 1
+        body_level = array.get(upFractals_body, i-1)
+        wick_level = array.get(upFractals_wick, i-1)
+        if low < wick_level and math.min(open, close) >= body_level and (low <= current_wick or not use_high_or_low_filter)
+            num_of_raids := num_of_raids + 1
+    num_of_raids > 0
+is_up_raid = up_raid()
+plotchar(show_up_raids and is_up_raid and not must_be_fractal ? low - (syminfo.mintick * raid_offset) : na ,  offset= 0, title = "Up Raid", char = "✪", location = location.absolute, color= color.white, size = size.auto)
+
+
+//DOWN FRACTALS
+var float[] downFractals_body = array.new_float(down_lookback+1,0.00)
+var float[] downFractals_wick = array.new_float(down_lookback+1,0.00)
+if dnFractal
+    array.unshift(downFractals_body, math.max(open[n],close[n]))
+    array.pop(downFractals_body)
+    array.unshift(downFractals_wick, high[n])
+    array.pop(downFractals_wick)
+    
+show_down_raids = show_raid == "Both" or show_raid == "Down"
+
+//Is a fractal and a raid    
+down_fractal_AND_raid() =>
+    num_of_raids = 0
+    current_wick = 0.00
+    //get previous wick
+    current_wick := array.get(downFractals_wick, 1)
+    for i = 1 to array.size(downFractals_body) - 1 by 1
+        body_level = array.get(downFractals_body, i)
+        wick_level = array.get(downFractals_wick, i)
+        if dnFractal and high[n] > wick_level and math.max(open[n],close[n]) <= body_level and (high[n] >= current_wick or not use_high_or_low_filter)
+            num_of_raids := num_of_raids + 1
+    num_of_raids > 0
+is_down_fractal_and_raid = down_fractal_AND_raid()
+plotchar(show_down_raids and is_down_fractal_and_raid ? high[n] + (syminfo.mintick * raid_offset) : na ,  offset=-n, title = "Down Fractal & Raid", char = "✪", location = location.absolute, color= color.white, size = size.auto)
+
+//Is a raid only
+down_raid() =>
+    num_of_raids = 0
+    current_wick = 0.00
+    //get previous wick
+    current_wick := array.get(downFractals_wick, 0)
+    for i = 1 to array.size(downFractals_body) - 1 by 1
+        body_level = array.get(downFractals_body, i-1)
+        wick_level = array.get(downFractals_wick, i-1)
+        if high > wick_level and math.max(open, close) <= body_level and (high[n] >= current_wick or not use_high_or_low_filter)
+            num_of_raids := num_of_raids + 1
+    num_of_raids > 0
+is_down_raid = down_raid()
+plotchar(show_down_raids and is_down_raid and not must_be_fractal ? high + (syminfo.mintick * raid_offset) : na ,  offset= 0, title = "Down Raid", char = "✪", location = location.absolute, color= color.white, size = size.auto)
+    
+
+//PLOTTING
+plotshape(show_fractals ? upFractal: na, style=shape.triangleup, location=location.belowbar, offset=-n, color=color.new(color.green, 25), title = "Up Fractal")
+plotshape(show_fractals ? dnFractal : na, style=shape.triangledown, location=location.abovebar, offset=-n, color=color.new(color.red, 25), title = "Down Fractal")
+
+// //ALERTS
+isTime = time(timeframe.period, seesion_time,"America/New_York")
+okForAlerts = session_alerts and isTime ? true : not session_alerts ? true : false
+//barcolor(okForAlerts ? color.yellow : color.black)
+up_raid_alert = is_up_fractal_and_raid or (is_up_raid and not must_be_fractal)
+down_raid_alert = is_down_fractal_and_raid or (is_down_raid and not must_be_fractal)
+alertcondition(okForAlerts and up_raid_alert, title = "Up Fractal Raid", message = "Up Fractal Raid")
+alertcondition(okForAlerts and down_raid_alert, title = "Down Fractal Raid", message = "Down Fractal Raid")
+
+//barcolor(dnFractal ? color.red : na, offset = -n)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

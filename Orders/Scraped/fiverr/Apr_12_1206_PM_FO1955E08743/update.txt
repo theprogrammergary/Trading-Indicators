@@ -1,0 +1,289 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("for_boknoy9999", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 5.00)
+
+//
+//ENTRY INDICATORS
+//
+
+//SMMA
+var smma = 0.0
+smma_len = input.int(20, minval=1, title="Length", group = 'SMMA Settings', inline = '1')
+smma_src = input(close, title="Source", group = 'SMMA Settings', inline = '2')
+cond_must_be = input.bool(true, title = '', group = 'SMMA Settings', inline = '3')
+condition_met_bars = input.int(7, minval = 1, title = 'Conditions Must Be Met Within Bars', group = 'SMMA Settings', inline = '3')
+smma := na(smma[1]) ? ta.sma(smma_src, smma_len) : (smma[1] * (smma_len - 1) + smma_src) / smma_len
+plot(smma, title = 'SMMA', color = color.yellow)
+smma_buy = close > smma
+smma_sell = close < smma
+plotshape(smma_buy and not smma_buy[1], title = 'SMMA Crossover', location = location.belowbar, color = color.new(#089981,0), style = shape.xcross, size = size.tiny)
+plotshape(smma_sell and not smma_sell[1], title = 'SMMA Crossunder', location = location.abovebar, color = color.new(color.red,0), style = shape.xcross, size = size.tiny)
+
+//AROON
+aroon_length = input.int(10, minval=1, title = "Length", group = 'AROON Settings', inline = '1')
+aroon_upper = 100 * (ta.highestbars(high, aroon_length+1) + aroon_length)/aroon_length
+aroon_lower = 100 * (ta.lowestbars(low, aroon_length+1) + aroon_length)/aroon_length
+aroon_buy = aroon_upper > aroon_lower
+aroon_sell = aroon_upper < aroon_lower
+
+//CMF & Chaikin Osc
+var cmf_cumVol = 0.00
+cmf_cumVol += nz(volume)
+if barstate.islast and cmf_cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+cmf_length = input.int(20, minval=1, title = "Length", group = 'CMF Settings', inline = '1')
+ad = close==high and close==low or high==low ? 0 : ((2*close-low-high)/(high-low))*volume
+mf = math.sum(ad, cmf_length) / math.sum(volume, cmf_length)
+cmf_buy = mf > 0
+cmf_sell = mf < 0
+
+co_short = input.int(3, minval=1, title="Fast Length", group = 'Chaikin Osc. Settings', inline = '1')
+co_long = input.int(10, minval=1, title="Slow Length", group = 'Chaikin Osc. Settings', inline = '2')
+osc = ta.ema(ta.accdist, co_short) - ta.ema(ta.accdist, co_long)
+chaikin_buy = osc > 0
+chaikin_sell = osc < 0
+
+//
+//EXIT INDICATORS
+//
+
+//RVI
+rvi_len = input.int(10, title="Length", minval=1, group = 'RVI Settings', inline = '1')
+rvi = math.sum(ta.swma(close-open), rvi_len)/math.sum(ta.swma(high-low),rvi_len)
+rvi_sig = ta.swma(rvi)
+rvi_exit = rvi_sig > rvi ? 1 : 0
+rvi_cover = rvi_sig < rvi ? 1 : 0
+
+//PARABOLIC SAR
+sar_start = input(0.02, title = 'Start', group = 'SAR Settings', inline = '1')
+sar_increment = input(0.02, title = 'Increment', group = 'SAR Settings', inline = '2')
+sar_maximum = input(0.2, title = 'Maximum', group = 'SAR Settings', inline = '3')
+out = ta.sar(sar_start, sar_increment, sar_maximum)
+sar_color = low > out ? color.new(#089981,0) : color.red
+plot(out, "Parabolic SAR", style=plot.style_cross, color = sar_color, display = display.none)
+// barcolor(color = color.new(sar_color,90))
+sar_exit = out > high ? 1 : 0
+sar_cover = sar_exit == 0 ? 1 : 0
+
+
+//SMA
+sma_length = input.int(6, minval=1, title="Length", group = 'SMA Settings', inline = '1')
+sma = ta.sma(close, sma_length)
+plot(sma, title = 'SMA', color = color.new(color.white,80))
+sma_exit = close < sma ? 1 : 0
+sma_cover = close > sma ? 1 : 0
+
+
+//SIGNALS
+//Longs
+buy_first_signal = ta.crossover(close, smma)
+var bars_since_buy_signal = 0
+bars_since_buy_signal := buy_first_signal ? 1 : bars_since_buy_signal[1] + 1
+
+buy_cond = smma_buy and aroon_buy and cmf_buy and chaikin_buy and ((cond_must_be and bars_since_buy_signal <= condition_met_bars) or (not cond_must_be and smma_buy))
+sell_cond = rvi_exit + sar_exit + sma_exit >= 2
+
+//Shorts
+short_first_signal = ta.crossunder(close, smma)
+var bars_since_short_signal = 0
+bars_since_short_signal := short_first_signal ? 1 : bars_since_short_signal[1] + 1
+
+short_cond = smma_sell and aroon_sell and cmf_sell and chaikin_sell and ((cond_must_be and bars_since_short_signal <= condition_met_bars) or (not cond_must_be and smma_sell))
+cover_cond = rvi_cover + sar_cover + sma_cover >= 2
+
+//ATR
+atr_length = input.int(14, minval = 1, title = "Length", group = 'ATR Settings', inline = '1')
+atr = ta.atr(atr_length)
+
+//INPUT
+useTradingHours = input.bool(false, title = " ", group = "Trade Settings", inline = '1')
+trading_time = input.session("0930-1600", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Trade Settings", inline = '1')
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Trade Settings",inline = '2')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Trade Settings",inline = '3')
+
+use_profit_target = input.bool(true, title = " ", group = "Trade Settings", inline = '5')
+pt_amount = input.float(1.00, minval = 0.01, maxval = 99.0, step = 0.25, title = "Profit Target ATRx", group = "Trade Settings", inline = '5')
+pt_amount2 = input.float(5.00, minval = 0.01, maxval = 99.0, step = 0.25, title = " ", group = "Trade Settings", inline = '5')
+
+use__stop = input.bool(true, title = " ", group = "Trade Settings", inline = '6')
+stop_amount = input.float(1.50, minval = 0.01, maxval = 99.0, step = 0.25, title = "Stop ATRx", group = "Trade Settings", inline = '6')
+
+use__trailstop = input.bool(true, title = " ", group = "Trade Settings", inline = '7')
+trailstop_act_amount = input.float(2.50, minval = 0.01, maxval = 99.0, step = 0.25, title = "Activate TS Stop ATRx", group = "Trade Settings", inline = '7')
+trailstop_amount = input.float(2.00, minval = 0.01, maxval = 99.0, step = 0.25, title = "TS ATRx", group = "Trade Settings", inline = '7')
+
+//SIGNALS
+var bool long_entry = false
+var bool long_exit = false
+
+var bool short_entry = false
+var bool short_exit = false
+
+var bool tp1_hit = false
+var float tp1_value = na
+var float tp2_value = na
+
+var bool trailing_stop_activated = false
+var float trailstop_activate_value = na
+var float trail_stop_value = na
+
+var float stop_value = na
+
+var float atr_begin_of_trade = na
+
+//SIGNAL MANAGEMENT
+if trading_hours_cond
+
+    long_entry := buy_cond and not buy_cond[1] and long_trades
+    long_exit := sell_cond
+    
+    short_entry := short_cond and not short_cond[1] and short_trades
+    short_exit := cover_cond
+    
+    strategy.close("LE",when = long_exit, comment = "LX")
+    strategy.entry("LE", strategy.long,when = long_entry) 
+    
+    strategy.close("SS_E",when = short_exit, comment = "SS_X")
+    strategy.entry("SS_E", strategy.short,when = short_entry) 
+    
+    //LONGS POSITION MANAGEMENT
+    if strategy.position_size > 0 
+    
+        //New Position
+        if strategy.position_avg_price != strategy.position_avg_price[1] or na(strategy.position_avg_price[1])
+            tp1_value := use_profit_target ? strategy.position_avg_price + (atr[1] * pt_amount) : na
+            tp2_value := use_profit_target ? strategy.position_avg_price + (atr[1] * pt_amount2) : na
+            
+            stop_value := use__stop ? strategy.position_avg_price - (atr[1] * stop_amount) : na
+            
+            trailstop_activate_value := use__trailstop ? strategy.position_avg_price + (atr[1] * trailstop_act_amount) : na
+            atr_begin_of_trade := atr[1]
+            
+        //Still In Trade
+        else 
+            tp1_hit := tp1_hit[1] == false and high >= tp1_value ? true : tp1_hit[1]
+            tp1_value := tp1_value[1]
+            tp2_value := tp2_value[1]
+            
+            stop_value := stop_value[1]
+            
+            trail_stop_value := trail_stop_value[1]
+            trailing_stop_activated := use__trailstop and trailing_stop_activated[1] == false and high >= trailstop_activate_value ? true : trailing_stop_activated[1]
+            trailstop_activate_value := trailstop_activate_value[1]
+            atr_begin_of_trade := atr_begin_of_trade[1]
+            
+            //Check to see if TP1 is hit...If it has move stop to entry price
+            if tp1_hit == true and tp1_hit[1] == false
+                stop_value := use__stop ? strategy.position_avg_price : 0.00
+                tp1_value := na
+            
+            //Trailing Stop is activated
+            if trailing_stop_activated == true 
+                if trailing_stop_activated[1] == false
+                    trail_stop_value := high - (atr[1] * trailstop_amount)
+                else
+                    trail_stop_value := math.max(trail_stop_value[1], high - (atr[1] * trailstop_amount))
+                
+                // stop_value := math.max(trail_stop_value, stop_value)    
+                stop_value := trail_stop_value
+        
+        strategy.exit("L1", qty_percent = 50.0, limit = tp1_value, stop = stop_value, comment = "TP1/SL")
+        strategy.exit("L2", qty_percent = 100.0, limit = tp2_value, stop = stop_value, comment = "TP2/SL")
+        
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+    //SHORTS POSITION MANAGEMENT
+    else if strategy.position_size < 0 
+    
+        //New Position
+        if strategy.position_avg_price != strategy.position_avg_price[1] or na(strategy.position_avg_price[1])
+            tp1_value := use_profit_target ? strategy.position_avg_price - (atr[1] * pt_amount) : na
+            tp2_value := use_profit_target ? strategy.position_avg_price - (atr[1] * pt_amount2) : na
+            
+            stop_value := use__stop ? strategy.position_avg_price + (atr[1] * stop_amount) : na
+            
+            trailstop_activate_value := use__trailstop ? strategy.position_avg_price - (atr[1] * trailstop_act_amount) : na
+            atr_begin_of_trade := atr[1]
+            
+        //Still In Trade
+        else 
+            tp1_hit := tp1_hit[1] == false and low <= tp1_value ? true : tp1_hit[1]
+            tp1_value := tp1_value[1]
+            tp2_value := tp2_value[1]
+            
+            stop_value := stop_value[1]
+            
+            trail_stop_value := trail_stop_value[1]
+            trailing_stop_activated := use__trailstop and trailing_stop_activated[1] == false and low <= trailstop_activate_value ? true : trailing_stop_activated[1]
+            trailstop_activate_value := trailstop_activate_value[1]
+            atr_begin_of_trade := atr_begin_of_trade[1]
+            
+            //Check to see if TP1 is hit...If it has move stop to entry price
+            if tp1_hit == true and tp1_hit[1] == false
+                stop_value := use__stop ? strategy.position_avg_price : 0.00
+                tp1_value := na
+            
+            //Trailing Stop is activated
+            if trailing_stop_activated == true 
+                if trailing_stop_activated[1] == false
+                    trail_stop_value := low + (atr[1] * trailstop_amount)
+                else
+                    trail_stop_value := math.max(trail_stop_value[1], low + (atr[1] * trailstop_amount))
+                
+                // stop_value := math.max(trail_stop_value, stop_value)    
+                stop_value := trail_stop_value
+        
+        strategy.exit("SS1", qty_percent = 50.0, limit = tp1_value, stop = stop_value, comment = "TP1/SL")
+        strategy.exit("SS2", qty_percent = 100.0, limit = tp2_value, stop = stop_value, comment = "TP2/SL")
+         
+    else
+        tp1_hit := false
+        tp1_value := na
+        tp2_value := na
+        
+        stop_value := 0.00
+        
+        trail_stop_value := na
+        trailing_stop_activated := false
+        trailstop_activate_value := na
+        atr_begin_of_trade := na
+    
+else if not trading_hours_cond
+    strategy.close_all(comment = 'TX')
+    tp1_hit := false
+    tp1_value := na
+    tp2_value := na
+    
+    stop_value := 0.00
+    
+    trail_stop_value := na
+    trailing_stop_activated := false
+    trailstop_activate_value := na
+    atr_begin_of_trade := na
+
+plot(strategy.position_avg_price, color = color.white, style = plot.style_circles, title = 'Entry')
+plot(tp1_value, color = color.green, style = plot.style_circles, title = 'TP1')
+plot(tp2_value, color = color.green, style = plot.style_circles, title = 'TP2')
+plot(stop_value, color = color.red, style = plot.style_circles, title = 'Stop')
+
+// plot(high - (atr_begin_of_trade * trailstop_amount))
+// plot(trail_stop_value)
+// plot(atr_begin_of_trade * trailstop_amount)
+// plot(atr_begin_of_trade)
+// bgcolor(strategy.position_avg_price != strategy.position_avg_price[1] or na(strategy.position_avg_price[1]) ? color.new(color.white,80) : na)
+// bgcolor(trailing_stop_activated == true ? color.new(color.white,80) : na)
+
+
+
+
+
+
+
+
+
+
+
+

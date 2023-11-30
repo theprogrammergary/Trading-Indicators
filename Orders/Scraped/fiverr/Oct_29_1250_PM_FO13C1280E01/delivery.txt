@@ -1,0 +1,56 @@
+Try this 
+
+{ Search Tag: WA-Volume Brkout }
+
+inputs: 
+	AvgLength( 50 ) [
+		DisplayName = "AvgLength", 
+		ToolTip = "Average Length.  Enter the number of bars used in the computation of the moving average of the volume."], 
+	
+	BrkOutPct( 50 ) [
+		DisplayName = "BrkOutPct", 
+		ToolTip = "Breakout Percentage.  Enter the percentage amount, above the average volume, above which a marker is plotted."];
+
+variables: 
+	VolumeBreakout( false ),
+	BrkOutFactor( 1 + BrkOutPct * .01 ),
+	int CrossBarsAgo(0),
+	intrabarpersist bool InAChart( false );
+once
+begin
+	InAChart = GetAppInfo( aiApplicationType ) = cChart;
+end;
+{ 
+for Daily, Weekly, or Monthly bars, use "Volume"; for all other bar types use 
+"Ticks"; in the case of second or minute data, also set the "For volume, use:" 
+field in the Format Symbol dialog to Trade Vol or Tick Count, as desired; when 
+using advanced chart types, "Ticks" returns volume if the chart is built from 
+1-tick interval data
+}
+if BarType >= 2 and BarType < 5 then { Daily, Weekly, or Monthly bars }
+	VolumeBreakout = Volume >= Average( Volume, AvgLength ) * BrkOutFactor
+else 
+	VolumeBreakout = Ticks >= Average( Ticks, AvgLength ) * BrkOutFactor;
+
+if VolumeBreakout then 
+begin
+	Plot1( High, !( "VolBrkOut" ) );
+	Alert;
+end;
+
+//enter your signal where time = 1300
+if VolumeBreakout then
+Begin
+	CrossBarsAgo = 0;
+end
+else Begin
+	CrossBarsAgo += 1;
+end;
+
+if InAChart = false then
+	plot2(CrossBarsAgo, "CrossBarsAgo", white);
+
+
+{ ** Copyright © TradeStation Technologies, Inc.  All Rights Reserved ** 
+  ** TradeStation reserves the right to modify or overwrite this analysis technique 
+     with each release. ** }

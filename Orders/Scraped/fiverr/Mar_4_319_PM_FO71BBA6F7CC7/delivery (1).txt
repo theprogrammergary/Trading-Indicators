@@ -1,0 +1,7 @@
+If we are above +DEV1 then +DEV1 - PADDING
+
+If we are below -DEV1 then -DEV1 + PADDING
+
+If we are above VWAP then VWAP - PADDING
+
+If we are below VWAP then VWAP + PADDING

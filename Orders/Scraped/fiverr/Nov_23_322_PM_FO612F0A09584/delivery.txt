@@ -1,0 +1,5 @@
+So script is 95% done. I just need to test it more and then update it to your preferences. 
+
+Couple things. 1 minute is not possible. It gave an error and there isnt a workaround. See the attached screenshot. So it will work on all charts greater than 5minutes and less than daily.
+
+Do you have any preference to how it is plotted and the labels shown?

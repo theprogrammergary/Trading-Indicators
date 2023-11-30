@@ -1,0 +1,188 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_nofado", overlay = true)
+
+var t = table.new(position = position.top_right, columns = 4, rows = 1, bgcolor = color.black, border_width = 1)
+
+h25 = ta.hma(close, 16)
+e8 = ta.ema(close, 8)
+eh3 = ta.ema(ta.hma(close, 9), 10)
+h4 = ta.hma(close, 4)
+eh5 = ta.ema(h4, 10)
+
+el1 = ta.ema(ta.ema(close, 8), 34)
+
+e34 = ta.ema(close, 34)
+fing = e34 > el1
+
+bearBase = e8 < eh3 and eh5 < eh5[1] and close < eh5 and h25 < h25[1]
+bullBase = e8 > eh3 and eh5 > eh5[1] and close > eh5 and h25 > h25[1]
+
+bear = not fing and bearBase
+bull = fing and bullBase
+getFuckedd = not bull and not bear and timeframe.in_seconds() == timeframe.in_seconds('10')
+
+bus = bull and not bull[1]
+bes = bear and not bear[1]
+
+n1 = e8 > eh5 and eh5 > eh3 and bull and h4 > h4[1] and close > open
+b1 = e8 < eh5 and eh5 < eh3 and bear and h4 < h4[1] and close < open
+
+nudge = n1 and not n1[1]
+budge = b1 and not b1[1]
+
+isRollover = dayofweek != dayofweek[1]
+beforeStart = session.ispremarket
+
+fbd = (beforeStart[1] == 1 and beforeStart == 0) or (isRollover and beforeStart == 0) ? 1 : 0
+fdg = fbd and n1 and close > open
+fdr = fbd and b1 and close < open
+
+rip = fing and ((bull and nudge) or fdg)
+plotshape(rip, title = 'RIP', color = fdg ? color.aqua : color.rgb(0,102,102)
+ , style = shape.triangleup, location = location.belowbar, size = size.small, editable = false)
+
+drop = not fing and ((bear and budge) or fdr)
+plotshape(drop, title = 'DROP', color = fdg ? color.red : color.rgb(102,0,51)
+ , style = shape.triangledown, location = location.abovebar, size = size.small, editable = false)
+
+
+pnt = close
+hma1 = ta.hma(pnt, 4)
+hma2 = ta.hma(pnt, 9)
+eas1 = ta.ema(pnt, 8)
+es1 = ta.ema(eas1, 8)
+temaLength = 10
+ema1 = ta.ema(pnt, temaLength)
+ema2 = ta.ema(ema1, temaLength)
+ema3 = ta.ema(ema2, temaLength)
+tema = 3 * ema1 - 3 * ema2 + ema3
+
+temaf2 = ta.ema(tema, 10)
+
+temaf = ta.ema(tema, 5)
+hma11 = ta.hma(hma1, 4)
+h1 = 2 * hma1 - hma11
+hh2 = ta.ema(h1, 8)
+
+hh1 = ta.ema(h1, 5)
+
+h2 = 2 * hma2 - ta.hma(hma2, 9)
+e1 = 2 * eas1 - es1
+eas2 = ta.ema(pnt, 12)
+eaL1 = ta.ema(pnt, 21)
+e2 = 2 * eas2 - ta.ema(eas2, 12)
+fgf = hh2 > es1 and e2 > hh2
+frf = hh2 < es1 and e2 < hh2
+
+
+// ################### N U D G E S ###################
+ripr = hh1 > hh1[1] and hh2 > hh2[1] and e1 > hh1
+dipr = hh1 < hh1[1] and hh2 < hh2[1] and e1 < hh1
+ubu = e2 >= el1 and hh2 >= temaf2 and e1 >= e2
+rbu = not (h2 < h2[1] and e1 < e1[1])
+ebu = ubu and not rbu
+ube = e2 < el1 and hh2 < temaf2 and e1 < e2
+rbe = not (h2 >= h2[1] and e1 >= e1[1])
+ebe = ube and not rbe
+g3 = ubu and rbu and not ebu[1] and close > e1[1]
+r3 = ube and rbe and not ebe[1] and close < e1[1]
+
+tdir = hh2 > es1 and g3 and ripr ? 4
+ : hh2 < es1 and r3 and dipr ? -4
+ : hh2 > es1 ? 1
+ : hh2 < es1 ? -1
+ : 0
+
+fg = bull and tdir == 4
+fr = bear and tdir == -4
+
+lbl = '10'
+impg = tema > hh2 and tema > es1 and tema > temaf2 and tema > e1
+impr = tema < hh2 and tema < es1 and tema < temaf2 and tema < e1
+
+
+barcolor(fg and not fg[1] ? color.green
+ : fr and not fr[1] ? color.rgb(255, 0, 0)
+ : bull ? color.rgb(38, 83, 40) 
+ : bear ? color.rgb(81, 15, 15)
+ : tema > temaf2 ? color.gray
+ : color.rgb(45,45,45), editable = false)
+
+
+e200 = ta.ema(close, 200)
+el2_value = ta.ema(ta.ema(close, 8), 200)
+
+plot(el2_value, title = 'EL2',
+ color = e200 > el2_value ? color.rgb(0,40,0) : color.rgb(60,0,0), editable = false)
+
+plot(el1, title = 'el1', linewidth = 4,
+ color = fing ? color.rgb(0,102,153) : color.rgb(90,10,30), editable = false)
+
+plot(temaf2, title = 'temaf2', linewidth = 4,
+ color = tdir >= 1 ? color.rgb(38, 83, 40) 
+ : tdir <= -1 ? color.rgb(81, 15, 15)
+ : color.gray, editable = false)
+
+plot(hh1, title = 'hh1', linewidth = 4,
+ color = impg and tdir == 4 ? color.green 
+ : impg ? color.rgb(38, 83, 40) 
+ : impr and tdir == -4 ? color.rgb(255, 0, 0) 
+ : impr ? color.rgb(81, 15, 15) : color.white, editable = false)
+
+
+
+
+
+
+
+
+
+
+// table
+if barstate.islast
+    table.clear(t, 0,0,3,0)
+
+    if getFuckedd
+        table.cell(table_id = t, column = 0, row = 0, text = ' !! Go Ahead & And Lose !! ', text_size = size.normal,
+         bgcolor = color.blue,
+         text_color = color.white)
+
+    if fdg or fdr
+        table.cell(table_id = t, column = 1, row = 0, text = ' BUY ', text_size = size.normal,
+         bgcolor = fdg ? color.yellow : color.rgb(255, 0, 0),
+         text_color = color.white)
+
+    if true
+        table.cell(table_id = t, column = 2, row = 0, text_size = size.normal,
+         text = (bull and tdir == 4) or (bear and tdir == -4) ? " " + lbl + "X " : " " + lbl + " ",
+         bgcolor = nudge ? color.aqua 
+         : budge ? color.rgb(161, 41, 182) 
+         : bull ? color.rgb(38, 83, 40)  
+         : bear ? color.rgb(81, 15, 15) 
+         : e1 > temaf2 ? color.silver 
+         : color.gray,
+         text_color = color.white)
+
+    if true
+        table.cell(table_id = t, column = 3, row = 0, text_size = size.normal,
+         text = fgf or frf ? " DIR ++ " : " DIR ",
+         bgcolor = hh2 > es1 ? color.rgb(38, 83, 40)
+         : color.rgb(81, 15, 15),
+         text_color = color.white)
+
+    if (impg and tdir == 4) or (impr and tdir == -4)
+        table.cell(table_id = t, column = 3, row = 0, text_size = size.normal,
+         text = " SPIKE ",
+         bgcolor = impg ? color.rgb(38, 83, 40)
+         : color.rgb(81, 15, 15),
+         text_color = color.white)
+
+
+// AddLabel((impg and tdir == 4) or (impr and tdir == -4), " SPIKE ", if impg ? color.dark_green : color.dark_red)
+
+
+// alerts
+alertcondition(nudge or budge, "Turned G","Turned G")

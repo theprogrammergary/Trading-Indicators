@@ -1,0 +1,19 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_johnnash0674_v2", overlay = true)
+
+L = low
+H = high
+
+// twoup =  (L < L[-1]) and (L < L[1]) and (L[-1] < L[-2])
+low_length = input.int(2, title = 'UP Length')
+twoup = ta.pivotlow(L, low_length,low_length)
+
+// twodown =  (H > H[-1]) and (H > H[1]) 
+high_length = input.int(2, title = 'DOWN Length')
+twodown = ta.pivothigh(H, high_length,high_length)
+
+plotshape(twoup, title = 'Two Up', location = location.belowbar, color = color.green, offset = -low_length, style = shape.triangleup)
+plotshape(twodown, title = 'Two Down', location = location.abovebar, color = color.red, offset = -high_length, style = shape.triangledown)

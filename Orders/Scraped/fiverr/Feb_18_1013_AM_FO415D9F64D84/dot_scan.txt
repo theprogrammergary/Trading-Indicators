@@ -1,0 +1,41 @@
+input DisplayTrailStop = yes;
+input DisplayBreakOutLines = yes;
+
+input AlertsOn = yes;
+input DotSpace = 0.25;
+input EntryDotSize = 5;
+input TrailDotSize = 2;
+
+def _EntryDotSize = max(1, min(EntryDotSize, 5));
+def _TrailDotSize = max(1, min(TrailDotSize, 5));
+
+
+def Period = 9;
+def BuyEntry = (55);
+def SellEntry = (55);
+def BuyExit = (20);
+def SellExit = (20);
+
+
+def VarDot = (ATR(21, AverageType.SIMPLE)[0] * DotSpace);
+
+def HH = Highest( Max(open, close), Period ) ;
+def ProRange = HH - Lowest( Min(open, close), Period ) ;
+def VProR = If(ProRange <> 0, 100 - ( ( HH - close ) / ProRange ) * 100, 0);
+
+def VPosition = If (VProR < 30 and VProR[1] >= 30 and VPosition[1]>-1, -1, If (VProR > 70 and VProR[1] <= 70 and VPosition[1]<1, 1,  VPosition[1]));
+
+def buySignal =  VPosition == 1 and VPosition[1] < 1;
+def sellSignal =  VPosition == -1 and VPosition[1] > -1;
+def buyTrend = (VPosition == 1 and VPosition[1] == 1) or ((VPosition == -1 and VPosition[1] > -1) and VPosition[1] <> 0);
+def sellTrend = (VPosition == -1 and VPosition[1] == -1) or ((VPosition == 1 and VPosition[1] < 1) and VPosition[1] <> 0);
+
+
+plot buy_scan = buysignal;
+#buy_scan.hide();
+
+#plot sell_scan = sellsignal;
+#sell_scan.hide();
+
+
+

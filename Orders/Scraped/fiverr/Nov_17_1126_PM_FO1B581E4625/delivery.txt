@@ -1,0 +1,1 @@
+My name is garrett btw. So I cant get standard deviation to reset at day because TOS is not allowing me to. But you can do deviation based on bars back.

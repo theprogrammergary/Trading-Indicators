@@ -1,0 +1,38 @@
+input Symbol1 = "/ES:XCME";
+input Symbol2 = "/NQ:XCME";
+input pct_Trigger = 0.20;
+
+#PLOTS
+def Symbol1_x1 = if barnumber() == 1 then open(symbol = symbol1) else Symbol1_x1[1];
+plot Symbol1_Plot = round(((close(symbol = symbol1) - Symbol1_x1 ) / Symbol1_x1) * 100,2);
+Symbol1_Plot.defineColor("Default", color.dark_orange);
+Symbol1_Plot.setdefaultColor(symbol1_Plot.color("Default"));
+input Show_Symbol1_Label = no;
+AddLabel(Show_Symbol1_Label, Symbol1 + " = " + Symbol1_Plot + "%",symbol1_Plot.color("Default"));
+
+def Symbol2_x1 = if barnumber() == 1 then open(symbol = symbol2) else Symbol2_x1[1];
+plot Symbol2_Plot = round(((close(symbol = symbol2) - Symbol2_x1 ) / Symbol2_x1) * 100,2);
+Symbol2_Plot.defineColor("Default", color.cyan);
+Symbol2_Plot.setdefaultColor(symbol2_Plot.color("Default"));
+input Show_Symbol2_Label = no;
+AddLabel(Show_Symbol2_Label, Symbol2 + " = " + Symbol2_Plot + "%", symbol2_Plot.color("Default"));
+
+plot Symbol_Difference = AbsValue(Symbol1_Plot - Symbol2_Plot);
+Symbol_Difference.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+Symbol_Difference.DefineColor("No Trigger", Color.GRAY);
+Symbol_Difference.DefineColor("% Trigger", Color.YELLOW);
+Symbol_Difference.SetDefaultColor(Symbol_Difference.Color("No Trigger"));
+Symbol_Difference.AssignValueColor(if Symbol_Difference >= pct_Trigger then Symbol_Difference.Color("% Trigger") else Symbol_Difference.Color("No Trigger"));
+Symbol_Difference.Hide();
+input Symbol_Difference_Label = yes;
+AddLabel(Symbol_Difference_Label, "Symbol Diff. = " + Symbol_Difference + "%", if Symbol_Difference >= pct_Trigger then Symbol_Difference.Color("% Trigger") else Symbol_Difference.Color("No Trigger"));
+Alert(Symbol_Difference >= pct_Trigger, "% Difference Trigger", Alert.BAR, Sound.Ding);
+
+def BubblePrice1 = HighestAll(if IsNaN(Symbol1_Plot [-1]) then Symbol1_Plot  else double.nan);
+addchartBubble(barnumber() == highestall(barnumber()), BubblePrice1 , Symbol1 , symbol1_Plot.color("Default"));
+
+def BubblePrice2 = HighestAll(if IsNaN(Symbol2_Plot [-1]) then Symbol2_Plot  else double.nan);
+addchartBubble(barnumber() == highestall(barnumber()), BubblePrice2 , Symbol2 , symbol2_Plot.color("Default"));
+
+input show_Cloud = yes;
+AddCloud(if show_Cloud and Symbol_Difference >= pct_Trigger then Symbol1_Plot else Double.NaN, Symbol2_Plot, Symbol_Difference.Color("% Trigger"), Symbol_Difference.Color("% Trigger"));

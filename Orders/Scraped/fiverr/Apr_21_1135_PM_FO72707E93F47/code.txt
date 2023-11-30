@@ -1,0 +1,220 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_Donkeen_v2", overlay = true)
+
+
+
+// ⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️
+// alert settings
+debug_mode          = input.bool(false, title = 'Debug Mode')
+input_a             = input.bool(true, title = 'Scenario A  |  ', group = 'Alert Settings', inline = '1')
+input_abullcolor    = input.color(color.new(#c0ff00,0) , title = 'Bull', group = 'Alert Settings', inline = '1')
+input_abearcolor    = input.color(color.new(#ffb500,0), title = 'Bear', group = 'Alert Settings', inline = '1'
+ , tooltip = '1. Price closed above/below EMA 
+ \n2. FAST MA crosses above/below SLOW MA
+ \n3. EMA 1 is greater/less than EMA 2
+ \n4. RSI increase/decrease by x percentage
+ \n5. Bar size is a certain % of atr
+ ')
+
+input_b             = input.bool(true, title = 'Scenario B  |  ', group = 'Alert Settings', inline = '2')
+input_bbullcolor    = input.color(color.new(#c0ff00,0) , title = 'Bull', group = 'Alert Settings', inline = '2')
+input_bbearcolor    = input.color(color.new(#ffb500,0), title = 'Bear', group = 'Alert Settings', inline = '2'
+ , tooltip = '1. Price closed above/below EMA 
+ \n2. FAST MA crosses above/below SLOW MA
+ \n3. EMA 1 is greater/less than EMA 2
+ \n4. RSI increase/decrease by x percentage
+ \n5. Bar size is a certain % of atr
+ \n6. FAST MA crosses above/below Middle BB
+ ')
+
+input_c             = input.bool(true, title = 'Scenario C  |  ', group = 'Alert Settings', inline = '3')
+input_cbullcolor    = input.color(color.new(#c0ff00,0) , title = 'Bull', group = 'Alert Settings', inline = '3')
+input_cbearcolor    = input.color(color.new(#ffb500,0), title = 'Bear', group = 'Alert Settings', inline = '3'
+ , tooltip = '1. Price closed above/below EMA 1
+ \n2. FAST MA above/below SLOW MA
+ \n3. Touched EMA 1 and EMA 2
+ ')
+
+input_d             = input.bool(true, title = 'Scenario D  |  ', group = 'Alert Settings', inline = '4')
+input_dbullcolor    = input.color(color.new(#c0ff00,0) , title = 'Bull', group = 'Alert Settings', inline = '4')
+input_dbearcolor    = input.color(color.new(#ffb500,0), title = 'Bear', group = 'Alert Settings', inline = '4'
+ , tooltip = '1. Price closed above/below EMA 1 and touched
+ \n2. FAST MA crossed above/below SLOW MA
+ \n3. EMA 1 is greater/less than EMA 2
+ \n4. RSI increase/decrease by x percentage
+ \n5. Bar size is a certain % of atr
+ ')
+
+input_e             = input.bool(true, title = 'Scenario E  |  ', group = 'Alert Settings', inline = '5')
+input_ebullcolor    = input.color(color.new(#c0ff00,0) , title = 'Bull', group = 'Alert Settings', inline = '5')
+input_ebearcolor    = input.color(color.new(#ffb500,0), title = 'Bear', group = 'Alert Settings', inline = '5'
+ , tooltip = '1. Price closed above/below EMA 1 and touched
+ \n2. FAST MA crossed above/below Middle BB
+ \n3. EMA 1 is greater/less than EMA 2
+ \n4. RSI increase/decrease by x percentage
+ \n5. Bar size is a certain % of atr
+ ')
+
+
+
+// ema settings
+input_emasource     = input.source(close, title = 'EMA Source', group = 'EMA Settings')
+input_emalength1    = input.int(13, title = 'EMA Length 1', group = 'EMA Settings')
+input_emalength2    = input.int(50, title = 'EMA Length 2', group = 'EMA Settings')
+
+
+// tdi rsi settings
+rsiPeriod           = input.int(11, minval = 1, title = "RSI Period", group = 'TDI Settings')
+bandLength          = input.int(31, minval = 1, title = "Band Length", group = 'TDI Settings')
+lengthrsipl         = input.int(1, minval = 0, title = "Fast MA on RSI", group = 'TDI Settings')
+lengthtradesl       = input.int(9, minval = 1, title = "Slow MA on RSI", group = 'TDI Settings')
+// ⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️
+
+
+
+
+
+
+// 🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖
+// ema calculations
+ema_value1 = ta.ema(input_emasource, input_emalength1)
+ema_value2 = ta.ema(input_emasource, input_emalength2)
+
+p_ema1 = plot(ema_value1, title = 'EMA 1', color = color.new(color.yellow,40), display = display.none)
+p_ema2 = plot(ema_value2, title = 'EMA 2', color = color.new(color.orange,40), display = display.none)
+
+ema_bull = ta.crossover(close, ema_value1)
+ema_bear = ta.crossunder(close, ema_value1)
+
+emas_bull = ema_value1 >= ema_value2
+emas_bear = ema_value1 < ema_value2
+
+ema_closeabove = close > ema_value1
+ema_closebelow = close < ema_value1
+
+ema1_touch = high >= ema_value1 and low <= ema_value1
+ema2_touch = high >= ema_value1 and low <= ema_value2
+
+fill(p_ema1, p_ema2, color = emas_bull ? color.new(color.lime,85) : color.new(color.red,85), title = 'EMA Cloud', display = display.none)
+
+
+
+// tdi calculations
+f_calculate_tdi(src) =>
+    
+    r = ta.rsi(src, rsiPeriod)                                                 
+    ma = ta.sma(r, bandLength)                                                 
+    offs = (1.6185 * ta.stdev(r, bandLength))
+    up = ma + offs                                                          
+    dn = ma - offs                                                          
+    mid = (up + dn) / 2                                                     
+    fastMA = ta.sma(r, lengthrsipl)                                            
+    slowMA = ta.sma(r, lengthtradesl)       
+
+    [up, dn, mid, slowMA, fastMA]
+
+
+[up1, dn1, mid1, slowMA1, fastMA1] = f_calculate_tdi(close)
+
+
+tdi_crossabove_mid = ta.crossover(fastMA1, mid1)
+tdi_crossbelow_mid = ta.crossunder(fastMA1, mid1)
+
+tdi_crossedabove_slow = ta.crossover(fastMA1, slowMA1)
+tdi_crossedbelow_slow = ta.crossunder(fastMA1, slowMA1)
+
+
+
+// rsi calculations
+input_usersi            = input.bool(true, title = 'Use RSI Conditions', group = 'RSI Settings')
+input_rsitriggerpct     = input.float(15.00, step = 1.00, title = 'RSI x %', group = 'RSI Settings')
+
+rsi_value = fastMA1
+
+rsi_bull = (input_usersi and (rsi_value - rsi_value[1]) / rsi_value[1] * 100 >= input_rsitriggerpct) or not input_usersi
+rsi_bear = (input_usersi and (rsi_value - rsi_value[1]) / rsi_value[1] * 100 <= -input_rsitriggerpct) or not input_usersi
+
+
+// candle size calculations
+input_usecandlesize      = input.bool(true, title = 'Use Size Conditions', group = 'Candle Size Settings')
+input_candlesizelookback = input.int(50, title = 'Candle Size Avg. Lookback', group = 'Candle Size Settings')
+input_candlesizepercent  = input.float(150.00, title = 'Candle Size Trigger %', group = 'Candle Size Settings')
+
+avg_size = ta.sma(high[1]-low[1], input_candlesizelookback)
+candletrigger_percent = (input_usecandlesize and (high-low) / avg_size * 100 >= input_candlesizepercent) or not input_usecandlesize
+// label.new(bar_index, close, text=str.tostring(math.round((high-low) / avg_size * 100,2)))
+
+// create signal conditions
+bull_cond1 = ema_bull and emas_bull and tdi_crossedabove_slow and rsi_bull and candletrigger_percent
+bull_cond2 = ema_bull and emas_bull and tdi_crossabove_mid and rsi_bull and candletrigger_percent
+
+bear_cond1 = ema_bear and emas_bear and tdi_crossedbelow_slow and rsi_bear and candletrigger_percent
+bear_cond2 = ema_bear and emas_bear and tdi_crossbelow_mid and rsi_bear and candletrigger_percent
+
+
+
+
+bull_a = input_a and ema_bull and emas_bull and tdi_crossedabove_slow and rsi_bull and candletrigger_percent
+bear_a = input_a and ema_bear and emas_bear and tdi_crossedbelow_slow and rsi_bear and candletrigger_percent
+
+bull_b = input_b and ema_bull and emas_bull and tdi_crossabove_mid and rsi_bull and candletrigger_percent
+bear_b = input_b and ema_bear and emas_bear and tdi_crossbelow_mid and rsi_bear and candletrigger_percent
+
+bull_c = input_c and ema_closeabove and (fastMA1 >= slowMA1) and ema1_touch and ema2_touch
+bear_c = input_c and ema_closebelow and (fastMA1 <= slowMA1) and ema1_touch and ema2_touch
+
+bull_d = input_d and ema_closeabove and ema1_touch and tdi_crossedabove_slow and emas_bull and rsi_bull and candletrigger_percent
+bear_d = input_d and ema_closebelow and ema1_touch and tdi_crossedbelow_slow and emas_bear and rsi_bear and candletrigger_percent
+
+bull_e = input_e and ema_closeabove and ema1_touch and tdi_crossabove_mid and emas_bull and rsi_bull and candletrigger_percent
+bear_e = input_e and ema_closebelow and ema1_touch and tdi_crossbelow_mid and emas_bear and rsi_bear and candletrigger_percent
+
+
+candle_color = bull_a ? input_abullcolor 
+ : bull_b ? input_bbullcolor 
+ : bull_c ? input_cbullcolor 
+ : bull_d ? input_dbullcolor 
+ : bull_e ? input_ebullcolor 
+ : bear_a ? input_abearcolor 
+ : bear_b ? input_bbearcolor 
+ : bear_c ? input_cbearcolor 
+ : bear_d ? input_dbearcolor 
+ : bear_e ? input_ebearcolor 
+ : na
+
+barcolor(not na(candle_color) ? color.new(candle_color,0) : na)
+bgcolor(not na(candle_color) ? color.new(candle_color,60) : na, display = display.none)
+
+
+
+// debug
+bull_text = bull_a ? "A" 
+ : bull_b ? "B"  
+ : bull_c ? "C"  
+ : bull_d ? "D"  
+ : bull_e ? "E"
+ : na
+
+bear_text = bear_a ? "A"  
+ : bear_b ? "B"  
+ : bear_c ? "C"  
+ : bear_d ? "D"  
+ : bear_e ? "E"  
+ : na
+
+if debug_mode
+    if not na(bear_text)
+        label.new(bar_index, close, text = bear_text, yloc = yloc.abovebar, color = color.white
+         , style = label.style_none, size = size.small, textcolor = color.white)
+    if not na(bull_text)
+        label.new(bar_index, close, text = bull_text, yloc = yloc.belowbar, color = color.white
+         , style = label.style_none, size = size.small, textcolor = color.white)
+// 🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖
+
+
+
+
+

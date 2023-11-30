@@ -1,0 +1,61 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study("VIX Structure / Reversal")
+
+symbol1 = input("VIX", title = "Symbol 1")
+symbol2 = input("VIX3M", title = "Symbol 2")
+pricetype = input(close, title = "Price Type")
+
+//FRONT MONTH STRUCTURE
+symbol1_value = nz(security(symbol1,"",pricetype, lookahead=barmerge.lookahead_on))
+symbol2_value = nz(security(symbol2,"",pricetype, lookahead=barmerge.lookahead_on))
+symbol1_plot = plot(symbol1_value, color = color.yellow, title = "Symbol 1")
+symbol2_plot = plot(symbol2_value, color = color.aqua, title = "Symbol 2")
+condition = symbol1_value >= symbol2_value and symbol2_value != symbol2_value[1] 
+signal_plot = plot(condition ? symbol2_value : na, title = "VIX > VIX3M", style = plot.style_circles, color = color.new(#ff0000, 0), linewidth = 2)
+fill_color = condition ? #ff0000 : na
+fill(symbol1_plot, symbol2_plot, color = color.new(fill_color, 80))
+
+//REVERSAL
+length = input(10, title = "Length")
+vix_valuec = security("VIX","",close, lookahead=barmerge.lookahead_on)
+spy_valuec = security("SPY","",close, lookahead=barmerge.lookahead_on)
+
+symbol_1MA = sma(vix_valuec, length)
+symbol_2MA = sma(spy_valuec, length)
+
+symbol_1_trend = vix_valuec >= symbol_1MA ? 1 : -1
+symbol_2_trend = spy_valuec >= symbol_2MA ? 1 : -1
+spy20dsma = (security("SPY","D",sma(close,20), lookahead=barmerge.lookahead_on))
+
+reversal_condition =  symbol_1_trend == -1 and symbol_2_trend == -1 ? 1 : 0
+condition_count = sum(reversal_condition,length/2)
+reversal_condition_actual = reversal_condition == 1 and condition_count == 1 and spy_valuec < spy20dsma
+
+plotshape(reversal_condition_actual, title = "Reversal", style = shape.xcross, location = location.bottom, size = size.tiny, color = color.green)
+
+
+alertcondition(condition or condition[1], "Front-Month VIX > 3M", "Front-Month VIX > 3M")
+alertcondition(reversal_condition_actual or reversal_condition_actual[1], "Potential SPY Reversal", "Potential SPY Reversal")
+//alertcondition(reversal_condition and condition_count == 1 and spy_valuec < spy20dsma, "Test", "Test")
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

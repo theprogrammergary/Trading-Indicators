@@ -1,0 +1,154 @@
+input MA_Type = AverageType.EXPONENTIAL;
+input MA_Length1 = 14;
+input MA_Length2 = 21;
+input MA_Length3 = 36;
+input MA_Length4 = 48;
+
+input show_BB1 = yes;
+input BB1_Length = 20;
+input BB1_Source = close;
+input BB1_StdDev = 1.500;
+
+input show_BB2 = yes;
+input BB2_Length = 20;
+input BB2_Source = close;
+input BB2_StdDev = 3.000;
+
+input Show_Triple_Signals_TXT = yes;
+input Show_Supertrend1 = yes;
+input Supertrend1_Source = hl2;
+input Supertrend1_Mult = 1.000;
+input Supertrend1_Period = 10;
+
+input Show_Supertrend2 = yes;
+input Supertrend2_Source = hl2;
+input Supertrend2_Mult = 2.000;
+input Supertrend2_Period = 11;
+
+input Show_Supertrend3 = yes;
+input Supertrend3_Source = hl2;
+input Supertrend3_Mult = 3.000;
+input Supertrend3_Period = 12;
+
+#MA PLOTS
+plot MA1 = MovingAverage(MA_Type, close, MA_Length1);
+plot MA2 = MovingAverage(MA_Type, close, MA_Length2);
+plot MA3 = MovingAverage(MA_Type, close, MA_Length3);
+plot MA4 = MovingAverage(MA_Type, close, MA_Length4);
+MA1.DefineColor("UP", Color.GREEN);
+MA1.DefineColor("DOWN", Color.RED);
+MA2.DefineColor("UP", Color.GREEN);
+MA2.DefineColor("DOWN", Color.RED);
+MA3.DefineColor("UP", Color.GREEN);
+MA3.DefineColor("DOWN", Color.RED);
+MA4.DefineColor("UP", Color.GREEN);
+MA4.DefineColor("DOWN", Color.RED);
+MA1.SetDefaultColor(Color.BLACK);
+MA2.SetDefaultColor(Color.BLACK);
+MA3.SetDefaultColor(Color.BLACK);
+MA4.SetDefaultColor(Color.BLACK);
+MA1.AssignValueColor(if MA1 >= MA1[1] then MA1.Color("UP") else MA1.Color("DOWN"));
+MA2.AssignValueColor(if MA2 >= MA2[1] then MA2.Color("UP") else MA2.Color("DOWN"));
+MA3.AssignValueColor(if MA3 >= MA3[1] then MA3.Color("UP") else MA3.Color("DOWN"));
+MA4.AssignValueColor(if MA4 >= MA4[1] then MA4.Color("UP") else MA4.Color("DOWN"));
+
+#BB 1
+def basis1 = Average(BB1_Source, BB1_Length);
+def dev1 = BB1_StdDev * StDev(BB1_Source, BB1_Length);
+def upper1 = basis1 + dev1;
+def lower1 = basis1 - dev1;
+plot basis_1 = if show_BB1 then basis1 else Double.NaN;
+basis_1.SetDefaultColor(Color.DARK_RED);
+input show_Background1 = yes;
+plot p11 = if show_BB1 then upper1 else Double.NaN;
+p11.DefineColor("BG Color", Color.CYAN);
+p11.DefineColor("Line Color", Color.CYAN);
+p11.SetDefaultColor(p11.Color("Line Color"));
+plot p21 = if show_BB1 then lower1 else Double.NaN;
+p21.SetDefaultColor(Color.CYAN);
+AddCloud(if show_Background1 then p11 else Double.NaN, p21, p11.Color("BG Color"),  p11.Color("BG Color"));
+
+#BB 2
+def basis2 = Average(BB2_Source, BB2_Length);
+def dev2 = BB2_StdDev * StDev(BB2_Source, BB2_Length);
+def upper2 = basis2 + dev2;
+def lower2 = basis2 - dev2;
+plot basis_2 = if show_BB2 then basis2 else Double.NaN;
+basis_2.SetDefaultColor(Color.DARK_RED);
+input show_Background2 = yes;
+plot p12 = if show_BB2 then upper2 else Double.NaN;
+p12.DefineColor("BG Color", Color.CYAN);
+p12.DefineColor("Line Color", Color.CYAN);
+p12.SetDefaultColor(p12.Color("Line Color"));
+plot p22 = if show_BB2 then lower2 else Double.NaN;
+p22.SetDefaultColor(Color.CYAN);
+AddCloud(if show_Background2 then p12 else Double.NaN, p22, p12.Color("BG Color"),  p12.Color("BG Color"));
+
+#ST 1 
+def atr1 = MovingAverage(averagetype.WILDERS, TrueRange(high, close, low), Supertrend1_Period ) * Supertrend1_Mult;
+def longstop1 = if barnumber() == 1 then Supertrend1_Source - atr1 else if close[1] > longstop1[1] then max(Supertrend1_Source - atr1, longstop1[1]) else Supertrend1_Source - atr1;
+def longstop1prev = if !isnan(longstop1[1]) then longstop1 else longstop1[1];
+def shortstop1 = if barnumber() == 1 then Supertrend1_Source + atr1 else if close[1] < shortstop1[1] then min(Supertrend1_Source + atr1, shortstop1[1]) else Supertrend1_Source + atr1;
+def shortstop1prev = if !isnan(shortstop1[1]) then shortstop1 else shortstop1[1];
+def dir1 = if close > shortstop1prev then 1 else if close < longstop1prev then -1 else dir1[1];
+plot SuperTrend1_Up = if show_Supertrend1 and dir1 == 1 then longstop1 else double.nan;
+plot SuperTrend1_Down = if show_Supertrend1 and dir1 == -1 then shortstop1 else double.nan;
+SuperTrend1_Up.setdefaultColor(color.green);
+SuperTrend1_Down.setdefaultcolor(color.red);
+SuperTrend1_Up.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+SuperTrend1_Down.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+
+
+#ST 2 
+def atr2 = MovingAverage(averagetype.WILDERS, TrueRange(high, close, low), Supertrend2_Period ) * Supertrend2_Mult;
+def longstop2 = if barnumber() == 1 then Supertrend2_Source - atr2 else if close[1] > longstop2[1] then max(Supertrend2_Source - atr2, longstop2[1]) else Supertrend2_Source - atr2;
+def longstop2prev = if !isnan(longstop2[1]) then longstop2 else longstop2[1];
+def shortstop2 = if barnumber() == 1 then Supertrend2_Source + atr2 else if close[1] < shortstop2[1] then min(Supertrend2_Source + atr2, shortstop2[1]) else Supertrend2_Source + atr2;
+def shortstop2prev = if !isnan(shortstop2[1]) then shortstop2 else shortstop2[1];
+def dir2 = if close > shortstop2prev then 1 else if close < longstop2prev then -1 else dir2[1];
+plot SuperTrend2_Up = if show_Supertrend2 and dir2 == 1 then longstop2 else double.nan;
+plot SuperTrend2_Down = if show_Supertrend2 and dir2 == -1 then shortstop2 else double.nan;
+SuperTrend2_Up.setdefaultColor(color.green);
+SuperTrend2_Down.setdefaultcolor(color.red);
+SuperTrend2_Up.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+SuperTrend2_Down.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+
+
+#ST 3 
+def atr3 = MovingAverage(averagetype.WILDERS, TrueRange(high, close, low), Supertrend3_Period ) * Supertrend3_Mult;
+def longstop3 = if barnumber() == 1 then Supertrend3_Source - atr3 else if close[1] > longstop3[1] then max(Supertrend3_Source - atr3, longstop3[1]) else Supertrend3_Source - atr3;
+def longstop3prev = if !isnan(longstop3[1]) then longstop3 else longstop3[1];
+def shortstop3 = if barnumber() == 1 then Supertrend3_Source + atr3 else if close[1] < shortstop3[1] then min(Supertrend3_Source + atr3, shortstop3[1]) else Supertrend3_Source + atr3;
+def shortstop3prev = if !isnan(shortstop3[1]) then shortstop3 else shortstop3[1];
+def dir3 = if close > shortstop3prev then 1 else if close < longstop3prev then -1 else dir3[1];
+plot SuperTrend3_Up = if show_Supertrend3 and dir3 == 1 then longstop3 else double.nan;
+plot SuperTrend3_Down = if show_Supertrend3 and dir3 == -1 then shortstop3 else double.nan;
+SuperTrend3_Up.setdefaultColor(color.green);
+SuperTrend3_Down.setdefaultcolor(color.red);
+SuperTrend3_Up.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+SuperTrend3_Down.setpaintingStrategy(paintingStrategy.LINE_VS_POINTS);
+
+def long = dir1 == 1 and dir2 == 1 and dir3 == 1;
+def short = dir1 == -1 and dir2 == -1 and dir3 == -1;
+
+def longCond = long and !long[1];
+def shortCond = short and !short[1];
+
+defineglobalcolor("Triple Buy", color.light_green);
+addchartBubble(Show_Triple_Signals_TXT and longcond, low, "TripleBuy", globalcolor("Triple Buy"), no);
+defineglobalcolor("Triple Sell", color.pink);
+addchartBubble(Show_Triple_Signals_TXT and shortcond, high, "TripleSell", globalcolor("Triple Sell"), yes);
+
+plot TripleBuy_Arrow = !Show_Triple_Signals_TXT and longCond;
+TripleBuy_Arrow.setpaintingStrategy(paintingStrategy.BOOLEAN_ARROW_UP);
+TripleBuy_Arrow.assignValueColor(globalcolor("Triple Buy"));
+TripleBuy_Arrow.setlineWeight(5);
+
+plot TripleSell_Arrow = !Show_Triple_Signals_TXT and shortCond;
+TripleSell_Arrow.setpaintingStrategy(paintingStrategy.BOOLEAN_ARROW_DOWN);
+TripleSell_Arrow.assignValueColor(globalcolor("Triple Sell"));
+TripleSell_Arrow.setlineWeight(5);
+
+alert(longCond, "TripleBuy Alert", alert.bar, sound.ding);
+alert(shortCond, "TripleSell Alert", alert.bar, sound.ding);
+

@@ -1,0 +1,54 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study("Risk Management TOS", overlay = true, precision = 6)
+
+//POSITION CALCULATOR
+rounding = syminfo.type == "stock" or syminfo.type == "futures" or syminfo.type == "index" ? 2 : syminfo.type == "forex" or syminfo.type == "crypto" ? 4 : 2
+Account_Size = input(10000, "Account Size", group = "Risk Management")
+Show_Label_NO_TOS_Account = input(true,"Show Label TOS", group = "Risk Management")
+Show_Question_NO_TOS_Account = input(true, "Show Question TOS", group = "Risk Management")
+Show_Profit_Per_Share = input(true,"Show Profit Per Share", group = "Risk Management")
+Show_Risk_Reward_Ratio = input(true,"Show Risk Reward Ratio", group = "Risk Management")
+Max_Percent_Per_Trade = input(5.00, "Max Percent Per Trade", group = "Risk Management")
+Percent_Rule = input(1.50, "Percent Rule", group = "Risk Management")
+Risk_Reward_Ratio = input(2.00, "Risk Reward Ratio", group = "Risk Management")
+ATR_Multiple = input(2.50, "ATR Multiple", group = "Risk Management")
+atr_length = input(14, type = input.integer, title = "ATR Length", group = "Risk Management")
+atr = atr(atr_length)
+atrp = atr / close * 100
+ts = atrp * ATR_Multiple
+Risk_Per_Share = round(close * ts * .01,rounding)
+Max_Per_Trade_Manual = round(Account_Size*Max_Percent_Per_Trade*.01,0)
+Max_Per_Trade_Buy_Manual = round(Max_Per_Trade_Manual / close, rounding)
+Max_Per_Trade_Risk_Manual = round(Max_Per_Trade_Buy_Manual * Risk_Per_Share, 0)
+Capital_At_Risk_Manual = round(Account_Size * Percent_Rule * .01, rounding)
+Shares_To_Buy_Manual = round(Capital_At_Risk_Manual / Risk_Per_Share, rounding)
+Total_Trade_Size_Manual = round(close * Shares_To_Buy_Manual, 0)
+Trade_Risk_Manual = round(Shares_To_Buy_Manual * Risk_Per_Share, 0)
+profit_per_share = round(close*(ts/100 * Risk_Reward_Ratio),0)
+profit_target_Price = round(close + profit_per_share, rounding)
+
+//TABLE
+text1 = Show_Label_NO_TOS_Account ? "Acct: $" + tostring(Account_Size) + " " + tostring(Percent_Rule) + "% Rule B:" + tostring(Shares_To_Buy_Manual) + "=$" + tostring(Total_Trade_Size_Manual) + " Risk $" + tostring(Trade_Risk_Manual) + " TS " + tostring(round(ts, 2)) + "%" : ""
+text2 = Show_Question_NO_TOS_Account ? "Max " + tostring(Max_Percent_Per_Trade) + "%" + "~$" + tostring(Max_Per_Trade_Manual) +": Will I risk $" + tostring(Max_Per_Trade_Risk_Manual) + " & buy " + tostring(Max_Per_Trade_Buy_Manual) + " shares for $" + tostring(round(Max_Per_Trade_Buy_Manual * close, 0)) + "?" + " TP:$" + tostring(profit_target_Price) : ""
+text3 = Show_Risk_Reward_Ratio and Show_Question_NO_TOS_Account ?  "RR:" + tostring(Risk_Reward_Ratio) : ""
+text4 = Show_Profit_Per_Share and Show_Question_NO_TOS_Account ? "PPS:$" + tostring(profit_per_share) : ""
+label1color = input(#cfcfcf, title = "Label Color 1", group = "Risk Management")
+label2color = input(#fea400, title = "Label Color 2", group = "Risk Management")
+
+
+
+//TABLE
+LabelSize = input(defval="small", options=["small", "medium", "large"])
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+var table t = table.new(position.bottom_right, 11, 1, border_width = 1, frame_color = #000000)
+ 
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = text1, width = 0, bgcolor = label1color, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 0, text = text2, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+    table.cell(t, 2, 0, text = text3, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+    table.cell(t, 3, 0, text = text4, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+
+    

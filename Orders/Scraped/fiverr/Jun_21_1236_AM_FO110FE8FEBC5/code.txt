@@ -1,0 +1,347 @@
+//@version=5
+indicator(title="Ichimoku Cloud Weight", shorttitle="Ichimoku Cloud Weight", overlay=false)
+
+// == inputs ==
+timeframe_1 = input.timeframe('30', title = 'Timeframe')
+
+
+conversionPeriods = 9
+basePeriods = (conversionPeriods*3)-math.round(9/conversionPeriods)
+laggingSpan2Periods = basePeriods*2
+displacement = basePeriods
+
+// tk
+use_tk_cross = true
+tk_cross_weight = 1
+
+tk_cross_weak_bullish_points =  0.5
+tk_cross_neutral_bullish_points = 1
+tk_cross_strong_bullish_points = 2
+
+tk_cross_weak_bearish_points = -0.5
+tk_cross_neutral_bearish_points = -1
+tk_cross_strong_bearish_points = -2
+
+// pk
+use_pk_cross = true
+pk_cross_weight = 1
+
+pk_cross_weak_bullish_points = .5
+pk_cross_neutral_bullish_points = 1
+pk_cross_strong_bullish_points = 2
+
+pk_cross_weak_bearish_points = -0.5
+pk_cross_neutral_bearish_points = -1
+pk_cross_strong_bearish_points = -2
+
+// kumo
+use_kumo_breakout = true
+kumo_breakout_weight = 1
+
+kumo_breakout_bullish_points = 1
+kumo_breakout_bearish_points = -1
+
+// span cross
+use_span_cross = true
+span_cross_weight = 1
+
+span_cross_weak_bullish_points = 0.5
+span_cross_neutral_bullish_points = 1
+span_cross_strong_bullish_points = 2
+
+span_cross_weak_bearish_points = -0.5
+span_cross_neutral_bearish_points = -1
+span_cross_strong_bearish_points = -2
+
+// lag line
+use_lag_line = true
+lag_line_cross_weight = 1
+
+lag_line_cross_weak_bullish_points = .5
+lag_line_cross_neutral_bullish_points = 1
+lag_line_cross_strong_bullish_points = 3
+
+lag_line_cross_weak_bearish_points = -.5
+lag_line_cross_neutral_bearish_points = 1
+lag_line_cross_strong_bearish_points = -3
+
+// lag line relative 
+use_lag_line_location = true
+lag_line_location_weight = 1
+
+lag_line_location_above_points = 1
+lag_line_location_inside_points = 0
+lag_line_location_below_points = -1
+
+// price relative
+use_price_location = true
+price_location_weight = 1
+
+price_location_above_points = 1
+price_location_inside_points = 0
+price_location_below_points = -1
+
+
+// == helper functions ==
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+resolve(src, default) =>
+    if na(src)
+        default
+    else
+        src
+
+
+
+// == MAIN FUNCTION == 
+f_main() =>
+
+    // define vars
+    var float conversionLine    = na
+    var float baseLine          = na      
+
+    var float senkou_span_a     = na
+    var float senkou_span_b     = na
+    var float no_dp_leadLine1   = na
+    var float no_dp_leadLine2   = na
+
+    var float cross_y             = na
+    var bool tk_cross_bull        = na
+    var bool tk_cross_bear        = na
+    var bool tk_cross_below_kumo  = na
+    var bool tk_cross_above_kumo  = na
+    var bool tk_cross_inside_kumo = na
+    var float tk_cross_score      = na
+
+    var float cross_pk_y          = na
+    var bool pk_cross_bull        = na
+    var bool pk_cross_bear        = na
+    var bool pk_cross_below_kumo  = na
+    var bool pk_cross_above_kumo  = na
+    var bool pk_cross_inside_kumo = na
+    var float pk_cross_score      = na
+
+
+    var bool kumo_bull              = na
+    var bool kumo_bear              = na
+    var bool price_below_kumo       = na
+    var bool price_above_kumo       = na
+    var bool price_inside_kumo      = na
+    var float kumo_breakout_score   = na
+
+
+    var bool span_cross_bull         = na
+    var bool span_cross_bear         = na
+    var bool price_below_span_cross  = na
+    var bool price_above_span_cross  = na
+    var bool price_inside_span_cross = na
+    var float span_cross_score       = na
+
+
+    var float past_price            = na
+    var bool lag_line_bull_cross    = na
+    var bool lag_line_bear_cross    = na
+    var bool past_price_below_kumo  = na
+    var bool past_price_above_kumo  = na
+    var bool past_price_inside_kumo = na
+    var float lag_line_cross_score  = na
+
+
+    var float lag_line_placement_score  = na
+
+
+    var bool relative_price_below_kumo  = na
+    var bool relative_price_above_kumo  = na
+    var bool relative_price_inside_kumo = na
+    var float price_placement_score     = na
+
+
+
+    // calculate vars
+    conversionLine      := donchian(conversionPeriods)
+    baseLine            := donchian(basePeriods)
+
+    senkou_span_a       := math.avg(conversionLine, baseLine)[displacement]
+    senkou_span_b       := donchian(laggingSpan2Periods)[displacement]
+
+    no_dp_leadLine1     := math.avg(conversionLine, baseLine)
+    no_dp_leadLine2     := donchian(laggingSpan2Periods)    
+
+
+
+    // tk cross
+    cross_y             := (conversionLine[1] * (baseLine - baseLine[1]) - baseLine[1] * (conversionLine - conversionLine[1])) / ((baseLine - baseLine[1]) - (conversionLine - conversionLine[1]))
+
+    tk_cross_bull       := ta.crossover(conversionLine, baseLine)
+    tk_cross_bear       := ta.crossunder(conversionLine, baseLine)
+
+    tk_cross_below_kumo  := cross_y <= senkou_span_b[1] and cross_y <= senkou_span_a[1] and cross_y <= senkou_span_b and cross_y <= senkou_span_a
+    tk_cross_above_kumo  := cross_y >= senkou_span_b[1] and cross_y >= senkou_span_a[1] and cross_y >= senkou_span_b and cross_y >= senkou_span_a
+    tk_cross_inside_kumo := (not tk_cross_below_kumo) and (not tk_cross_above_kumo)
+
+    tk_cross_score := nz(tk_cross_score[1], 0)
+    if tk_cross_bull
+        tk_cross_score := tk_cross_below_kumo ? tk_cross_weak_bullish_points
+         : tk_cross_inside_kumo ? tk_cross_neutral_bullish_points
+         : tk_cross_above_kumo ? tk_cross_strong_bullish_points
+         : tk_cross_score
+    else if tk_cross_bear
+        tk_cross_score := tk_cross_below_kumo ? tk_cross_strong_bearish_points
+         : tk_cross_inside_kumo ? tk_cross_neutral_bearish_points
+         : tk_cross_above_kumo ? tk_cross_weak_bearish_points
+         : tk_cross_score  
+    else
+        tk_cross_score := tk_cross_score
+
+
+    // pk cross
+    cross_pk_y          := (close[1] * (baseLine - baseLine[1]) - baseLine[1] * (close - close[1])) / ((baseLine - baseLine[1]) - (close - close[1]))
+
+    pk_cross_bull       := ta.crossover(close, baseLine)
+    pk_cross_bear       := ta.crossunder(close, baseLine)
+
+    pk_cross_below_kumo  := cross_pk_y <= senkou_span_b[1] and cross_pk_y <= senkou_span_a[1] and cross_pk_y <= senkou_span_b and cross_pk_y <= senkou_span_a
+    pk_cross_above_kumo  := cross_pk_y >= senkou_span_b[1] and cross_pk_y >= senkou_span_a[1] and cross_pk_y >= senkou_span_b and cross_pk_y >= senkou_span_a
+    pk_cross_inside_kumo := (not pk_cross_below_kumo) and (not pk_cross_above_kumo)
+
+    pk_cross_score       := nz(pk_cross_score[1], 0)
+    if pk_cross_bull
+        pk_cross_score := pk_cross_below_kumo ? pk_cross_weak_bullish_points
+         : pk_cross_inside_kumo ? pk_cross_neutral_bullish_points
+         : pk_cross_above_kumo ? pk_cross_strong_bullish_points
+         : pk_cross_score
+    else if pk_cross_bear
+        pk_cross_score := pk_cross_below_kumo ? pk_cross_strong_bearish_points
+         : pk_cross_inside_kumo ? pk_cross_neutral_bearish_points
+         : pk_cross_above_kumo ? pk_cross_weak_bearish_points
+         : pk_cross_score  
+    else
+        pk_cross_score := pk_cross_score
+
+
+
+    // kumo breakouts 
+    kumo_bull       := (ta.crossover(close, senkou_span_a) and senkou_span_a > senkou_span_b) or (ta.crossover(close, senkou_span_b) and senkou_span_b > senkou_span_a)
+    kumo_bear       := (ta.crossunder(close, senkou_span_b) and senkou_span_a > senkou_span_b) or (ta.crossunder(close, senkou_span_a) and senkou_span_b > senkou_span_a)
+
+    price_below_kumo  := (close < senkou_span_b and close < senkou_span_a)
+    price_above_kumo  := (close > senkou_span_b and close > senkou_span_a)
+    price_inside_kumo := (not price_below_kumo) and (not price_above_kumo)
+
+    kumo_breakout_score := nz(kumo_breakout_score[1], 0)
+    kumo_breakout_score := (kumo_bull and price_above_kumo) ? kumo_breakout_bullish_points 
+     : (kumo_bear and price_below_kumo) ? kumo_breakout_bearish_points
+     : kumo_breakout_score
+        
+
+
+    // span cross
+    span_cross_bull     := ta.crossover(no_dp_leadLine1, no_dp_leadLine2)
+    span_cross_bear     := ta.crossunder(no_dp_leadLine1, no_dp_leadLine2)
+    price_below_span_cross    := (close < no_dp_leadLine2 and close < no_dp_leadLine1)
+    price_above_span_cross    := (close > no_dp_leadLine2 and close > no_dp_leadLine1)
+    price_inside_span_cross   := (not price_below_span_cross) and (not price_above_span_cross)
+
+    span_cross_score    := nz(span_cross_score[1], 0)
+    if span_cross_bull
+        span_cross_score := price_below_span_cross ? span_cross_weak_bullish_points
+         : price_inside_span_cross ? span_cross_neutral_bullish_points
+         : price_above_span_cross ? span_cross_strong_bullish_points
+         : span_cross_score
+    else if span_cross_bear
+        span_cross_score := price_below_span_cross ? span_cross_strong_bearish_points
+         : price_inside_span_cross ? span_cross_neutral_bearish_points
+         : price_above_span_cross ? span_cross_weak_bearish_points
+         : span_cross_score  
+    else
+        span_cross_score := span_cross_score
+
+
+
+    // lag line cross
+    past_price          := close[displacement]
+    lag_line_bull_cross := close > close[displacement]
+    lag_line_bear_cross := close < close[displacement]
+
+    past_price_below_kumo   := (past_price < senkou_span_b and past_price < senkou_span_a)
+    past_price_above_kumo   := (past_price > senkou_span_b and past_price > senkou_span_a)
+    past_price_inside_kumo  := (senkou_span_b < past_price and past_price < senkou_span_a) and (senkou_span_a < past_price and past_price < senkou_span_b)
+
+    lag_line_cross_score    := nz(lag_line_cross_score[1], 0)
+    if lag_line_bull_cross
+        lag_line_cross_score := past_price_below_kumo ? lag_line_cross_weak_bullish_points
+         : past_price_inside_kumo ? lag_line_cross_neutral_bullish_points
+         : past_price_above_kumo ? lag_line_cross_strong_bullish_points
+         : lag_line_cross_score
+    else if lag_line_bear_cross
+        lag_line_cross_score := past_price_above_kumo ? lag_line_cross_weak_bearish_points
+         : past_price_inside_kumo ? lag_line_cross_neutral_bearish_points
+         : past_price_below_kumo ? lag_line_cross_strong_bearish_points
+         : lag_line_cross_score  
+    else
+        lag_line_cross_score := lag_line_cross_score
+
+
+
+    // lag line relative
+    lag_line_placement_score := nz(lag_line_placement_score[1], 0)
+    lag_line_placement_score := past_price_above_kumo ? lag_line_location_above_points 
+     : past_price_inside_kumo ? lag_line_location_inside_points 
+     : past_price_below_kumo ? lag_line_location_below_points 
+     : lag_line_placement_score
+
+
+
+    // price relative
+    price_placement_score := nz(price_placement_score[1], 0)
+
+    relative_price_below_kumo := (close < senkou_span_b and close < senkou_span_a)
+    relative_price_above_kumo := (close > senkou_span_b and close > senkou_span_a)
+    relative_price_inside_kumo := (not relative_price_below_kumo) and (not relative_price_above_kumo)
+
+    price_placement_score := price_above_kumo ? price_location_above_points 
+     : price_inside_kumo ? price_location_inside_points
+     : price_below_kumo ? price_location_below_points
+     : price_placement_score
+
+
+
+    // total score
+    total_score = (use_tk_cross ? tk_cross_weight * tk_cross_score : na) + (use_pk_cross ? pk_cross_weight * pk_cross_score : na) + (use_kumo_breakout ? kumo_breakout_weight * kumo_breakout_score : na) + (use_span_cross ? span_cross_weight * span_cross_score : na) + (use_lag_line ? lag_line_cross_weight * lag_line_cross_score : na) + (use_price_location ? price_location_weight * price_placement_score : na)
+    total_score := total_score + (use_lag_line_location ? lag_line_location_weight * lag_line_placement_score : na)
+
+
+    total_score
+total_score = request.security(syminfo.ticker, timeframe_1, f_main(), lookahead = barmerge.lookahead_on)
+
+
+
+
+f_flips() =>
+    flip_indicator = ((close/close[displacement])*100)-100
+    weighted_flip_indicator = ta.ema(ta.alma(flip_indicator*10, 10, 0.85, 6),10)
+
+    [flip_indicator, weighted_flip_indicator]
+[flip_indicator, weighted_flip_indicator] = request.security(syminfo.ticker, timeframe_1, f_flips(), lookahead = barmerge.lookahead_on)
+
+
+
+// lower plotting
+r1 = plot(2, style=plot.style_circles, color=color.new(color.gray,25), title="Volatility Zone",display = display.pane)
+r2 = plot(-2, style=plot.style_circles, color=color.new(color.gray,25), title="Volatility Zone", display = display.pane)
+
+b1 = plot(8, style=plot.style_circles, color=color.new(color.yellow,25), title="Reversal Eminent", display = display.pane)
+b2 = plot(11, style=plot.style_circles, color=color.new(color.red,0), linewidth=2, title="Reversal Eminent (Sell)", display = display.pane)
+
+s1 = plot(-8, style=plot.style_circles, color=color.new(color.yellow,25), title="Reversal Probable",display = display.pane)
+s2 = plot(-11, style=plot.style_circles, color=color.new(color.lime,0), linewidth=2, title="Reversal Eminent (Buy)", display = display.pane)
+
+fill(b1,b2,top_color = color.new(color.gray,50),bottom_color = color.new(color.gray,25),title="Sell Zone", fillgaps = true,top_value=11, bottom_value = 8)
+fill(s1,s2,bottom_color = color.new(color.gray,50),top_color = color.new(color.gray,25), title="Buy Zone", fillgaps = true,top_value=-8, bottom_value = -11)
+fill(r1,r2,bottom_color = color.new(color.gray,75),top_color = color.new(color.gray,75), title="Volatility Zone", fillgaps = true,top_value=2, bottom_value = -2)
+
+plot(flip_indicator*10, style=plot.style_area, color=flip_indicator > 0 ? color.new(color.lime,60) : color.new(color.red,60), linewidth=2, title="PA Over Time")
+plot(weighted_flip_indicator, linewidth=2, style=plot.style_area, color=(weighted_flip_indicator[1] < weighted_flip_indicator ? color.new(color.lime,80) : color.new(color.red,80)), title="Flip Weight")
+
+plot(0, style=plot.style_line, title="Base", display = display.pane)
+plot(total_score, linewidth=3, style=plot.style_line, color= color.yellow, title="Quant Weight")
+

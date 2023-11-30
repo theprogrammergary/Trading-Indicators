@@ -1,0 +1,26 @@
+input minutes_in_trading_day = 390;
+input market_open = 0930;
+input market_close = 1600;
+
+def iVolume = Round(volume(period = “DAY”), 0);
+def iAvgVolume = Round(Average (volume(period = “DAY”)[1], 60), 0);
+def iVolumePlay = Round(iVolume / iAvgVolume, 2);
+
+def is_market_open = secondsfromtime(market_open) >= 0 and secondstilltime(market_close) > 0;
+def new_market_open = is_market_open and !is_market_open[1];
+def new_day = getday() != getday()[1];
+
+def bar_count = if new_day then 0 else if new_market_open then 1 else if is_market_open then bar_count[1] + 1 else bar_count[1];
+
+def mult = getaggregationPeriod() / 60000;
+def minutes_passed_today = bar_count * mult;
+def minutes_left = minutes_in_trading_day - minutes_passed_today;
+def pct_elapsed = ((minutes_passed_today) / (minutes_passed_today + minutes_left));
+
+def RVol = Round(iVolumePlay / pct_elapsed, 2);
+addlabel(yes, if pct_elapsed == 0 then "RVOL: " + 0 else "RVOL: " + rvol, color.green);
+
+
+
+#for watchlist column
+#plot value = if pct_elapsed  == 0 then 0 else rvol;

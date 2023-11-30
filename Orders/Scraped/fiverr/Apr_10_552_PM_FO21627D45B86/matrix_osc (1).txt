@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("my Matrix Momentum", overlay = false)
+
+// matrix momentum reverse engineer
+// momo_candles = input.bool(true, title = 'Color Candles', group = 'Momentum Settings')
+momo_length = input.int(30, minval=1, title = 'Length', group = 'Momentum Settings')
+momo_mult = input.float(2.78, title = 'Multiplier', minval = 0.00, maxval = 10.00, group = 'Momentum Settings')
+momo_longtrigger = input.int(50, title = 'Long Trigger', minval = 1, maxval = 100, group = 'Momentum Settings')
+momo_shorttrigger = input.int(-50, title = 'Short Trigger', minval = -100, maxval = -1, group = 'Momentum Settings')
+momo_src = hlc3
+momo_momm = ta.change(momo_src)
+f1(m) => m >= 0.0 ? m : 0.0
+f2(m) => m >= 0.0 ? 0.0 : -m
+percent(nom, div) => 100 * nom / div
+momo_m1 = f1(momo_momm)
+momo_m2 = f2(momo_momm)
+momo_sm1 = math.sum(momo_m1, momo_length)
+momo_sm2 = math.sum(momo_m2, momo_length)
+momo_chandeMO = percent(momo_sm1-momo_sm2, momo_sm1+momo_sm2)
+
+plot_value = momo_chandeMO > 0 ? math.min(momo_chandeMO*momo_mult, 100) : math.max(momo_chandeMO*momo_mult,-100)
+plot_color = plot_value >= momo_longtrigger ? color.lime : plot_value > 0 ? color.new(#808000,0)
+ : plot_value <= momo_shorttrigger ? color.red : color.new(#880e4f,0)
+// barcolor(momo_candles ? plot_color : na)
+
+plot(plot_value, "Chande MO", color=plot_color, style=plot.style_columns, linewidth = 5)
+plot(50, title = 'Upper Level', color = color.lime)
+plot(-50, title = 'Lower Level', color = color.red)

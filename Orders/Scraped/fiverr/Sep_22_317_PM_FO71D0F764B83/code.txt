@@ -1,0 +1,109 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_abstract4201", overlay = true)
+
+
+//
+//TF1
+//
+use_TF1 = true
+TF1_timeframe = ""
+TF1_price = close
+TF1_linreg_length = input.int(title='Length ', defval=50, inline='3', maxval = 5000, minval = 10, group='Settings') 
+TF1_linreg_deviation = input.float(title='Deviation ', defval=2.00, step=0.25, minval=0.1, maxval=5.00, inline='3', group='Settings') 
+TF1_color = input.color(color.new(#d5d5d5, 0), title='Neut Color', inline='4', group='Settings') 
+TF1_bullcolor = input.color(color.new(#58ff63, 0), title='Bull Color', inline='5', group='Settings') 
+TF1_bearcolor = input.color(color.new(#c61d1d, 0), title='Bear Color', inline='6', group='Settings') 
+TF1_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='7', group='Settings') 
+TF1_width = input.int(1, title = 'Width', minval = 1, maxval = 5, inline='8', group='Settings') 
+TF1_bg = input.int(90, minval = 0, maxval = 100, title = 'Background Transparency', inline='9', group='Settings') 
+TF1_extendStyle = switch
+    TF1_extend == "Both" => extend.both
+    TF1_extend == "Left" => extend.left
+    TF1_extend == "Right" => extend.right
+    => extend.none
+//
+
+
+//
+//FUNCTION TO CALCULATE VALUES
+//
+calculate_linreg(source, length, deviation) =>
+    a = ta.wma(source, length)
+    b = ta.sma(source, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(source[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation
+    
+    y1_midvalue = A + 0
+    y2_midvalue = -m + (B + 0)
+
+    y1a =  A - linreg_1
+    y1b = A + linreg_1
+    y2a = -m + (B - linreg_1)
+    y2b = -m + (B + linreg_1)
+    
+    y1_uppervalue = math.round_to_mintick(math.max(y1a,y1b))
+    y1_lowervalue = math.round_to_mintick(math.min(y1a,y1b))
+    y2_uppervalue = math.round_to_mintick(math.max(y2a,y2b))
+    y2_lowervalue = math.round_to_mintick(math.min(y2a,y2b))
+    
+    x1_value = time[length]
+    
+    [x1_value, y1_midvalue, y2_midvalue, y1_uppervalue, y2_uppervalue, y1_lowervalue, y2_lowervalue]
+
+
+
+
+drawLinReg(color_input, extension_input, width_input, x1_value, y1_value, y2_value, linreg_length, TF_input, draw_label, label_text, line_style) =>
+
+    if draw_label
+        label label_variable = label.new(bar_index + 5, y2_value, text=label_text + "" + str.tostring(math.round_to_mintick(y2_value)), style=label.style_label_left, textcolor = color.black, color = color_input, textalign = text.align_left)
+        label.delete(label_variable[1])
+        
+    line line_variable = line.new(x1_value, y1_value, time, y2_value, extend = extension_input,
+     color = color_input, width = width_input, xloc = xloc.bar_time, style = line_style)
+    line_variable
+    
+
+
+[TF1_x1_value, TF1_y1_midvalue, TF1_y2_midvalue, TF1_y1_uppervalue, TF1_y2_uppervalue, TF1_y1_lowervalue, TF1_y2_lowervalue]= calculate_linreg(TF1_price, TF1_linreg_length, TF1_linreg_deviation)
+
+isAscendingTrend(nBars) =>
+    var float sumSlopes = 0.0
+    for i = 1 to nBars
+        startValue = close[i]
+        endValue = close
+        slope = (endValue - startValue) / i
+        sumSlopes := sumSlopes + slope
+    
+    averageSlope = sumSlopes / nBars
+    averageSlope > 0
+
+
+
+
+// slope1 = tf1_B > tf1_B[1]
+IsAscending = isAscendingTrend(10) or (TF1_y2_midvalue > TF1_y1_midvalue)
+
+if true
+    TF1_mid = drawLinReg( IsAscending ? color.new(TF1_bullcolor, 0) : color.new(TF1_bearcolor, 0), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_midvalue, TF1_y2_midvalue, TF1_linreg_length, TF1_timeframe, true, "", line.style_dashed)
+    TF1_upper = drawLinReg(color.new(TF1_color, 0), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_uppervalue, TF1_y2_uppervalue, TF1_linreg_length, TF1_timeframe, true, "", line.style_dashed)
+    TF1_lower = drawLinReg(color.new(TF1_color, 0), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_lowervalue, TF1_y2_lowervalue, TF1_linreg_length, TF1_timeframe,true, "", line.style_dashed)
+    linefill TF1_fill = linefill.new(TF1_upper, TF1_lower, color.new(TF1_color,TF1_bg)) 
+    
+    if not na(TF1_mid[1])
+        line.delete(TF1_mid[1])
+        line.delete(TF1_upper[1])
+        line.delete(TF1_lower[1])
+        linefill.delete(TF1_fill[1])
+

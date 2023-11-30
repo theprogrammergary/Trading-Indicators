@@ -1,0 +1,262 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_hibbertventures_indicator_v2", overlay = true)
+
+// general settings
+use_sess_time   = input.bool(true, title = 'Session Times', group = 'General Settings', inline = '1')
+sess_time       = input.session('0700-2100', title = '', group = 'General Settings', inline = '1')
+
+exit_at_eos     = input.bool(false, title = 'Exit at End Of Session', group = 'General Settings', inline = '2')
+take_every_signal= input.bool(true, title = 'Take Every Signal', group = 'General Settings', inline = '3')
+
+tgt_atr         = input.float(2.25, title = 'Target ATR', group = 'General Settings', inline = '4')
+stop_atr        = input.float(3.00, title = 'Stop ATR', group = 'General Settings', inline = '5')
+
+
+
+// ma settings
+ma1_length      = input.int(8, title = 'MA 1', group = 'MA Settings', inline = '1')
+ma1_type        = input.string('EMA', title = '', group = 'MA Settings', inline = '1', options = ['EMA','SMA', 'HMA', 'VWMA', 'RMA'])
+
+ma2_length      = input.int(14, title = 'MA 2', group = 'MA Settings', inline = '2')
+ma2_type        = input.string('EMA', title = '', group = 'MA Settings', inline = '2', options = ['EMA','SMA', 'HMA', 'VWMA', 'RMA'])
+
+ma3_length      = input.int(50, title = 'MA 3', group = 'MA Settings', inline = '3')
+ma3_type        = input.string('EMA', title = '', group = 'MA Settings', inline = '3', options = ['EMA','SMA', 'HMA', 'VWMA', 'RMA'])
+
+
+
+// stoch rsi settings
+smoothK         = input.int(3, "K", minval=1, group = 'Stoch RSI Settings')
+smoothD         = input.int(3, "D", minval=1, group = 'Stoch RSI Settings')
+lengthRSI       = input.int(14, "RSI Length", minval=1, group = 'Stoch RSI Settings')
+lengthStoch     = input.int(14, "Stochastic Length", minval=1, group = 'Stoch RSI Settings')
+src             = input.source(close, title="RSI Source", group = 'Stoch RSI Settings')
+stoch_buy       = input.int(75, title = 'Stoch Buy Below', group = 'Stoch RSI Settings')
+stoch_sell      = input.int(25, title = 'Stoch Sell Above', group = 'Stoch RSI Settings')
+
+
+
+// mtf stoch rsi settings
+mtf_stoch_tf        = input.timeframe('240', title = 'Timeframe', group = 'MTF Stoch RSI Settings')
+mtf_smoothK         = input.int(3, "K", minval=1, group = 'MTF Stoch RSI Settings')
+mtf_smoothD         = input.int(3, "D", minval=1, group = 'MTF Stoch RSI Settings')
+mtf_lengthRSI       = input.int(14, "RSI Length", minval=1, group = 'MTF Stoch RSI Settings')
+mtf_lengthStoch     = input.int(14, "Stochastic Length", minval=1, group = 'MTF Stoch RSI Settings')
+mtf_src             = input.source(close, title="RSI Source", group = 'MTF Stoch RSI Settings')
+
+
+
+
+// rsi settings
+rsiLengthInput      = input.int(14, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput      = input.source(close, "RSI Source", group="RSI Settings")
+rsi_buy_lvl         = input.int(70, title = 'RSI Buy Below', group = 'RSI Settings')
+rsi_sell_lvl        = input.int(30, title = 'RSI Sell Above', group = 'RSI Settings')
+use_rsi_div         = input.bool(true, title = 'Use RSI Divergence In Signals', group = 'RSI Settings')
+rsi_div_length      = input.int(5, title = 'RSI Divergence Length', group = 'RSI Settings')
+
+
+
+
+
+// ma function
+f_ma(ma_length, ma_type) =>
+    float ma = switch ma_type
+        "EMA" => ta.ema(close, ma_length)
+        "SMA" => ta.sma(close, ma_length)
+        "RMA" => ta.rma(close, ma_length)
+        "HMA" => ta.hma(close, ma_length)
+        "VWMA" => ta.vwma(close, ma_length)
+        => ta.ema(close, ma_length)
+
+
+
+
+// ma values
+ma1_value = f_ma(ma1_length, ma1_type)
+ma2_value = f_ma(ma2_length, ma2_type)
+ma3_value = f_ma(ma3_length, ma3_type)
+
+plot(ma1_value, title = 'MA 1', color = color.rgb(209, 238, 250), linewidth = 1)
+plot(ma2_value, title = 'MA 2', color = color.rgb(255, 196, 0), linewidth = 1)
+plot(ma3_value, title = 'MA 3', color = color.rgb(248, 0, 0), linewidth = 3)
+
+var bool ma_buy     = false
+var bool ma_sell    = false
+
+ma_buy  := (ma1_value > ma2_value and ma2_value > ma3_value) and close >= ma1_value
+ma_sell := (ma1_value < ma2_value and ma2_value < ma3_value) and close <= ma1_value
+
+
+
+// stoch rsi values
+f_stoch_rsi(smoothk, smoothd, length_rsi, length_stoch, src, prev_values) =>
+    var float return_k = na
+    var float return_d = na
+
+    rsi = ta.rsi(src, length_rsi)
+    k = ta.sma(ta.stoch(rsi, rsi, rsi, length_stoch), smoothk)
+    d = ta.sma(k, smoothD)
+
+    return_k := prev_values ? k[1] : k
+    return_d := prev_values ? d[1] : d
+
+    [return_k, return_d]
+
+[k, d] = f_stoch_rsi(smoothK, smoothD, lengthRSI, lengthStoch, src, false)
+
+var bool stochrsi_buy     = false
+var bool stochrsi_sell    = false
+
+stochrsi_buy  := ta.crossover(k, d) and k < stoch_buy
+stochrsi_sell := ta.crossunder(k, d ) and k > stoch_sell
+
+
+
+// mtf stoch rsi
+[mtf_k, mtf_d] = request.security(syminfo.ticker, mtf_stoch_tf,
+ f_stoch_rsi(mtf_smoothK, mtf_smoothD, mtf_lengthRSI, mtf_lengthStoch, mtf_src, true), lookahead = barmerge.lookahead_on)
+
+mtfstoch_buy = mtf_k > mtf_d
+mtfstoch_sell = mtf_k < mtf_d
+
+
+
+
+// rsi values
+rsi_value = ta.rsi(rsiSourceInput, rsiLengthInput)
+
+var bool rsi_buy     = false
+var bool rsi_sell    = false
+
+rsi_buy  := rsi_value <= rsi_buy_lvl
+rsi_sell := rsi_value >= rsi_sell_lvl
+
+
+
+// rsi divergence
+swing_high          = ta.pivothigh(high, rsi_div_length, rsi_div_length)
+swing_low           = ta.pivotlow(low, rsi_div_length, rsi_div_length)
+rsi_high_div_src    = ta.highest(rsi_value, rsi_div_length)
+rsi_low_div_src     = ta.lowest(rsi_value, rsi_div_length)
+
+var float csh       = 0.00
+var float csl       = 0.00
+var float psh       = 0.00
+var float psl       = 0.00
+
+var float rsi_csh   = 0.00
+var float rsi_csl   = 0.00
+var float rsi_psh   = 0.00
+var float rsi_psl   = 0.00
+
+var int price_trend = 0
+var int rsi_trend   = 0
+
+var bool rsi_div_buy = false
+var bool rsi_div_sell = false
+
+if use_rsi_div
+    if swing_high
+        csh := high[rsi_div_length]
+        psh := csh[1]
+        rsi_csh := rsi_high_div_src
+        rsi_psh := rsi_csh[1]
+
+    if swing_low
+        csh := high[rsi_div_length]
+        psh := csh[1]
+        rsi_csl := rsi_low_div_src
+        rsi_psl := rsi_csl[1]
+
+    // price_trend := ((csh >= psh and high >= psh) or close > csh) ? 1 
+    //  : ((csl <= psl and low <= psl) or close < csl) ? -1 
+    //  : (csh < psh) or (csl > psl) ? 0 : price_trend[1]
+
+    // rsi_trend := ((rsi_csh >= rsi_psh and rsi_value >= rsi_psh)) ? 1 
+    //  : ((rsi_csl <= rsi_psl and rsi_value <= rsi_psl)) ? -1 
+    //  : (rsi_csh < rsi_psh) or (rsi_csl > rsi_psl) ? 0 : price_trend[1]
+
+    // rsi_div_buy  := price_trend != 1 and rsi_trend == 1
+    // rsi_div_sell := price_trend != -1 and rsi_trend == -1
+
+    rsi_div_buy     := (csl <= psl and rsi_csl >= rsi_psl)
+    rsi_div_sell    := (csh >= psh and rsi_csh <= rsi_psh)
+
+else
+    rsi_div_buy  := true
+    rsi_div_sell := true
+
+
+
+
+// session times
+is_session = time(timeframe.period, sess_time, "Europe/London") or not use_sess_time
+
+
+
+
+// trade signals 
+var bool long_entry     = false
+var bool short_entry    = false
+
+var int last_signal     = 0 
+
+var bool tgt_hit        = false
+var bool sl_hit         = false
+
+var float entry         = 0.00
+var float tp            = 0.00
+var float sl            = 0.00
+
+atr_amount = ta.atr(14)
+
+can_long  = take_every_signal or nz(last_signal[1],0) != 1
+can_short = take_every_signal or nz(last_signal[1],0) != -1
+
+long_entry  := ma_buy and stochrsi_buy and mtfstoch_buy and rsi_buy and rsi_div_buy and is_session and can_long
+short_entry := ma_sell and stochrsi_sell and mtfstoch_sell and rsi_sell and rsi_div_sell and is_session and can_short
+
+entry       := long_entry[1] ? open : short_entry[1] ? open : last_signal == 0 ? na : entry[1]
+tp          := long_entry[1] ? open + (atr_amount * tgt_atr) : short_entry[1] ?  open - (atr_amount * tgt_atr) : last_signal == 0 ? na : tp[1]
+sl          := long_entry[1] ? open - (atr_amount * stop_atr) : short_entry[1] ? open + (atr_amount * stop_atr) : last_signal == 0 ? na : sl[1]
+
+tgt_hit     := last_signal == 1 and high >= tp ? true : last_signal == -1 and low <= tp ? true : false
+sl_hit      := last_signal == 1 and low <= sl ? true : last_signal == -1 and high >= sl ? true :false
+
+last_signal := long_entry ? 1 : short_entry ? -1 : tgt_hit or sl_hit or (not is_session and exit_at_eos) ? 0 : last_signal[1]
+
+
+
+// plot signals
+plotshape(long_entry, title = 'Buy', text = 'BUY', color = color.green, textcolor = color.white, location = location.belowbar, style = shape.labelup, size = size.small)
+plotshape(short_entry, title = 'Sell', text = 'SELL', color = color.red, textcolor = color.white, location = location.abovebar, style = shape.labeldown, size = size.small)
+
+plotshape(tgt_hit and last_signal[1] == -1, title = 'SS TP', text = 'TP', color = color.gray, textcolor = color.white,location = location.belowbar, style = shape.labelup, size = size.small)
+plotshape(tgt_hit and last_signal[1] == 1, title = 'L TP', text = 'TP', color = color.gray, textcolor = color.white,location = location.abovebar, style = shape.labeldown, size = size.small)
+
+plotshape(sl_hit and last_signal[1] == -1, title = 'SS SL', text = 'SL', color = color.gray, textcolor = color.white,location = location.belowbar, style = shape.labelup, size = size.small)
+plotshape(sl_hit and last_signal[1] == 1, title = 'L SL', text = 'SL', color = color.gray, textcolor = color.white,location = location.abovebar, style = shape.labeldown, size = size.small)
+
+plotshape(last_signal[1] != 0 and last_signal == 0 and not is_session ? close : na,title = 'EOS', text = 'EOS', color = color.gray, textcolor = color.white,location = location.absolute, style = shape.xcross, size = size.small)
+p_entry = plot(entry, title = 'Entry', color = color.rgb(33, 149, 243, 80), style = plot.style_circles)
+p_tgt   = plot(tp, title = 'Target', color = color.rgb(76, 175, 79, 80), style = plot.style_circles)
+p_sl    = plot(sl, title = 'Stop', color = color.rgb(255, 82, 82, 80), style = plot.style_circles)
+
+fill(p_entry, p_tgt, color = color.rgb(76, 175, 79, 80), fillgaps = false)
+fill(p_entry, p_sl, color = color.rgb(255, 82, 82, 80), fillgaps = false)
+
+
+
+// alerts
+alertcondition(long_entry, 'BUY Signal', 'Buy Signal')
+alertcondition(short_entry, 'SELL Signal', 'Sell Signal')
+
+alertcondition(tgt_hit and last_signal[1] == -1, 'SS TP', 'SS TP')
+alertcondition(tgt_hit and last_signal[1] == 1, 'L TP', 'L TP')
+
+alertcondition(sl_hit and last_signal[1] == -1, 'SS SL', 'SS SL')
+alertcondition(sl_hit and last_signal[1] == 1, 'L SL', 'L SL')

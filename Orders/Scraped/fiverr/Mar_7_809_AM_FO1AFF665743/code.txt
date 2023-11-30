@@ -1,0 +1,61 @@
+//@version=5
+indicator('Parabolic SAR', shorttitle='PSAR', overlay=true)
+
+start = input.float(title='Start', step=0.001, defval=0.02)
+increment = input.float(title='Increment', step=0.001, defval=0.02)
+maximum = input.float(title='Maximum', step=0.01, defval=0.2)
+width = input.int(title='Point Width', minval=1, defval=2)
+highlightStartPoints = input(title='Highlight Start Points ?', defval=true)
+showLabels = input(title='Show Buy/Sell Labels ?', defval=true)
+highlightState = input(title='Highlight State ?', defval=true)
+
+psar = ta.sar(start, increment, maximum)
+dir = psar < close ? 1 : -1
+
+psarColor = dir == 1 ? color.green : color.red
+psarPlot = plot(psar, title='PSAR', style=plot.style_circles, linewidth=width, color=psarColor)
+
+
+// rsi
+rsi_length = input.int(14, title = 'RSI Length', group = 'RSI Settings', inline = '1')
+rsi_long = input.int(50, title = 'RSI Long Above', group = 'RSI Settings', inline = '2')
+rsi_stronglong = input.int(57, title = 'RSI Strong Long Above', group = 'RSI Settings', inline = '3')
+rsi_short = input.int(50, title = 'RSI Short Below', group = 'RSI Settings', inline = '4')
+rsi_strongshort = input.int(43, title = 'RSI Strong Short Below', group = 'RSI Settings', inline = '5')
+
+rsi_value = ta.rsi(close, rsi_length)
+
+var color longColor = color.green
+var color shortColor = color.red
+
+var int last_signal = 0
+
+strongbuy = last_signal[1] != 1 and dir == 1 and rsi_value >= rsi_stronglong
+buySignal = last_signal[1] != 1 and dir == 1 and rsi_value >= rsi_long
+
+strongsell = last_signal[1] != -1 and dir == -1 and rsi_value <= rsi_strongshort
+sellSignal = last_signal[1] != -1 and dir == -1 and rsi_value <= rsi_short
+
+barcolor(dir == 1 ? color.green : dir == -1 ? color.red : na)
+
+last_signal := barstate.isfirst ? dir : (buySignal or strongbuy) ? 1 : (sellSignal or sellSignal) ? -1 : last_signal[1]
+
+plotshape(buySignal and highlightStartPoints ? psar : na, title='Long Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(longColor, 0))
+plotshape(buySignal and showLabels ? psar : na, title='Buy Label', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=color.new(color.white, 0))
+plotshape(strongbuy and showLabels ? psar : na, title='Strong Buy Label', text='Strong Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=color.new(color.white, 0))
+
+
+plotshape(sellSignal and highlightStartPoints ? psar : na, title='Short Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(shortColor, 0))
+plotshape(sellSignal and showLabels ? psar : na, title='Sell Label', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=color.new(color.white, 0))
+plotshape(strongsell and showLabels ? psar : na, title='Strong Sell Label', text='Strong Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=color.new(color.white, 0))
+
+midPricePlot = plot(ohlc4, title='', display=display.none)
+
+fillColor = highlightState ? dir == 1 ? longColor : shortColor : na
+fill(midPricePlot, psarPlot, title='Trade State Filling', color=color.new(fillColor,90))
+
+changeCond = dir != dir[1]
+alertcondition(changeCond, title='Alert: PSAR Direction Change', message='PSAR has changed direction!')
+alertcondition(buySignal, title='Alert: PSAR/RSI Long', message='PSAR/RSI Long')
+alertcondition(sellSignal, title='Alert: PSAR/RSI Short', message='PSAR/RSI Sell')
+

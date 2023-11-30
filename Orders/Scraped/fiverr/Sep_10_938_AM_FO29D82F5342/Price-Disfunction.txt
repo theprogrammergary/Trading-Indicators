@@ -1,0 +1,36 @@
+##### PRICE DISFUNCTION #####
+
+script Moxie {
+    input priceC = close;
+    def vc1 = ExpAverage(priceC , 12) - ExpAverage(priceC , 26);
+    def va1 = ExpAverage(vc1, 9);
+    plot sData = (vc1 - va1) * 3;
+}
+def moxie = Moxie(close);
+def moxie_trend = if moxie > moxie[1] then 1 else -1;
+def moxie_bull = moxie > moxie[1];
+def moxie_bear = moxie <= moxie[1];
+
+#PRICE DISFUNCTION
+def sma_50 = movingaverage(averageType.SIMPLE, close, 50);
+def crossing = (moxie crosses 0) or (close crosses sma_50);
+
+def green_in_a_row = Sum(moxie_bull, 3) == 3;
+def green_previous_price_high = if crossing then double.nan else if green_in_a_row[1] and moxie_bear then high[1] else green_previous_price_high[1];
+def green_previous_moxie_high = if crossing then double.nan else if green_in_a_row[1] and moxie_bear then moxie[1] else green_previous_moxie_high[1];
+def green_disfunction_cond = if green_in_a_row[1] and moxie_bear then no else if high > green_previous_price_high and moxie < green_previous_moxie_high then yes else green_disfunction_cond[1];
+
+
+
+def red_in_a_row = Sum(moxie_bear, 3) == 3;
+def red_previous_price_low = if crossing then double.nan else if red_in_a_row[1] and moxie_bull then low[1] else red_previous_price_low[1];
+def red_previous_moxie_low = if crossing then double.nan else if red_in_a_row[1] and moxie_bull then moxie[1] else red_previous_moxie_low[1];
+def red_disfunction_cond = if red_in_a_row[1] and moxie_bull then no else if low < red_previous_price_low and moxie > red_previous_moxie_low then yes else red_disfunction_cond[1];
+
+
+
+
+
+####CHOOSE SCAN
+#plot green_disfunction_scan = (green_disfunction_cond and !green_disfunction_cond[1]) ;
+plot red_disfunction_scan = (red_disfunction_cond and !red_disfunction_cond[1]) ;

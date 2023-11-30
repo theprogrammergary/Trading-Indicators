@@ -1,0 +1,10 @@
+Please read the disclaimer.
+
+For TOS you can only change the entire candle or bar color. They do not give you that functionality to code. 
+
+On tradingview I created two different studies. One is for candles and one is for bars. For it to work properly set the chart type to candles and then uncheck like the image attached.
+
+TOS Link https://tos.mx/T6xOTrr
+Tradingview are in .txt files
+
+Let me know if you have any questions.

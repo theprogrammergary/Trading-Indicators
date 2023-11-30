@@ -1,0 +1,18 @@
+##### RSI AT ####
+input price = close;
+input length = 14;
+input averagetype = averageType.WILDERS;
+
+
+#IGNORE BELOW
+def NetChgAvg = MovingAverage(averagetype, price - price[1], length);
+def TotChgAvg = MovingAverage(averagetype, AbsValue(price - price[1]), length);
+def ChgRatio = if TotChgAvg != 0 then NetChgAvg / TotChgAvg else 0;
+
+def RSI = round(50 * (ChgRatio + 1),2);
+def reset_cond = getday() != getday()[1];
+def rsi_at_time = if reset_cond then rsi else rsi_at_time[1];
+
+addlabel(yes, rsi_at_time, color.white);
+
+

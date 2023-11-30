@@ -1,0 +1,1 @@
+Please read the disclaimer. It is limited to how many days back Tradingview can load by default.This video might help for getting data further back than the default.https://www.tradingview.com/chart/ETHUSD/f7EbFMfu-How-To-Backtest-Further-In-The-Past-On-Low-Timeframes/

@@ -1,0 +1,41 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_optiontrader123", overlay = true)
+
+ma_length1 = input.int(9, title = 'MA Length 1', group = 'MA Settings', inline = '1')
+ma_length2 = input.int(20, title = 'MA Length 2', group = 'MA Settings', inline = '2')
+ma_length3 = input.int(50, title = 'MA Length 3', group = 'MA Settings', inline = '3')
+
+ma_type1 = input.string('EMA', title = '', options = ['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], group = 'MA Settings', inline = '1')
+ma_type2 = input.string('EMA', title = '', options = ['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], group = 'MA Settings', inline = '2')
+ma_type3 = input.string('MA', title = '', options = ['MA', 'WMA', 'VWMA', 'EMA', 'HMA'], group = 'MA Settings', inline = '3')
+
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+
+ma_value1 = getMA(close, ma_length1, ma_type1)
+ma_value2 = getMA(close, ma_length2, ma_type2)
+ma_value3 = getMA(close, ma_length3, ma_type3)
+
+ma_plot1 = plot(ma_value1, color = color.new(color.white, 90), title = 'MA1')
+ma_plot2 = plot(ma_value2, color = color.new(color.white, 90), title = 'MA2')
+ma_plot3 = plot(ma_value3, color = color.new(color.white, 90), title = 'MA3')
+
+bull_condition = ma_value1 > ma_value2 and close > ma_value3
+bear_condition = ma_value1 < ma_value2 and close < ma_value3
+
+fill(ma_plot1, ma_plot2, bull_condition ? color.new(color.teal,30) : bear_condition ? color.new(color.red,30) : color.new(color.gray,30), title = 'MA1 & MA2 Cloud')
+
+fill_plot = plot(close > ma_value3 ? math.min(ma_value1, ma_value2) : math.max(ma_value1, ma_value2), color = color.new(color.white, 99), title = 'Connecting Line') 
+fill(fill_plot, ma_plot3, close > ma_value3 ? color.new(color.teal,70) : close < ma_value3 ? color.new(color.red,70) : color.new(color.gray,70), title = 'MA3 Cloud')
+
+color_candles = input.bool(true, title = 'Color Candles')
+
+barcolor(color_candles and bull_condition ? color.teal : color_candles and bear_condition ? color.red : color_candles ? color.gray : na)
+
+
+alertcondition(bull_condition, 'Now Bullish', 'Now Bullish')
+alertcondition(bear_condition, 'Now Bearish', 'Now Bearish')

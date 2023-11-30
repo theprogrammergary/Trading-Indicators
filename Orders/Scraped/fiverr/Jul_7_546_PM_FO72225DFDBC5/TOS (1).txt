@@ -1,0 +1,152 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_ecasazone_TOS", overlay = true)
+
+
+// settings
+color_candles = input.bool(true, title = 'Color Candles', group = 'Settings')
+bull_color = input.color(color.green, title = 'Bull', group = 'Settings')
+bear_color = input.color(color.red, title = 'Bear', group = 'Settings')
+neutral_color = input.color(color.orange, title = 'Neutral', group = 'Settings')
+
+
+
+// obv
+obv_label       = input.bool(true, title = 'OBV Label', group = 'OBV Settings')
+obv_length      = input.int(7, title = 'OBV Length', group = 'OBV Settings')
+obv_avg_type    = input.string('Wilders', title = 'OBV Type', group = 'OBV Settings', 
+ options = ['Wilders', 'Simple', 'EMA', 'Weighted', 'Hull'])
+obv_time        = input.int(20, title = 'OBV Bars Back', group = 'OBV Settings')
+
+f_obv(length) =>
+    value = 0.00
+    for i = 0 to length
+        value += math.sign(close[i] - close[i+1]) * volume
+    value
+
+
+obv = f_obv(obv_time)
+float obvm = switch obv_avg_type
+    "EMA" => ta.ema(obv, obv_length)
+    "Simple" => ta.sma(obv, obv_length)
+    "Wilders" => ta.rma(obv, obv_length)
+    "Weighted" => ta.wma(obv, obv_length)
+    "Hull" => ta.hma(obv, obv_length)
+    => ta.sma(obv, obv_length)
+avg_obvm = ta.sma(obvm, 10)
+
+var int obv_trend = 0
+var int obv_count = 0
+obv_trend := obvm > avg_obvm ? 1 : -1
+obv_count := obv_trend != obv_trend[1] ? 1 : obv_count[1] + 1 
+
+
+
+// tmo
+tmo_label       = input.bool(true, title = 'TMO Label', group = 'TMO Settings')
+tmo_length      = input.int(14, title = 'TMO Length', group = 'TMO Settings')
+tmo_calcLength  = input.int(5, title = 'TMO Calc Length', group = 'TMO Settings') 
+tmo_smoothLength = input.int(3, title= 'TMO Smooth Length', group = 'TMO Settings')
+max_buy = input.int(5, title = 'Max Buy', group = 'TMO Settings')
+min_sell = input.int(5, title = 'Min Sell', group = 'TMO Settings')
+
+tmo_value(length) =>
+    value = 0.00
+    for i = 0 to length
+        value += (close > open[i] ? 1 : close < open[i] ? -1 : 0)
+    value
+
+tmo_s = tmo_value(tmo_length)
+                        
+EMA5 = ta.ema(tmo_s, tmo_calcLength)
+Main = ta.ema(EMA5, tmo_smoothLength)
+Signal = ta.ema(Main, tmo_smoothLength)
+
+var int tmo_trend = 0
+var int tmo_count = 0
+tmo_trend := Main > Signal ? 1 : Main < Signal ? -1 : 0
+tmo_count := tmo_trend != tmo_trend[1] ? 1 : tmo_count[1] + 1 
+
+
+
+// hull
+hull_label      = input.bool(true, title = 'Hull Label', group = 'Hull Settings')
+hull_price      = input.source(close, title = 'Hull Price', group = 'Hull Settings')
+hull_length     = input.int(20, title = 'Hull Length', group = 'Hull Settings')
+hull_lookback   = input.int(0, title = 'Hull Lookback', group = 'Hull Settings')
+real_hull_lookback = hull_lookback + 1
+
+hma = ta.hma(hull_price, hull_length)
+delta = hma[1] - hma[real_hull_lookback + 1]
+delta_per_bar = delta / real_hull_lookback
+next_bar = hma[1] + delta_per_bar
+concavity = hma > next_bar ? 1 : -1
+plot(hma, title = 'Hull MA', linewidth = 5,
+ color = concavity[1] == -1 ? (hma > hma[1] ? color.rgb(194, 124, 20) : color.rgb(195, 10, 10))
+ : (hma < hma[1] ? color.rgb(31, 107, 34) : color.green))
+
+var int hull_trend = 0
+var int hull_count = 0
+hull_trend := concavity == 1 ? 1 : concavity == -1 ? -1 : 0
+hull_count := hull_trend != hull_trend[1] ? 1 : hull_count[1] + 1 
+
+
+
+// create signals
+var bool all_buy = false
+var bool all_sell = false
+
+var int min_count = na
+var int max_count = na
+
+var bool buy = false
+var bool sell = false
+
+var int last_signal = 0
+var int pos = 0
+
+var bool buy_signal = false
+var bool sell_signal = false
+
+all_buy := obv_trend == 1 and tmo_trend == 1 and hull_trend == 1
+all_sell := obv_trend == -1 and tmo_trend == -1 and hull_trend == -1
+
+min_count := math.min(obv_count, math.min(tmo_count, hull_count))
+max_count :=  math.max(obv_count, math.max(tmo_count, hull_count))
+
+buy := all_buy and not all_buy[1] and max_count < 20 and Main < max_buy
+sell := all_sell and not all_sell[1] and max_count < 20 and Main > min_sell
+
+last_signal := buy ? 1 : sell ? -1 : last_signal[1]
+
+buy_signal := buy and last_signal[1] == -1
+sell_signal := sell and last_signal[1] == 1
+pos := buy_signal ? 1 : sell_signal ? -1 : pos[1]
+
+barcolor(not color_candles ? na 
+ : pos == 1 ? bull_color
+ : pos == -1 ? bear_color
+ : neutral_color)
+
+plotshape(buy_signal, title = 'Buy Signal', color = bull_color, style = shape.triangleup, location = location.belowbar, size = size.small)
+plotshape(sell_signal, title = 'Sell Signal', color = bear_color, style = shape.triangledown, location = location.abovebar, size = size.small)
+
+
+
+// table
+var table = table.new(position = position.bottom_left, columns = 5, rows = 1, bgcolor = color.black, border_width = 1)
+if barstate.islast
+    table.clear(table, 0,0,4,0)
+    if obv_label
+        table.cell(table_id = table, column = 0, row = 0, text = "OBV", text_color = color.white, bgcolor = obv_trend == 1 ? bull_color : obv_trend == -1 ? bear_color : neutral_color)
+    if tmo_label
+        table.cell(table_id = table, column = 1, row = 0, text = "TMO", text_color = color.white, bgcolor = tmo_trend == 1 ? bull_color : tmo_trend == -1 ? bear_color : neutral_color)
+    if hull_label
+        table.cell(table_id = table, column = 2, row = 0, text = "HULL", text_color = color.white, bgcolor = hull_trend == 1 ? bull_color : hull_trend == -1 ? bear_color : neutral_color)
+
+
+    // label.new(x= bar_index+5, y = high[1], text = str.tostring(math.round(obv,0)))
+
+// bgcolor(tmo_trend == 1 ? color.rgb(29, 96, 31) : tmo_trend == -1 ? color.rgb(130, 26, 26) : color.rgb(74, 75, 79))

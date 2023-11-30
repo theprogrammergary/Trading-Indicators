@@ -1,0 +1,125 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Pivot Trendlines", overlay = true)
+
+
+n  = input.int(1, title = 'Pivot Length', inline = '1', group = 'Trendline Group 1', minval = 1)
+hs_color1 = input.color(color.gray, title = "Horizontal Support    ", inline = '2', group = 'Trendline Group 1')
+hr_color1 = input.color(color.gray, title = "Horizontal Resistance  ", inline = '3', group = 'Trendline Group 1')
+ts_color1 = input.color(color.gray, title = "Trendline Support     ", inline = '4', group = 'Trendline Group 1')
+tr_color1 = input.color(color.gray, title = "Trendline Resistance  ", inline = '5', group = 'Trendline Group 1')
+
+_style_hs1  = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 1', inline = '2')
+_style_hr1   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 1', inline = '3')
+_style_ts1   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 1', inline = '4')
+_style_tr1   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 1', inline = '5')
+
+style_hs1 = _style_hs1 == "Solid" ? line.style_solid : _style_hs1 == "Dotted" ? line.style_dotted : line.style_dashed
+style_hr1 = _style_hr1 == "Solid" ? line.style_solid : _style_hr1 == "Dotted" ? line.style_dotted : line.style_dashed
+style_ts1 = _style_ts1 == "Solid" ? line.style_solid : _style_ts1 == "Dotted" ? line.style_dotted : line.style_dashed
+style_tr1 = _style_tr1 == "Solid" ? line.style_solid : _style_tr1 == "Dotted" ? line.style_dotted : line.style_dashed
+
+
+n2 = input.int(2, title = 'Pivot Length', inline = '1', group = 'Trendline Group 2', minval = 1)
+hs_color2 = input.color(color.gray, title = "Horizontal Support    ", inline = '2', group = 'Trendline Group 2')
+hr_color2 = input.color(color.gray, title = "Horizontal Resistance  ", inline = '3', group = 'Trendline Group 2')
+ts_color2 = input.color(color.gray, title = "Trendline Support     ", inline = '4', group = 'Trendline Group 2')
+tr_color2 = input.color(color.gray, title = "Trendline Resistance  ", inline = '5', group = 'Trendline Group 2')
+
+_style_hs2  = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 2', inline = '2')
+_style_hr2   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 2', inline = '3')
+_style_ts2   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 2', inline = '4')
+_style_tr2   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 2', inline = '5')
+
+style_hs2 = _style_hs2 == "Solid" ? line.style_solid : _style_hs2 == "Dotted" ? line.style_dotted : line.style_dashed
+style_hr2 = _style_hr2 == "Solid" ? line.style_solid : _style_hr2 == "Dotted" ? line.style_dotted : line.style_dashed
+style_ts2 = _style_ts2 == "Solid" ? line.style_solid : _style_ts2 == "Dotted" ? line.style_dotted : line.style_dashed
+style_tr2 = _style_tr2 == "Solid" ? line.style_solid : _style_tr2 == "Dotted" ? line.style_dotted : line.style_dashed
+
+
+n3 = input.int(3, title = 'Pivot Length', inline = '1', group = 'Trendline Group 3', minval = 1)
+hs_color3 = input.color(color.gray, title = "Horizontal Support    ", inline = '2', group = 'Trendline Group 3')
+hr_color3 = input.color(color.gray, title = "Horizontal Resistance  ", inline = '3', group = 'Trendline Group 3')
+ts_color3 = input.color(color.gray, title = "Trendline Support     ", inline = '4', group = 'Trendline Group 3')
+tr_color3 = input.color(color.gray, title = "Trendline Resistance  ", inline = '5', group = 'Trendline Group 3')
+
+_style_hs3  = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 3', inline = '2')
+_style_hr3   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 3', inline = '3')
+_style_ts3   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 3', inline = '4')
+_style_tr3   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Trendline Group 3', inline = '5')
+
+style_hs3 = _style_hs3 == "Solid" ? line.style_solid : _style_hs3 == "Dotted" ? line.style_dotted : line.style_dashed
+style_hr3 = _style_hr3 == "Solid" ? line.style_solid : _style_hr3 == "Dotted" ? line.style_dotted : line.style_dashed
+style_ts3 = _style_ts3 == "Solid" ? line.style_solid : _style_ts3 == "Dotted" ? line.style_dotted : line.style_dashed
+style_tr3 = _style_tr3 == "Solid" ? line.style_solid : _style_tr3 == "Dotted" ? line.style_dotted : line.style_dashed
+
+
+
+f_calculate_and_draw_lines(p_length, 
+ _h_resistance, _h_resistancestyle, _h_support, _h_supportstyle, 
+ _t_resistance, _t_resistancestyle, _t_support, _t_supportstyle) =>
+
+    ph = ta.pivothigh(high, 0, p_length) and high[p_length] == ta.highest(high[p_length], p_length) 
+    pl = ta.pivotlow(low, 0, p_length)   and low[p_length]   == ta.lowest(low[p_length], p_length) 
+
+    csh = ta.valuewhen(ph, high[p_length], 0)
+    csl = ta.valuewhen(pl, low[p_length], 0)
+    psh = ta.valuewhen(ph, high[p_length], 1)
+    psl = ta.valuewhen(pl, low[p_length], 1)
+
+    csh_time = ta.valuewhen(ph, bar_index[p_length], 0)
+    csl_time  = ta.valuewhen(pl, bar_index[p_length], 0)
+    psh_time  = ta.valuewhen(ph, bar_index[p_length], 1)
+    psl_time  = ta.valuewhen(pl, bar_index[p_length], 1)
+
+    var line hl_resistance = na
+    var line hl_resistance2 = na
+    var line hl_support = na
+    var line hl_support2 = na
+    var line tl_resistance = na
+    var line tl_support = na
+
+    if not na(ph)
+        line.delete(hl_resistance[1])
+        line.delete(hl_resistance2[1])
+        line.delete(tl_resistance[1])
+
+        hl_resistance := line.new(x1=csh_time, y1=csh, x2=csh_time+1, y2=csh, xloc=xloc.bar_index,
+         color=_h_resistance, style = _h_resistancestyle, extend=extend.right)
+        hl_resistance2 := line.new(x1=psh_time, y1=psh, x2=psh_time+1, y2=psh, xloc=xloc.bar_index,
+         color=_h_resistance, style = _h_resistancestyle, extend=extend.right)
+        tl_resistance := line.new(x1=psh_time, y1=psh, x2=csh_time, y2=csh, xloc=xloc.bar_index,
+         color=_t_resistance, style = _t_resistancestyle, extend=extend.right)
+
+    if not na(pl)
+        line.delete(hl_support[1])
+        line.delete(hl_support2[1])
+        line.delete(tl_support[1])
+
+        hl_support := line.new(x1=csl_time, y1=csl, x2=csl_time+1, y2=csl, xloc=xloc.bar_index,
+         color=_h_support, style = _h_supportstyle, extend=extend.right)
+        hl_support2 := line.new(x1=psl_time, y1=psl, x2=psl_time+1, y2=psl, xloc=xloc.bar_index,
+         color=_h_support, style = _h_supportstyle, extend=extend.right)
+        tl_support := line.new(x1=psl_time, y1=psl, x2=csl_time, y2=csl, xloc=xloc.bar_index,
+         color=_t_support, style = _t_supportstyle, extend=extend.right)
+
+
+f_calculate_and_draw_lines(n, 
+ hr_color1, style_hr1, hs_color1, style_hs1, 
+ tr_color1, style_tr1, ts_color1, style_ts1)
+
+f_calculate_and_draw_lines(n2, 
+ hr_color2, style_hr2, hs_color2, style_hs2, 
+ tr_color2, style_tr2, ts_color2, style_ts2)
+
+f_calculate_and_draw_lines(n3, 
+ hr_color3, style_hr3, hs_color3, style_hs3, 
+ tr_color3, style_tr3, ts_color3, style_ts3)
+
+
+
+// ph = ta.pivothigh(high, 0, n) and high[n] == ta.highest(high[n], n) 
+// pl = ta.pivotlow(low, 0, n)   and low[n]   == ta.lowest(low[n], n) 
+// barcolor(ph?color.red : pl?color.green : na, offset = -n)

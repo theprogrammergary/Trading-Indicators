@@ -1,0 +1,57 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Trader Tactics Symbol Display", overlay = true)
+
+// visual settings
+location_input = input.string('Center', title = 'Location', options = ['Left', 'Center', 'Right'], group = 'Visual Settings', inline = '1')
+location = location_input == 'Center' ? position.top_center : location_input == 'Left' ? position.top_left : position.top_right
+
+text_color = input.color(color.new(#000000,0), title = 'Text Color', group = 'Visual Settings', inline = '2')
+bg_color = input.color(color.new(#000000,100), title = 'BG Color', group = 'Visual Settings', inline = '2')
+
+size_input = input.string('Normal', title = 'Text Size', options = ['Tiny', 'Small', 'Normal', 'Large', 'Huge'], group = 'Visual Settings', inline = '3')
+text_size = size_input == 'Tiny' ? size.tiny
+ : size_input == 'Small' ? size.small
+ : size_input == 'Normal' ? size.normal
+ : size_input == 'Large' ? size.large
+ : size_input == 'Huge' ? size.huge
+ : size.normal
+
+
+// label settings
+show_symbol = input.bool(true, title = 'Show Symbol Info', group = 'Label Settings', inline = '1')
+show_adv = input.bool(true, title = 'Show ADV', group = 'Label Settings', inline = '2')
+
+adv = math.round(request.security(syminfo.ticker, "D", ta.sma(volume, 20)[1], lookahead = barmerge.lookahead_on),0)
+f_length = str.length(str.tostring(adv))
+f_tablestring = f_length >= 10 ? str.tostring(math.round(adv*0.000000001,2)) + 'B' 
+ : f_length >= 7 ? str.tostring(math.round(adv*0.000001,2)) + 'M' 
+ : str.tostring(math.round(adv,2)) + 'K'
+
+
+// next_earnings = 
+
+
+// display watermark labels
+var watermark = table.new(position = location, columns = 1, rows = 3, bgcolor = bg_color, border_width = 1)
+if barstate.islast
+
+    timeframe_text = timeframe.isdaily ? 'Daily Chart, '
+     : timeframe.isweekly ? 'Weekly Chart, '
+     : timeframe.ismonthly ? 'Monthly Chart, '
+     : timeframe.isminutes ? str.tostring(timeframe.multiplier) + ' Minute Chart, '
+     : timeframe.isseconds ? str.tostring(timeframe.multiplier) + ' Second Chart, '
+     : ''
+
+    if show_symbol
+        table.cell(table_id = watermark, column = 0, row = 0,
+         text = timeframe_text + str.tostring(syminfo.description) + " (" + str.tostring(syminfo.ticker) + ")",
+         text_color = text_color, text_size = text_size)
+
+    if show_adv
+        table.cell(table_id = watermark, column = 0, row = 1,
+         text = "ADV: " + f_tablestring,
+         text_color = text_color, text_size = text_size)
+

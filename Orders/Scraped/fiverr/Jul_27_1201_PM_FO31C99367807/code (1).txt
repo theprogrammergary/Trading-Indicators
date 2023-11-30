@@ -1,0 +1,150 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_gugelhupf", overlay=true, margin_long=100, margin_short=100, calc_on_order_fills = true, default_qty_value = 100, initial_capital = 100000000)
+
+// settings
+_pct_range      = input.float(50.00, title = '% Range Trigger', group = 'Settings', minval = 0.01)
+_bars_for_entry = 1
+_stop_type      = input.string('Opposite', title = 'Stop Type', group = 'Settings',
+ options = ['Opposite', 'Previous Close', 'Previous Open'])
+
+_tp1            = input.float(84.00, title = 'TP1 %', group = 'Settings', minval = 0.01, maxval = 100)
+_tp2            = input.float(65.00, title = 'TP2 %', group = 'Settings', minval = 0.01, maxval = 100)
+
+_days_for_trade = input.int(4, title = 'Trading Days', group = 'Settings')
+
+
+// calculate
+var bool entered_signal = false
+var float long_entry_lvl = 0.00
+var float short_entry_lvl = 0.00
+
+var float long_stop_lvl = 0.00
+var float short_stop_lvl = 0.00
+
+var float long_stop     = 0.00
+var float short_stop    = 0.00
+
+var float tp_amount     = 0.00
+
+var float long_tp1      = 0.00
+var float long_tp2      = 0.00
+var float long_tp3      = 0.00
+
+var float short_tp1      = 0.00
+var float short_tp2      = 0.00
+var float short_tp3      = 0.00
+
+var bool long_tp1_hit       = false
+var bool long_tp2_hit       = false
+
+var bool short_tp1_hit      = false
+var bool short_tp2_hit      = false
+
+var int bars_since_cond = 0
+var int bars_since_entry = 0
+
+
+range_pct      = (high - low) / (high[1] - low[1]) * 100
+cond_lh_and_hl = (high < high[1]) and (low > low[1])
+cond_range     = range_pct <= _pct_range
+condition      = cond_lh_and_hl and cond_range and strategy.position_size == 0
+bars_since_cond:= condition ? 1 : bars_since_cond[1] + 1
+
+long_entry_lvl  := condition ? high + 0.01 : bars_since_cond > _bars_for_entry or strategy.position_size != 0 ? na : long_entry_lvl[1]
+short_entry_lvl := condition ? low - 0.01 : bars_since_cond > _bars_for_entry or strategy.position_size != 0 ? na : short_entry_lvl[1]
+
+long_stop_lvl   := condition ? 
+ (_stop_type == 'Opposite' ? short_entry_lvl : _stop_type == 'Previous Close' ? close : _stop_type == 'Previous Open' ? open : na)
+ : bars_since_cond > _bars_for_entry or strategy.position_size > 0 ? na 
+ : long_stop_lvl[1]
+ 
+short_stop_lvl  := condition ? 
+ (_stop_type == 'Opposite' ? long_entry_lvl : _stop_type == 'Previous Close' ? close : _stop_type == 'Previous Open' ? open : na)
+ : bars_since_cond > _bars_for_entry or strategy.position_size > 0 ? na 
+ : short_stop_lvl[1]
+
+tp_amount       := na(long_entry_lvl - short_entry_lvl) ? tp_amount[1] : (long_entry_lvl - short_entry_lvl)
+
+long_tp1        := math.max(strategy.position_avg_price, nz(long_entry_lvl,0)) + (1*tp_amount)
+long_tp2        := math.max(strategy.position_avg_price, nz(long_entry_lvl,0)) + (2*tp_amount)
+long_tp3        := math.max(strategy.position_avg_price, nz(long_entry_lvl,0)) + (3*tp_amount)
+
+short_tp1       :=  math.min(strategy.position_avg_price, nz(short_stop_lvl,9999999)) - (1*tp_amount)
+short_tp2       :=  math.min(strategy.position_avg_price, nz(short_stop_lvl,9999999)) - (2*tp_amount)
+short_tp3       :=  math.min(strategy.position_avg_price, nz(short_stop_lvl,9999999)) - (3*tp_amount)
+
+long_tp1_hit    := condition ? false : long_tp1_hit[1] == false and high > long_tp1 ? true : long_tp1_hit[1]
+long_tp2_hit    := condition ? false : long_tp2_hit[1] == false and high > long_tp2 ? true : long_tp2_hit[1]
+
+short_tp1_hit    := condition ? false : short_tp1_hit[1] == false and low < short_tp1 ? true : short_tp1_hit[1]
+short_tp2_hit    := condition ? false : short_tp2_hit[1] == false and low < short_tp2 ? true : short_tp2_hit[1]
+
+long_stop       := condition ? long_stop_lvl
+ : (long_tp1_hit and not long_tp1_hit[1]) and (long_tp2_hit and not long_tp2_hit[1]) ? long_stop[1] + tp_amount*2
+ : (long_tp1_hit and not long_tp1_hit[1]) ? long_stop[1] + tp_amount 
+ : (long_tp2_hit and not long_tp2_hit[1]) ? long_stop[1] + tp_amount 
+ : long_stop[1]
+
+short_stop      := condition ? short_stop_lvl 
+ : (short_tp1_hit and not short_tp1_hit[1]) and (short_tp2_hit and not short_tp2_hit[1]) ? short_stop[1] - tp_amount*2
+ : (short_tp1_hit and not short_tp1_hit[1]) ? short_stop[1] - tp_amount 
+ : (short_tp2_hit and not short_tp2_hit[1]) ? short_stop[1] - tp_amount 
+ : short_stop[1]
+
+
+entered_signal  := strategy.position_size != 0 and strategy.position_size[1] == 0 ? true
+ : condition ? false : entered_signal[1]
+
+bars_since_entry := condition ? 1 : bars_since_entry[1] + 1
+plot(bars_since_entry)
+
+
+// send entry orders
+if bars_since_cond <= _bars_for_entry and strategy.position_size == 0 and not entered_signal
+    strategy.entry('LE', strategy.long, stop = long_entry_lvl)
+    strategy.entry('SS_E', strategy.short, stop = short_entry_lvl)
+else if strategy.position_size == 0
+    strategy.cancel_all()
+
+
+// long management
+if strategy.position_size > 0
+    strategy.cancel('SS_E')
+    strategy.exit('LX1', 'LE', limit = long_tp1, stop = long_stop, comment_loss = 'L_SL', comment_profit = 'L_TP1', qty = strategy.position_size * (_tp1/100))
+    strategy.exit('LX2', 'LE', limit = long_tp2, stop = long_stop, comment_loss = 'L_SL', comment_profit = 'L_TP2', qty = strategy.position_size * (_tp2/100))
+    strategy.exit('LX3', 'LE', limit = long_tp3, stop = long_stop, comment_loss = 'L_SL', comment_profit = 'L_TP3')
+
+
+// short management
+if strategy.position_size < 0
+    strategy.cancel('LE')
+    strategy.exit('SS_X1', 'SS_E', limit = short_tp1, stop = short_stop, comment_loss = 'SS_SL', comment_profit = 'SS_TP1', qty = strategy.position_size * (_tp1/100))
+    strategy.exit('SS_X2', 'SS_E', limit = short_tp2, stop = short_stop, comment_loss = 'SS_SL', comment_profit = 'SS_TP2', qty = strategy.position_size * (_tp2/100))
+    strategy.exit('SS_X3', 'SS_E', limit = short_tp3, stop = short_stop, comment_loss = 'SS_SL', comment_profit = 'SS_TP3')
+
+
+if _days_for_trade == bars_since_entry
+    strategy.close_all('TX', 'Time Exit', immediately = true)
+
+
+// visual
+plotshape(condition, title = 'True Conditions', style = shape.circle, color = color.yellow, location = location.abovebar, size = size.tiny)
+plotshape(condition, title = 'True Conditions', style = shape.circle, color = color.yellow, location = location.belowbar, size = size.tiny)
+
+plot(long_entry_lvl, title = 'Long Entry Level', color = color.new(color.green, 75), style = plot.style_linebr)
+plot(short_entry_lvl, title = 'Short Entry Level', color = color.new(color.red, 75), style = plot.style_linebr)
+
+plot(strategy.position_avg_price, title = 'Entry Price', color = color.blue, style = plot.style_circles)
+
+plot(strategy.position_size > 0 ? long_stop : strategy.position_size < 0 ? short_stop : na,
+ title = 'Stop Price', color = color.fuchsia, style = plot.style_circles)
+
+plot(strategy.position_size > 0 ? long_tp1 : strategy.position_size < 0 ? short_tp1 : na,
+ title = 'TP1 Price', color = color.teal, style = plot.style_circles)
+plot(strategy.position_size > 0 ? long_tp2 : strategy.position_size < 0 ? short_tp2 : na,
+ title = 'TP2 Price', color = color.teal, style = plot.style_circles)
+plot(strategy.position_size > 0 ? long_tp3 : strategy.position_size < 0 ? short_tp3 : na,
+ title = 'TP3 Price', color = color.teal, style = plot.style_circles)

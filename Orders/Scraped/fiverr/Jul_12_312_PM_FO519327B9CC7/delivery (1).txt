@@ -1,0 +1,1 @@
+Here is the settings page. Make sure you have the inputs set correctly which is circled in blue. If you want to see arrows make sure the show plot box is checked. Shown with red arrow.

@@ -1,0 +1,235 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("LinReg MTF", overlay=true)
+
+//CHOOSE ALERTS
+ALERTS_TF1 = input.bool(true, 'Alerts TF1', group = 'Choose Active Alerts')
+ALERTS_TF2 = input.bool(true, 'Alerts TF2', group = 'Choose Active Alerts')
+ALERTS_TF3 = input.bool(true, 'Alerts TF3', group = 'Choose Active Alerts')
+
+
+//
+//TF1
+//
+use_tf1 = input.bool(true, title = 'Show TF1 ', inline='1', group='TF1 Settings') 
+tf1_timeframe = input.int(5, title='Timeframe', inline='2',  group='TF1 Settings', options = [1,5,15,30,60,240])
+tf1_price = input.source(close, inline='2', title = ' ',  group='TF1 Settings')
+tf1_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='TF1 Settings')
+tf1_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='TF1 Settings') 
+tf1_color = input.color(color.new(#ffee58, 0), title='upper Color', inline='4', group='TF1 Settings')
+tf1_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='TF1 Settings')
+tf1_width = input.int(1, title = 'Width', minval = 1, maxval = 5, inline='5', group='TF1 Settings')
+tf1_bg = input.int(90, minval = 0, maxval = 100, title = 'Background Transparency', inline='4', group='TF1 Settings')
+tf1_extendStyle = switch
+    tf1_extend == "Both" => extend.both
+    tf1_extend == "Left" => extend.left
+    tf1_extend == "Right" => extend.right
+    => extend.none
+//
+//TF2
+//
+use_tf2 = input.bool(true, title = 'Show TF2 ', inline='1', group='TF2 Settings') 
+tf2_timeframe = input.int(15, title='Timeframe', inline='2',  group='TF2 Settings', options = [1,5,15,30,60,240])
+tf2_price = input.source(close, inline='2', title = ' ',  group='TF2 Settings')
+tf2_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='TF2 Settings')
+tf2_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='TF2 Settings') 
+tf2_color = input.color(color.new(#ff9800, 0), title='upper Color', inline='4', group='TF2 Settings')
+tf2_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='TF2 Settings')
+tf2_width = input.int(3, title = 'Width', minval = 1, maxval = 5, inline='5', group='TF2 Settings')
+tf2_bg = input.int(82, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='TF2 Settings')
+tf2_extendStyle = switch
+    tf2_extend == "Both" => extend.both
+    tf2_extend == "Left" => extend.left
+    tf2_extend == "Right" => extend.right
+    => extend.none
+//
+//TF3
+//
+use_tf3 = input.bool(true, title = 'Show TF3 ', inline='1', group='TF3 Settings') 
+tf3_timeframe = input.int(60, title='Timeframe', inline='2',  group='TF3 Settings', options = [1,5,15,30,60,240])
+tf3_price = input.source(close, inline='2', title = ' ',  group='TF3 Settings')
+tf3_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='TF3 Settings')
+tf3_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='TF3 Settings') 
+tf3_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='TF3 Settings')
+tf3_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='TF3 Settings')
+tf3_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='TF3 Settings')
+tf3_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='TF3 Settings')
+tf3_extendStyle = switch
+    tf3_extend == "Both" => extend.both
+    tf3_extend == "Left" => extend.left
+    tf3_extend == "Right" => extend.right
+    => extend.none
+//
+//FUNCTION TO CALCULATE VALUES
+//
+calculate_linreg(source, length, deviation) =>
+    a = ta.wma(source, length)
+    b = ta.sma(source, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(source[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation
+    
+    
+    y1_midvalue = A + 0
+    y2_midvalue = -m + (B + 0)
+    
+    y1_uppervalue = A - linreg_1
+    y2_uppervalue = -m + (B - linreg_1)
+    
+    y1_lowervalue = A + linreg_1
+    y2_lowervalue = -m + (B + linreg_1)
+    
+    x1_value = time[length]
+    
+    [x1_value, y1_midvalue, y2_midvalue, y1_uppervalue, y2_uppervalue, y1_lowervalue, y2_lowervalue]
+//
+//
+
+//
+//FUNCTION TO DRAW LINES
+//
+drawLinReg(color_input, extension_input, width_input, x1_value, y1_value, y2_value, linreg_length, tf_input, draw_label) =>
+
+    if draw_label
+        label label_variable = label.new(bar_index + 5, y2_value, text=str.tostring(tf_input) + "min | " + str.tostring(math.round_to_mintick(y2_value)), style=label.style_label_left, textcolor = color.black, color = color_input, textalign = text.align_left)
+        label.delete(label_variable[1])
+        
+    line line_variable = line.new(x1_value, y1_value, time, y2_value, extend = extension_input, color = color_input, width = width_input, xloc = xloc.bar_time)
+    line_variable
+    
+//
+//
+
+[tf1_x1_value, tf1_y1_midvalue, tf1_y2_midvalue, tf1_y1_uppervalue, tf1_y2_uppervalue, tf1_y1_lowervalue, tf1_y2_lowervalue]= request.security(syminfo.tickerid, str.tostring(tf1_timeframe), calculate_linreg(tf1_price, tf1_linreg_length, tf1_linreg_deviation))
+[tf2_x1_value, tf2_y1_midvalue, tf2_y2_midvalue, tf2_y1_uppervalue, tf2_y2_uppervalue, tf2_y1_lowervalue, tf2_y2_lowervalue]= request.security(syminfo.tickerid, str.tostring(tf2_timeframe), calculate_linreg(tf2_price, tf2_linreg_length, tf2_linreg_deviation))
+[tf3_x1_value, tf3_y1_midvalue, tf3_y2_midvalue, tf3_y1_uppervalue, tf3_y2_uppervalue, tf3_y1_lowervalue, tf3_y2_lowervalue]= request.security(syminfo.tickerid, str.tostring(tf3_timeframe), calculate_linreg(tf3_price, tf3_linreg_length, tf3_linreg_deviation))
+
+
+//
+//DRAW LINES AND RUN ALERTS  
+//
+if barstate.islast
+
+    //
+    //TF3    
+    if use_tf3 
+        tf3_mid = drawLinReg(color.new(tf3_color, 80), tf3_extendStyle, tf3_width, tf3_x1_value, tf3_y1_midvalue, tf3_y2_midvalue, tf3_linreg_length, tf3_timeframe, false)
+        tf3_upper = drawLinReg(color.new(tf3_color, 0), tf3_extendStyle, tf3_width, tf3_x1_value, tf3_y1_uppervalue, tf3_y2_uppervalue, tf3_linreg_length, tf3_timeframe, true)
+        tf3_lower = drawLinReg(color.new(tf3_color, 0), tf3_extendStyle, tf3_width, tf3_x1_value, tf3_y1_lowervalue, tf3_y2_lowervalue, tf3_linreg_length, tf3_timeframe,true)
+        linefill tf3_fill = linefill.new(tf3_upper, tf3_lower, color.new(tf3_color,tf3_bg)) 
+        
+        if not na(tf3_mid[1])
+            line.delete(tf3_mid[1])
+            line.delete(tf3_upper[1])
+            line.delete(tf3_lower[1])
+            linefill.delete(tf3_fill[1])
+    //TF2
+    if use_tf2 
+        tf2_mid = drawLinReg(color.new(tf2_color, 80), tf2_extendStyle, tf2_width, tf2_x1_value, tf2_y1_midvalue, tf2_y2_midvalue, tf2_linreg_length, tf2_timeframe, false)
+        tf2_upper = drawLinReg(color.new(tf2_color, 0), tf2_extendStyle, tf2_width, tf2_x1_value, tf2_y1_uppervalue, tf2_y2_uppervalue, tf2_linreg_length, tf2_timeframe, true)
+        tf2_lower = drawLinReg(color.new(tf2_color, 0), tf2_extendStyle, tf2_width, tf2_x1_value, tf2_y1_lowervalue, tf2_y2_lowervalue, tf2_linreg_length, tf2_timeframe,true)
+        linefill tf2_fill = linefill.new(tf2_upper, tf2_lower, color.new(tf2_color,tf2_bg)) 
+        
+        if not na(tf2_mid[1])
+            line.delete(tf2_mid[1])
+            line.delete(tf2_upper[1])
+            line.delete(tf2_lower[1])
+            linefill.delete(tf2_fill[1])
+    //TF1
+    if use_tf1 
+        tf1_mid = drawLinReg(color.new(tf1_color, 80), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_midvalue, tf1_y2_midvalue, tf1_linreg_length, tf1_timeframe, false)
+        tf1_upper = drawLinReg(color.new(tf1_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_uppervalue, tf1_y2_uppervalue, tf1_linreg_length, tf1_timeframe, true)
+        tf1_lower = drawLinReg(color.new(tf1_color, 0), tf1_extendStyle, tf1_width, tf1_x1_value, tf1_y1_lowervalue, tf1_y2_lowervalue, tf1_linreg_length, tf1_timeframe,true)
+        linefill tf1_fill = linefill.new(tf1_upper, tf1_lower, color.new(tf1_color,tf1_bg)) 
+        
+        if not na(tf1_mid[1])
+            line.delete(tf1_mid[1])
+            line.delete(tf1_upper[1])
+            line.delete(tf1_lower[1])
+            linefill.delete(tf1_fill[1])
+    
+    
+    //
+    //ALERTS
+    //
+    tf1_alert = high >= tf1_y2_uppervalue and ALERTS_TF1 ? 1 : low <= tf1_y2_lowervalue and ALERTS_TF1 ? -1 : 0 
+    tf2_alert = high >= tf2_y2_uppervalue and ALERTS_TF2 ? 1 : low <= tf2_y2_lowervalue and ALERTS_TF2 ? -1 : 0 
+    tf3_alert = high >= tf3_y2_uppervalue and ALERTS_TF3 ? 1 : low <= tf3_y2_lowervalue and ALERTS_TF3 ? -1 : 0 
+    
+    
+    
+    
+    
+    new_alert = ((tf1_alert != 0) or (tf2_alert != 0) or (tf3_alert != 0))
+    var new_alert_text = ' '
+
+    if new_alert
+        if tf1_alert != 1 and tf2_alert != 1 and tf3_alert == 1   //ONLY 3 BULL
+            new_alert_text := 'ABOVE: TF3 Channel'
+    
+        if tf1_alert != 1 and tf2_alert == 1 and tf3_alert != 1   //ONLY 2 BULL
+            new_alert_text := 'ABOVE: TF2 Channel'
+    
+        if tf1_alert == 1 and tf2_alert != 1 and tf3_alert != 1   //ONLY 1 BULL
+            new_alert_text := 'ABOVE: TF1 Channel'
+    
+        if tf1_alert != 1 and tf2_alert == 1 and tf3_alert == 1   //2 and 3 BULL
+            new_alert_text := 'ABOVE: TF2 & TF3 Channel'
+    
+        if tf1_alert == 1 and tf2_alert != 1 and tf3_alert == 1   //1 and 3 BULL
+            new_alert_text := 'ABOVE: TF1 & TF3 Channel'
+    
+        if tf1_alert == 1 and tf2_alert == 1 and tf3_alert != 1   //1 and 2 BULL
+            new_alert_text := 'ABOVE: TF1 & TF2 Channel'
+    
+        if tf1_alert == 1 and tf2_alert == 1 and tf3_alert == 1   //1 and 2 and 3 BULL
+            new_alert_text := 'ABOVE: TF1 & TF2 & TF3 Channel'
+            
+        //////////////////////////////////////////////////////////////////////
+        
+        if tf1_alert != -1 and tf2_alert != -1 and tf3_alert == -1   //ONLY 3 BEAR
+            new_alert_text := 'BELOW: TF3 Channel'
+    
+        if tf1_alert != -1 and tf2_alert == -1 and tf3_alert != -1   //ONLY 2 BEAR
+            new_alert_text := 'BELOW: TF2 Channel'
+    
+        if tf1_alert == -1 and tf2_alert != -1 and tf3_alert != -1   //ONLY 1 BEAR
+            new_alert_text := 'BELOW: TF1 Channel'
+    
+        if tf1_alert != -1 and tf2_alert == -1 and tf3_alert == -1   //2 and 3 BEAR
+            new_alert_text := 'BELOW: TF2 & TF3 Channel'
+    
+        if tf1_alert == -1 and tf2_alert != -1 and tf3_alert == -1   //1 and 3 BEAR
+            new_alert_text := 'BELOW: TF1 & TF3 Channel'
+    
+        if tf1_alert == -1 and tf2_alert == -1 and tf3_alert != -1   //1 and 2 BEAR
+            new_alert_text := 'BELOW: TF1 & TF2 Channel'
+    
+        if tf1_alert == -1 and tf2_alert == -1 and tf3_alert == -1   //1 and 2 and 3 BEAR
+            new_alert_text := 'BELOW: TF1 & TF2 & TF3 Channel'
+    
+    else 
+        new_alert_text := ""
+    
+    if new_alert == true
+        alert(new_alert_text, alert.freq_once_per_bar_close)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

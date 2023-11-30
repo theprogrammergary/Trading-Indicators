@@ -1,0 +1,79 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("ORB_hooplah", overlay = true, max_labels_count = 500)
+
+// inputs
+_orb_session = input.session('0930-1000', title = 'ORB Session')
+_color_candles = input.bool(false, title = 'Color Candles')
+_max_bars_break = input.int(1, title = 'Max Bars Since Break')
+
+
+// calculate orb
+or_session = time(timeframe.period, str.format('{0}:1234567', _orb_session), 'America/New_York')
+var or_high = 0.0
+var or_low = 0.0
+var or_mid = 0.0
+var days_open = 0.0
+
+var bool orh_break = na
+var bool orl_break = na
+var bool breakout_scan = na
+var bool breakdown_scan = na
+
+if or_session
+    if not or_session[1]
+        or_low := low
+        or_high := high
+        days_open := open
+    else 
+        or_low := math.min(low, or_low)
+        or_high := math.max(high, or_high)
+else if dayofweek != dayofweek[1]
+    or_low := na
+    or_high := na
+    days_open := na
+
+
+orh_break := ta.crossover(close, or_high)
+orl_break := ta.crossunder(close, or_low)
+
+breakout_scan := ta.barssince(orh_break) < _max_bars_break
+breakdown_scan := ta.barssince(orl_break) < _max_bars_break
+
+
+
+// visualize
+or_high_plot = plot(not or_session ? or_high : na, title='ORH', 
+ color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, offset = -1)
+or_low_plot = plot(not or_session ? or_low : na, title='ORL', 
+ color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, offset = -1)
+
+fill(or_high_plot, or_low_plot, title='OR Fill', color=color.new(color.silver, 90))
+
+barcolor(not _color_candles ? na 
+ : not or_session and na(or_high) ? color.gray
+ : or_session ? color.white
+ : close > or_high ? color.lime
+ : close < or_low ? color.red 
+ : color.yellow)
+
+
+// plotshape(breakout_scan, title = 'Breakout', location = location.belowbar,
+//  color = color.green, text = 'CALL ' + str.tostring(close), textcolor = color.white, style = shape.labelup)
+
+// plotshape(breakdown_scan, title = 'Breakdown', location = location.abovebar,
+//  color = color.red, text = 'PUT ' + str.tostring(close), textcolor = color.white, style = shape.labelup)
+
+
+// alerts
+if breakout_scan
+    alert("OR Breakout")
+    label.new(bar_index, low, text = 'CALL/LONG ' + str.tostring(close),
+     color = color.green, textcolor = color.white, style = label.style_label_up)
+
+if breakdown_scan
+    alert("OR Breakdown")
+    label.new(bar_index, high, text = 'PUT/SHORT ' + str.tostring(close),
+     color = color.red, textcolor = color.white, style = label.style_label_down)

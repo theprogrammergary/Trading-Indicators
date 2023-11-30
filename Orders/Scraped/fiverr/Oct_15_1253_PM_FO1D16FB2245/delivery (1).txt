@@ -1,0 +1,3 @@
+I didn't hear from you so I went ahead and removed the or condition that you first requested, but now want changed.
+
+The cloud is now only based on green or red.

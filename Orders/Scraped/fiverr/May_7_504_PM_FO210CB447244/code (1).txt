@@ -1,0 +1,197 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_ryanmuehlfelt", overlay = true)
+
+
+// settings
+_bb_length = 18
+_ma_length = 8
+
+_tp1 = input.int(20, title = 'TP 1', group = 'Settings', inline = '3')
+_tp2 = input.int(40, title = 'TP 2', group = 'Settings', inline = '4')
+_tp3 = input.int(60, title = 'TP 3', group = 'Settings', inline = '5')
+
+
+_show_tf1 = input.bool(true, title = '1min', group = 'Confluence Dashboard', inline = '1')
+_show_tf2 = input.bool(true, title = '5min', group = 'Confluence Dashboard', inline = '2')
+_show_tf3 = input.bool(true, title = '15min', group = 'Confluence Dashboard', inline = '3')
+_show_tf4 = input.bool(true, title = '30min', group = 'Confluence Dashboard', inline = '4')
+_show_tf5 = input.bool(true, title = '60min', group = 'Confluence Dashboard', inline = '5')
+_show_tf6 = input.bool(true, title = '240min', group = 'Confluence Dashboard', inline = '6')
+_show_tf7 = input.bool(true, title = 'Day', group = 'Confluence Dashboard', inline = '7')
+_show_tf8 = input.bool(true, title = 'Week', group = 'Confluence Dashboard', inline = '8')
+
+// calc
+f_signals(lookback, ok_to_calc) =>
+    var bool buy_signal = na
+    var bool sell_signal = na
+    var int last_signal = 0
+
+    [bb_mid, bb_up, bb_lo] = ta.bb(close[lookback], _bb_length, 2)
+    ma_val = ta.sma(close[lookback], _ma_length)
+
+    if ok_to_calc
+        buy_signal := barstate.isconfirmed and ta.crossover(ma_val, bb_mid)
+        sell_signal := barstate.isconfirmed and ta.crossunder(ma_val, bb_mid)
+        last_signal := buy_signal ? 1 : sell_signal ? -1 : last_signal[1]
+
+    [bb_mid, ma_val, buy_signal, sell_signal, last_signal]
+
+
+
+
+
+// chart
+[chart_bb_mid, chart_ma_val, chart_buy_signal, chart_sell_signal, chart_last_signal] = f_signals(0, true)
+
+var float entry_price = 0.00
+var float tp1 = 0.00
+var float tp2 = 0.00
+var float tp3 = 0.00
+
+pip_calc = syminfo.mintick * (syminfo.type == "forex" ? 10 : 1)
+
+entry_price := chart_buy_signal or chart_sell_signal ? close : entry_price[1]
+
+tp1 := chart_buy_signal ? entry_price + (_tp1 * pip_calc)
+ : chart_sell_signal ? entry_price - (_tp1 * pip_calc)
+ : tp1[1]
+
+tp2 := chart_buy_signal ? entry_price + (_tp2 * pip_calc)
+ : chart_sell_signal ? entry_price - (_tp2 * pip_calc)
+ : tp2[1]
+
+tp3 := chart_buy_signal ? entry_price + (_tp3 * pip_calc)
+ : chart_sell_signal ? entry_price - (_tp3 * pip_calc)
+ : tp3[1]
+
+// plot(chart_bb_mid, title = 'Mid', color = color.orange, display = display.all, editable = false)
+// plot(chart_ma_val, title = 'MA', color = color.yellow, display = display.all, editable = false)
+
+plotshape(chart_buy_signal and barstate.isconfirmed, title = 'Buy', text = 'BUY',
+ style = shape.labelup, color = color.teal, textcolor = color.white,
+ size = size.tiny, location = location.belowbar)
+
+plotshape(chart_sell_signal and barstate.isconfirmed, title = 'Sell', text = 'SELL',
+ style = shape.labeldown, color = color.rgb(255, 82, 82), textcolor = color.white,
+ size = size.tiny, location = location.abovebar)
+
+plot(entry_price, title = 'Entry', color = color.blue, display = display.all, style = plot.style_circles)
+plot(tp1, title = 'TP1', color = color.white, display = display.all, style = plot.style_circles)
+plot(tp2, title = 'TP2', color = color.white, display = display.all, style = plot.style_circles)
+plot(tp3, title = 'TP3', color = color.white, display = display.all, style = plot.style_circles)
+
+candle_color = chart_last_signal == 1 ? color.teal 
+ : chart_last_signal == -1 ? color.rgb(255, 82, 82) 
+ : na
+
+barcolor(candle_color)
+plotcandle(open, high, low, close,
+ color = candle_color, wickcolor = candle_color, bordercolor = candle_color)
+
+
+// mtf table
+show_1min = timeframe.in_seconds() <= timeframe.in_seconds('1') and _show_tf1
+[tf1_bb_mid, tf1_ma_val, tf1_buy_signal, tf1_sell_signal, tf1_last_signal] = 
+ request.security(syminfo.tickerid, '1', f_signals(1, show_1min), lookahead = barmerge.lookahead_on)
+
+show_5min = timeframe.in_seconds() <= timeframe.in_seconds('5') and _show_tf2
+[tf2_bb_mid, tf2_ma_val, tf2_buy_signal, tf2_sell_signal, tf2_last_signal] = 
+ request.security(syminfo.tickerid, '5', f_signals(1, show_5min), lookahead = barmerge.lookahead_on)
+
+show_15min = timeframe.in_seconds() <= timeframe.in_seconds('15') and _show_tf3
+[tf3_bb_mid, tf3_ma_val, tf3_buy_signal, tf3_sell_signal, tf3_last_signal] = 
+ request.security(syminfo.tickerid, '15', f_signals(1, show_15min), lookahead = barmerge.lookahead_on)
+
+show_30min = timeframe.in_seconds() <= timeframe.in_seconds('30') and _show_tf4
+[tf4_bb_mid, tf4_ma_val, tf4_buy_signal, tf4_sell_signal, tf4_last_signal] = 
+ request.security(syminfo.tickerid, '30', f_signals(1, show_30min), lookahead = barmerge.lookahead_on)
+
+show_60min = timeframe.in_seconds() <= timeframe.in_seconds('60') and _show_tf5
+[tf5_bb_mid, tf5_ma_val, tf5_buy_signal, tf5_sell_signal, tf5_last_signal] = 
+ request.security(syminfo.tickerid, '60', f_signals(1, show_60min), lookahead = barmerge.lookahead_on)
+
+show_240min = timeframe.in_seconds() <= timeframe.in_seconds('240') and _show_tf6
+[tf6_bb_mid, tf6_ma_val, tf6_buy_signal, tf6_sell_signal, tf6_last_signal] = 
+ request.security(syminfo.tickerid, '240', f_signals(1, show_240min), lookahead = barmerge.lookahead_on)
+
+show_1d = timeframe.in_seconds() <= timeframe.in_seconds('D') and _show_tf7
+[tf7_bb_mid, tf7_ma_val, tf7_buy_signal, tf7_sell_signal, tf7_last_signal] = 
+ request.security(syminfo.tickerid, 'D', f_signals(1, show_1d), lookahead = barmerge.lookahead_on)
+
+show_1w = timeframe.in_seconds() <= timeframe.in_seconds('W') and _show_tf8
+[tf8_bb_mid, tf8_ma_val, tf8_buy_signal, tf8_sell_signal, tf8_last_signal] = 
+ request.security(syminfo.tickerid, 'W', f_signals(1, show_1w), lookahead = barmerge.lookahead_on)
+
+
+is_asia = time(timeframe.period, str.format('{0}:1234567', '1700-0300'), 'America/New_York')
+is_euro = time(timeframe.period, str.format('{0}:1234567', '0300-0930'), 'America/New_York')
+is_usa = time(timeframe.period, str.format('{0}:1234567', '0930-1700'), 'America/New_York')
+
+session_text = timeframe.in_seconds() >= timeframe.in_seconds('240') ? ' '
+ : is_asia ? 'ASIA' 
+ : is_euro ? 'EURO' 
+ : is_usa ? 'USA' 
+ : ' '
+
+var t = table.new(position = position.bottom_right, columns = 1, rows = 11,
+ bgcolor = color.black, border_color = color.black, border_width = 0, frame_width = 1)
+if barstate.islast
+    table.clear(table_id = t, start_column = 0, start_row = 0, end_column = 0, end_row = 10)
+
+
+    table.cell(t, column = 0, row = 0, text = 'Session - ' + session_text,
+     text_color = color.white, bgcolor = color.black,
+     text_size  = size.small, text_halign = text.align_right)
+
+    table.cell(t, column = 0, row = 1, text = 'CHART - ' + (chart_last_signal == 1 ?  'BUY ': 'SELL'),
+     text_color = color.white, bgcolor = chart_last_signal == 1 ? color.teal : color.red,
+     text_size  = size.small, text_halign = text.align_right)
+
+    if show_1min
+        table.cell(t, column = 0, row = 2, text = '1min - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf1_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_5min
+        table.cell(t, column = 0, row = 3, text = '5min - '+ (tf2_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf2_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_15min
+        table.cell(t, column = 0, row = 4, text = '15min - ' + (tf3_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf3_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_30min
+        table.cell(t, column = 0, row = 5, text = '30min - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf4_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_60min
+        table.cell(t, column = 0, row = 6, text = '60min - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf5_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_240min
+        table.cell(t, column = 0, row = 7, text = '240min - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf6_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_1d
+        table.cell(t, column = 0, row = 8, text = 'Day - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf7_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+    if show_1w
+        table.cell(t, column = 0, row = 9, text = 'Week - ' + (tf1_last_signal == 1 ?  'BUY ': 'SELL'),
+         text_color = color.white, bgcolor = tf8_last_signal == 1 ? color.teal : color.red,
+         text_size  = size.small, text_halign = text.align_right)
+
+
+
+// alerts
+alertcondition(chart_buy_signal and barstate.isconfirmed, 'BUY Signal', 'BUY Signal')
+alertcondition(chart_sell_signal and barstate.isconfirmed, 'SELL Signal', 'SELL Signal')

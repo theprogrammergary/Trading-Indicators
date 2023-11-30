@@ -1,0 +1,91 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_max97_v2", overlay = true)
+
+tf1_input = input.timeframe('3', title = 'Timeframe 1', group = 'Timeframes')
+tf2_input = input.timeframe('5', title = 'Timeframe 2', group = 'Timeframes')
+tf3_input = input.timeframe('15', title = 'Timeframe 3', group = 'Timeframes')
+tf4_input = input.timeframe('30', title = 'Timeframe 4', group = 'Timeframes')
+tf5_input = input.timeframe('60', title = 'Timeframe 5', group = 'Timeframes')
+
+length = input.int(14, title = 'Stoch Length', group = 'Stochastic Settings')
+overbought = input.int(80, title = 'Overbought', group = 'Stochastic Settings')
+oversold = input.int(20, title = 'Oversold', group = 'Stochastic Settings')
+overbought_color = input.color(color.new(#ff0000, 0), title = 'Overbought Color', group = 'Stochastic Settings')
+oversold_color = input.color(color.new(#388e3c, 0), title = 'Oversold Color', group = 'Stochastic Settings')
+
+stoch_function(tf_input, length_input) =>
+    k = math.round_to_mintick(request.security(syminfo.tickerid, tf_input, (close - ta.lowest(low, length_input)) / (ta.highest(high, length_input) - ta.lowest(low, length_input)) * 100))
+    
+stoch_tf1 = stoch_function(tf1_input, length)
+stoch_tf2 = stoch_function(tf2_input, length)
+stoch_tf3 = stoch_function(tf3_input, length)
+stoch_tf4 = stoch_function(tf4_input, length)
+stoch_tf5 = stoch_function(tf5_input, length)
+
+stoch1_side = stoch_tf1 >= overbought ? -1 : stoch_tf1 <= oversold ? 1 : 0
+stoch2_side = stoch_tf2 >= overbought ? -1 : stoch_tf2 <= oversold ? 1 : 0
+stoch3_side = stoch_tf3 >= overbought ? -1 : stoch_tf3 <= oversold ? 1 : 0
+stoch4_side = stoch_tf3 >= overbought ? -1 : stoch_tf3 <= oversold ? 1 : 0
+stoch5_side = stoch_tf3 >= overbought ? -1 : stoch_tf3 <= oversold ? 1 : 0
+
+show_dashboard = input.bool(title='Dashboard', defval=true, inline='1', group='Dashboard Settings')
+dashboardsize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title=' | Size', inline='1', group='Dashboard Settings')
+dashboad_size = dashboardsize == 'Small' ? size.small : dashboardsize == 'Medium' ? size.normal : dashboardsize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+
+dashboard_color = input.color(color.new(color.white, 0), title='BG Color', inline='2', group='Dashboard Settings')
+dashboard_border_color = input.color(color.new(#000000, 0), title='Border Color', inline='2', group='Dashboard Settings')
+dashboard_text = input.color(#000000, title='Text Color', inline='2', group='Dashboard Settings')
+cell_width = dashboardsize == 'Small' ? 4 : dashboardsize == 'Medium' ? 5 : dashboardsize == 'Large' ? 7 : 3
+
+
+column1_row1_color = stoch1_side == 1 and stoch2_side == 1 ? oversold_color : dashboard_color
+column1_row2_color = stoch1_side == -1 and stoch2_side == -1 ? overbought_color : dashboard_color
+
+column2_row1_color = stoch1_side == 1 and stoch2_side == 1 and stoch3_side == 1 ? oversold_color : dashboard_color
+column2_row2_color = stoch1_side == -1 and stoch2_side == -1 and stoch3_side == -1 ? overbought_color : dashboard_color
+
+column3_row1_color = stoch4_side == 1 and stoch5_side == 1 ? oversold_color : dashboard_color
+column3_row2_color = stoch4_side == -1 and stoch5_side == -1 ? overbought_color : dashboard_color
+
+
+
+//TABLE
+var table t = table.new(positioning, 4, 7,frame_color=dashboard_border_color, frame_width=2, border_color=dashboard_border_color, border_width=2)
+if barstate.islast and show_dashboard
+    
+    //Title Row
+    table.cell(t, 0, 0, text='ARGAND MAX Signaux Court Therme', width=0, bgcolor=color.new(#3179f5,0), text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.cell(t, 1, 0, text='', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.merge_cells(t, 0, 0, 3, 0) //merge first row
+
+    //#1
+    table.cell(t, 0, 1, text=tf1_input + "-" + tf2_input, width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)    
+    table.cell(t, 0, 2, text= ' ', width= cell_width, bgcolor=column1_row1_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.cell(t, 0, 3, text= ' ', width= cell_width, bgcolor=column1_row2_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+
+    //#2
+    table.cell(t, 1, 1, text=tf1_input + "-" + tf2_input + "-" + tf3_input, width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)    
+    table.cell(t, 1, 2, text= ' ', width= cell_width, bgcolor=column2_row1_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.cell(t, 1, 3, text= ' ', width= cell_width, bgcolor=column2_row2_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    
+    //#3
+    table.cell(t, 2, 1, text=tf4_input + "-" + tf5_input, width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)    
+    table.cell(t, 2, 2, text= ' ', width= cell_width, bgcolor=column3_row1_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.cell(t, 2, 3, text= ' ', width= cell_width, bgcolor=column3_row2_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    
+    //#4    
+    table.cell(t, 3, 1, text='Retournement', width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)      
+    table.cell(t, 3, 2, text='-20   📈', width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)    
+    table.cell(t, 3, 3, text='+80   📉', width= cell_width, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)       
+
+    
+
+    
+    
+    
+    
+    

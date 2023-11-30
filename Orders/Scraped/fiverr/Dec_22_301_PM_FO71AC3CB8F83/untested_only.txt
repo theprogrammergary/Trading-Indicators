@@ -1,0 +1,131 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_inti_justuntested", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_bars_back = 5000)
+
+//-----INPUTS-----//
+number_of_days = 500
+
+ext_untested = input.string('Today', title = 'Extension', options = ['Today', 'Forever'], group = 'Untested Settings', inline = '2')
+css_untested = input.color(color.new(color.white, 40), title = '', group = 'Untested Settings', inline = '3')
+style_untested = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Untested Settings', inline = '3')
+width_untested = input.int(1, title = '', minval = 1, maxval = 5, group = 'Untested Settings', inline = '3')
+//-----INPUTS-----//
+
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+
+//--FUNCTION TO DRAW INITIAL LINES--//
+f_new_lines(highs_array, lows_array) =>
+
+    high_value = request.security(syminfo.tickerid, 'D', high[1], lookahead = barmerge.lookahead_on)
+    low_value = request.security(syminfo.tickerid, 'D', low[1], lookahead = barmerge.lookahead_on)
+
+    yesterday_time = request.security(syminfo.tickerid, 'D', time[1], lookahead = barmerge.lookahead_on)
+    today_time = request.security(syminfo.tickerid, 'D', time, lookahead = barmerge.lookahead_on)
+
+    // high line, delete oldest and then add new one
+    f_array_add_pop(highs_array, line.new(x1 = yesterday_time, y1 = high_value, x2 = today_time, y2 = high_value, xloc = xloc.bar_time,
+     extend = extend.right, color = css_untested, style = (style_untested == 'Solid' ? line.style_solid : style_untested == 'Dashed' ? line.style_dashed :
+     style_untested == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    // low line, delete oldest and then add new one
+    f_array_add_pop(lows_array, box.new(left = yesterday_time, top = low_value, right = today_time, bottom = low_value, xloc = xloc.bar_time, border_color = css_untested, 
+     extend = extend.right, bgcolor = css_untested, border_style = (style_untested == 'Solid' ? line.style_solid : style_untested == 'Dashed' ? line.style_dashed : 
+     style_untested == 'Dotted' ? line.style_dotted : line.style_solid)))
+//--FUNCTION TO DRAW INITIAL LINES--//
+
+
+//--FUNCTION TO CHANGE TO TESTED--//
+f_check_4_test(highs_array, lows_array) =>
+
+    lines_array = line.all
+    if array.size(lines_array) > 0
+        for i = 0 to array.size(lines_array) - 1
+            high_to_break = line.get_y1(array.get(lines_array,i))
+            start_time = line.get_x1(array.get(lines_array,i))
+            end_time = line.get_x2(array.get(lines_array,i))
+
+            if high > high_to_break
+                line.delete(array.get(lines_array, i))
+
+
+    boxes_array = box.all
+    if array.size(boxes_array) > 0
+        for i = 0 to array.size(boxes_array) - 1
+            low_to_break = box.get_top(array.get(boxes_array,i))
+            start_time = box.get_left(array.get(boxes_array,i))
+            end_time = box.get_right(array.get(boxes_array,i))
+
+            if low < low_to_break
+                box.delete(array.get(boxes_array, i))
+
+
+//--FUNCTION TO CHANGE TO TESTED--//
+
+
+// //--FUNCTION TO MANAGE BOX EXTENSIONS--//
+f_manage_box() =>
+
+    extension_type = ext_untested == 'Today' ? extend.none : extend.right
+
+    boxes_array = box.all
+    if array.size(boxes_array) > 0
+        for i = 0 to array.size(boxes_array) - 1
+            box.set_right(array.get(boxes_array,i), time)
+            box.set_extend(array.get(boxes_array,i), extension_type)
+// //--FUNCTION TO MANAGE BOX EXTENSIONS--//
+
+
+// //--FUNCTION TO MANAGE LINE EXTENSIONS--//
+f_manage_line() =>
+
+    extension_type = ext_untested == 'Today' ? extend.none : extend.right
+
+    lines_array = line.all
+    if array.size(lines_array) > 0
+        for i = 0 to array.size(lines_array) - 1
+            line.set_x2(array.get(lines_array,i), time)
+            line.set_extend(array.get(lines_array,i), extension_type)
+
+//--FUNCTION TO MANAGE BOX EXTENSIONS--//
+
+
+//-----FUNCTIONS-----//
+
+
+
+//-----DEFINE VARIABLES-----//
+//--ARRAYS FOR UNTESTED DAILY HIGH/LOWS--//
+var untested_highs = array.new_line(number_of_days, na)
+var untested_lows = array.new_box(number_of_days, na)
+//--ARRAYS FOR UNTESTED DAILY HIGH/LOWS--//
+//-----DEFINE VARIABLES-----//
+
+
+
+//-----RUN CODE-----//
+new_day = ta.change(time("D"))
+// bgcolor(new_day ? color.new(color.red, 80) : na)
+
+// draw new lines on a new day
+if new_day
+    f_new_lines(untested_highs, untested_lows)
+
+// see if we need to switch lines to tested state
+f_check_4_test(untested_highs, untested_lows)
+
+
+// manage the extensions of boxes or untested lines
+if barstate.islast
+    f_manage_box() 
+    f_manage_line() 
+
+//-----RUN CODE-----//

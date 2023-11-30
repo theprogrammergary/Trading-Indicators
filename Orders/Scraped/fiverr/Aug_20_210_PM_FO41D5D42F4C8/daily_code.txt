@@ -1,0 +1,25 @@
+#####   DAILY CONDITIONS   ##### 
+
+
+#MA FILTER
+input ma_length_filter = 30;
+def ma_filter_timeframe = aggregationPeriod.DAY;
+def ma_filter = movingaverage(averageType.SIMPLE, close(period = ma_filter_timeframe), ma_length_filter);
+def ma_filter_scan = close(period = ma_filter_timeframe) >= ma_filter; 
+
+
+
+#RSI
+input rsi_length = 14;
+input rsi_averageType = AverageType.WILDERS;
+def rsi_timeframe = aggregationPeriod.DAY;
+def rsi_price = close(period = rsi_timeframe);
+def NetChgAvg = MovingAverage(rsi_averageType, rsi_price - rsi_price[1], rsi_length);
+def TotChgAvg = MovingAverage(rsi_averageType, AbsValue(rsi_price - rsi_price[1]), rsi_length);
+def ChgRatio = if TotChgAvg != 0 then NetChgAvg / TotChgAvg else 0;
+def RSI = 50 * (ChgRatio + 1);
+def rsi_scan = rsi >= rsi[5];
+
+
+
+plot scan =  ma_filter_scan and rsi_scan;

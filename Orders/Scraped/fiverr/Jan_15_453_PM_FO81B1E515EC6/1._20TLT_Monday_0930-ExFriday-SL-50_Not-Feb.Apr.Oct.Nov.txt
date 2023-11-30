@@ -1,0 +1,26 @@
+
+inputs:
+	// Strategy variables
+	StopLoss(50),
+	EnterTradeTime(0930),
+	ExitTradeTime(1555);
+
+Vars:
+	bool TradeToday(false);	
+	
+if date <> date[1] then TradeToday = False; 
+//Order Entry
+//is Monday and Month is not Feb, April, Oct, or November
+if Dayofweek(Date) = 1 and Month(Date) <> 2 and Month(Date) <> 4 and Month(Date) <> 10 and Month(Date) <> 11  Then
+Begin
+	if time >= EnterTradeTime and TradeToday = False then buy next bar market;
+	TradeToday = True;
+end;
+
+//Order Management
+//Stop Loss
+if Marketposition <> 0 then Setstoploss(StopLoss);
+
+//Exit on Fridays 
+if Dayofweek(Date) = 5 and time >= ExitTradeTime then sell all shares next bar at market;
+

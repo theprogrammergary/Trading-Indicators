@@ -1,0 +1,208 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_ishmaelkaikai", overlay = true)
+
+timeframe_input = input.timeframe("", title = 'Timeframe')
+ma_length = input.int(200, title = 'MA Length')
+
+
+var int EUR_count = 0
+var int GBP_count = 0
+var int AUD_count = 0
+var int NZD_count = 0
+var int USD_count = 0
+var int CAD_count = 0
+var int CHF_count = 0
+var int JPY_count = 0
+
+
+//
+//EUR  
+//
+symbol_1 = "OANDA:EURUSD"
+symbol_2 = "OANDA:EURJPY"
+symbol_3 = "OANDA:EURCHF"
+symbol_4 = "OANDA:EURAUD"
+symbol_5 = "OANDA:EURGBP"
+symbol_6 = "OANDA:EURCAD"
+symbol_7 = "OANDA:EURNZD"
+symbol1_return = request.security(symbol_1, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol2_return = request.security(symbol_2, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol3_return = request.security(symbol_3, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol4_return = request.security(symbol_4, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol5_return = request.security(symbol_5, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol6_return = request.security(symbol_6, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol7_return = request.security(symbol_7, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+EUR_count := (symbol1_return) + (symbol2_return) + (symbol3_return) + (symbol4_return) + (symbol5_return) + (symbol6_return) + (symbol7_return)
+
+
+//
+//GBP
+//
+symbol_8 = "OANDA:GBPUSD"
+symbol_9 = "OANDA:GBPJPY"
+symbol_10 = "OANDA:GBPAUD"
+symbol_11 = "OANDA:GBPNZD"
+symbol_12 = "OANDA:GBPCHF"
+symbol_13 = "OANDA:GBPCAD"
+symbol8_return = request.security(symbol_8, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol9_return = request.security(symbol_9, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol10_return = request.security(symbol_10, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol11_return = request.security(symbol_11, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol12_return = request.security(symbol_12, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol13_return = request.security(symbol_13, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+GBP_count := (-symbol5_return) + (symbol8_return) + (symbol9_return) + (symbol10_return) + (symbol11_return) + (symbol12_return) + (symbol13_return)
+
+
+//
+//AUD
+//
+symbol_14 = "OANDA:AUDUSD"
+symbol_15 = "OANDA:AUDNZD"
+symbol_16 = "OANDA:AUDJPY"
+symbol_17 = "OANDA:AUDCHF"
+symbol_18 = "OANDA:AUDCAD"
+symbol14_return = request.security(symbol_14, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol15_return = request.security(symbol_15, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol16_return = request.security(symbol_16, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol17_return = request.security(symbol_17, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol18_return = request.security(symbol_18, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+AUD_count := (-symbol4_return) + (-symbol10_return) + (symbol14_return) + (symbol15_return) + (symbol16_return) + (symbol17_return) + (symbol18_return)
+
+
+//
+//NZD
+//
+symbol_19 = "OANDA:NZDUSD"
+symbol_20 = "OANDA:NZDJPY"
+symbol_21 = "OANDA:NZDCHF"
+symbol_22 = "OANDA:NZDCAD"
+symbol19_return = request.security(symbol_19, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol20_return = request.security(symbol_20, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol21_return = request.security(symbol_21, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol22_return = request.security(symbol_22, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+NZD_count := (-symbol7_return) + (-symbol11_return) + (-symbol15_return) + (symbol19_return) + (symbol20_return) + (symbol21_return) + (symbol22_return)
+
+
+//
+//USD
+//
+symbol_23 = "OANDA:USDJPY"
+symbol_24 = "OANDA:USDCAD"
+symbol_25 = "OANDA:USDCHF"
+symbol23_return = request.security(symbol_23, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol24_return = request.security(symbol_24, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol25_return = request.security(symbol_25, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+USD_count := (-symbol1_return) + (-symbol8_return) + (-symbol14_return) + (-symbol19_return) + (symbol23_return) + (symbol24_return) + (symbol25_return)
+
+
+//
+//CAD
+//
+symbol_26 = "OANDA:CADJPY"
+symbol_27 = "OANDA:CADCHF"
+symbol26_return = request.security(symbol_26, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+symbol27_return = request.security(symbol_27, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+CAD_count := (-symbol6_return) + (-symbol13_return) + (-symbol18_return) + (-symbol22_return) + (-symbol24_return) + (symbol26_return) + (symbol27_return)
+
+
+//
+//CHF
+//
+symbol_28 = "OANDA:CHFJPY"
+symbol28_return = request.security(symbol_28, timeframe_input, (close >= ta.ema(close, ma_length) ? 1 : -1)[1], lookahead = barmerge.lookahead_on)
+CHF_count := (-symbol3_return) + (-symbol12_return) + (-symbol17_return) + (-symbol21_return) + (-symbol25_return) + (-symbol27_return) + (symbol28_return)
+
+
+//
+//JPY
+//
+JPY_count := (-symbol2_return) + (-symbol9_return) + (-symbol16_return) + (-symbol20_return) + (-symbol23_return) + (-symbol26_return) + (-symbol28_return)
+
+
+
+
+//create arrays
+symbol_array = array.new_string(8)
+symbol_value_array = array.new_int(8)
+
+
+bull_color = input.color(color.green, title = 'Bull Color', group = 'Visual Settings', inline = '1')
+bear_color = input.color(color.red, title = 'Bear Color', group = 'Visual Settings', inline = '1')
+neutral_color = input.color(color.white, title = 'Neutral Color', group = 'Visual Settings', inline = '1')
+text_color = input.color(color.new(#000000,0), title = 'Text Color', group = 'Visual Settings', inline = '2')
+show_tf_label = input.bool(false, title = 'Show Timeframe Label', group = 'Visual Settings', inline = '3')
+LabelSize = input.string(defval="Small", options=["Small", "Medium", "Large"], group = "Visual Settings", title = "Dashboard Size", inline = '2')
+label_size = LabelSize == "Small" ? size.small : LabelSize == "Medium" ? size.normal : LabelSize == "Large" ? size.large : size.small
+
+var table = table.new(position = position.top_right, columns = 9, rows = 2, bgcolor = color.black,
+     frame_color = text_color, frame_width = 2, border_color = text_color, border_width = 1)
+if barstate.islast
+
+    
+    //set the value of array
+    array.set(symbol_value_array, 0, EUR_count)
+    array.set(symbol_value_array, 1, GBP_count)
+    array.set(symbol_value_array, 2, AUD_count)
+    array.set(symbol_value_array, 3, NZD_count)
+    array.set(symbol_value_array, 4, USD_count)
+    array.set(symbol_value_array, 5, CAD_count)
+    array.set(symbol_value_array, 6, CHF_count)
+    array.set(symbol_value_array, 7, JPY_count)
+    
+    //sort the array
+    array.sort(symbol_value_array, order.descending)
+    
+    //get the new index of each
+    eur_index = array.indexof(symbol_value_array, EUR_count)
+    gbp_index = array.indexof(symbol_value_array, GBP_count)
+    aud_index = array.indexof(symbol_value_array, AUD_count)
+    nzd_index = array.indexof(symbol_value_array, NZD_count)
+    usd_index = array.indexof(symbol_value_array, USD_count)
+    cad_index = array.indexof(symbol_value_array, CAD_count)
+    chf_index = array.indexof(symbol_value_array, CHF_count)
+    jpy_index = array.indexof(symbol_value_array, JPY_count)
+
+    // set a name with the same index above
+    array.set(symbol_array, eur_index, "EUR")
+    array.set(symbol_array, gbp_index, "GBP")
+    array.set(symbol_array, aud_index, "AUD")
+    array.set(symbol_array, nzd_index, "NZD")
+    array.set(symbol_array, usd_index, "USD")
+    array.set(symbol_array, cad_index, "CAD")
+    array.set(symbol_array, chf_index, "CHF")
+    array.set(symbol_array, jpy_index, "JPY")
+
+    if show_tf_label
+        table.cell(table_id = table, column = 0, row = 0, text =  str.tostring(timeframe_input) == "" ? "Chart" : "TF: " + str.tostring(timeframe_input) , bgcolor = neutral_color, text_color = text_color, text_size = label_size)
+        table.merge_cells(table_id = table, start_column = 0, start_row = 0, end_column = 0, end_row = 1)
+
+    table.cell(table_id = table, column = 1, row = 0, text = '7', bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 2, row = 0, text = '6', bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 3, row = 0, text = '5', bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 4, row = 0, text = '4', bgcolor = neutral_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 5, row = 0, text = '3', bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 6, row = 0, text = '2', bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 7, row = 0, text = '1', bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 8, row = 0, text = '0', bgcolor = bear_color, text_color = text_color, text_size = label_size)
+
+
+    table.cell(table_id = table, column = 1, row = 1, text = str.tostring(array.get(symbol_array,0)), bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 2, row = 1, text = str.tostring(array.get(symbol_array,1)), bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 3, row = 1, text = str.tostring(array.get(symbol_array,2)), bgcolor = bull_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 4, row = 1, text = str.tostring(array.get(symbol_array,3)), bgcolor = neutral_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 5, row = 1, text = str.tostring(array.get(symbol_array,4)), bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 6, row = 1, text = str.tostring(array.get(symbol_array,5)), bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 7, row = 1, text = str.tostring(array.get(symbol_array,6)), bgcolor = bear_color, text_color = text_color, text_size = label_size)
+    table.cell(table_id = table, column = 8, row = 1, text = str.tostring(array.get(symbol_array,7)), bgcolor = bear_color, text_color = text_color, text_size = label_size)
+
+
+
+
+
+
+
+
+

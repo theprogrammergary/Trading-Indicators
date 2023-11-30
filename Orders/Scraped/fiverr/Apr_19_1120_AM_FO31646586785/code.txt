@@ -1,0 +1,369 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("MTF Supply/Demand",  overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 1000)
+
+//--INSTRUCTIONS--//
+var label instruction_label = na
+instructions_tooltip = "• Supply/Demand = zones where buyers or sellers will look to enter the market.
+  "
+
+instructions = input.bool(title='Show Instructions', defval=false, inline='1', tooltip = instructions_tooltip)
+if barstate.islast and instructions
+    if not na(instruction_label[1])
+        label.delete(instruction_label[1])
+    instruction_label := label.new(bar_index + 5, close, instructions_tooltip, xloc = xloc.bar_index , yloc = yloc.price, color = color.black , style = label.style_label_left, textcolor = color.white, size = size.large, textalign = text.align_left) 
+//--INSTRUCTIONS--//
+
+
+//--SUPPLY DEMAND INPUTS--//
+sd_length = input.int(10, title = 'Supply/Demand Length', group = 'Supply/Demand Settings', minval = 3, maxval = 50)
+sd_width = input.float(7.00, title = 'Supply/Demand Width', group = 'Supply/Demand Settings', minval = 1, maxval = 15, step = 0.5)
+
+supply_color = input.color(color.new(#c30616,70), title = 'Supply', group = 'Supply/Demand Settings', inline = '3')
+demand_color = input.color(color.new(#05cd0e,70), title = 'Demand', group = 'Supply/Demand Settings', inline = '3')
+sd_labelcolor = input.color(color.new(color.white,20), title = 'Label', group = 'Supply/Demand Settings', inline = '3')
+
+show_supplydemand1 = input.bool(true, title = 'Chart Supply Demand Zones', group = 'Supply/Demand Settings', inline = '4')
+_sd_30 = input.bool(false, title = 'Create Zones for 30 Minutes', group = 'Supply/Demand Settings', inline = '5')
+_sd_60 = input.bool(false, title = 'Create Zones for 1 Hour', group = 'Supply/Demand Settings', inline = '6')
+_sd_120 = input.bool(false, title = 'Create Zones for 2 Hours', group = 'Supply/Demand Settings', inline = '7')
+_sd_180 = input.bool(false, title = 'Create Zones for 3 Hours', group = 'Supply/Demand Settings', inline = '8')
+_sd_240 = input.bool(false, title = 'Create Zones for 4 Hours', group = 'Supply/Demand Settings', inline = '9')
+_sd_1d = input.bool(false, title = 'Create Zones for 1 Day', group = 'Supply/Demand Settings', inline = '10')
+_sd_1w = input.bool(false, title = 'Create Zones for 1 Week', group = 'Supply/Demand Settings', inline = '11')
+//--SUPPLY DEMAND INPUTS--//
+
+
+//--PRICE ACTION INPUTS--//
+show_priceaction = input.bool(false, title = 'Price Action Labels', group = 'Price Action Label Settings', inline = '0', tooltip = 'Price Action Labels mark at each swing high or swing low. \n\nHH = Higher High \nLH = Lower High \nLL=
+ Lower Low \nLH = Lower High')
+pa_color = input.color(color.new(color.white, 60), title = 'Label', group = 'Price Action Label Settings', inline = '1')
+//--PRICE ACTION INPUTS--//
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+//--FUNCTION SWING H & L LABELS--//
+f_sh_sl_labels(current, previous, swing_type) =>
+
+    var string label_text = na
+    if swing_type == 1
+        if current >= previous
+            label_text := 'HH'
+        else
+            label_text := 'LH'
+        label.new(bar_index - sd_length, current, text = label_text, style=label.style_label_down, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+    
+    else if swing_type == -1
+        if current >= previous
+            label_text := 'HL'
+        else
+            label_text := 'LL'
+        label.new(bar_index - sd_length, current, text = label_text, style=label.style_label_up, textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+
+
+
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+f_check_overlapping(new_poi, box_array, atr) =>
+
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+
+
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(use_tf, sd_length) =>
+
+    var float sh = na
+    var float sl = na
+    var float csh = na
+    var float csl = na
+    var int csh_time = na
+    var int csl_time = na
+    var float atr = na
+
+    if use_tf 
+        sh := ta.pivothigh(high, sd_length, sd_length)
+        sl := ta.pivotlow(low, sd_length, sd_length)
+
+        csh := ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+        csl := ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+        csh_time := ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), time[sd_length], 0)
+        csl_time := ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), time[sd_length], 0)
+
+        atr := ta.atr(50)
+
+    [sh, sl, csh, csl, csh_time, csl_time, atr]
+
+
+
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+f_supply_demand(box_array, box_type, atr, box_left, level, str_text) =>
+
+    atr_buffer = atr * (sd_width / 10)
+    box_right = time
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+    var bool new_supply_or_demand = false
+
+    if box_type == 1
+        box_top := level
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := level
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    // okay_to_draw = f_check_overlapping(poi, box_array, atr)
+    okay_to_draw = true
+    if okay_to_draw
+        new_supply_or_demand := true
+
+        //delete oldest box, and then create a new box and add it to the array
+        if box_type == 1 
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+             border_color = supply_color, border_width = 0, bgcolor = supply_color, extend = extend.right,
+             text =str_text, text_halign = text.align_right, text_valign = text.align_center, 
+             text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_time, border_style = line.style_solid))
+        
+        else if box_type == -1
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+             border_color = demand_color , border_width = 0, bgcolor = demand_color , extend = extend.right,
+             text =str_text, text_halign = text.align_right, text_valign = text.align_center, 
+             text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_time, border_style = line.style_solid))
+    
+
+
+
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+f_sd_to_bos(box_array, bos_array, zone_type) =>
+    for i = 0 to array.size(box_array) - 1
+        level_to_break = zone_type == 1 ? box.get_top(array.get(box_array,i)) : box.get_bottom(array.get(box_array,i))
+        if (zone_type == 1  and close >= level_to_break) or (zone_type == -1  and close <= level_to_break) 
+            box.delete(array.get(box_array, i))
+
+
+
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+f_extend_box_endpoint(box_array) =>
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), time + (timeframe.in_seconds() * 1000 * 100))
+
+//-----FUNCTIONS END-----//
+
+
+
+
+
+
+
+
+
+
+
+
+//-----DEFINE VARIABLES-----//
+
+//--ARRAYS FOR SWING H/L & BN--//
+var current_supply_box = array.new_box(25, na)
+var current_demand_box = array.new_box(25, na)
+
+var supply_box30 = array.new_box(5, na)
+var demand_box30 = array.new_box(5, na)
+var supply_box60 = array.new_box(5, na)
+var demand_box60 = array.new_box(5, na)
+var supply_box120 = array.new_box(5, na)
+var demand_box120 = array.new_box(5, na)
+var supply_box180 = array.new_box(5, na)
+var demand_box180 = array.new_box(5, na)
+var supply_box240 = array.new_box(5, na)
+var demand_box240 = array.new_box(5, na)
+var supply_box1d = array.new_box(5, na)
+var demand_box1d = array.new_box(5, na)
+var supply_box1w = array.new_box(5, na)
+var demand_box1w = array.new_box(5, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR BOS--//
+var supply_bos = array.new_box(5, na)
+var demand_bos = array.new_box(5, na)
+//--ARRAYS FOR BOS--//
+//-----DEFINE VARIABLES-----//
+
+
+
+//-----START CALCULATING-----//
+[sh, sl, csh, csl, csh_time, csl_time, atr] = request.security(syminfo.ticker, "", f_get_swing_values(true, sd_length))
+
+[sh30, sl30, csh30, csl30, csh_time30, csl_time30, atr30] = 
+ request.security(syminfo.ticker, "30", f_get_swing_values(_sd_30, sd_length), lookahead = barmerge.lookahead_on )
+[sh60, sl60, csh60, csl60, csh_time60, csl_time60, atr60] = 
+ request.security(syminfo.ticker, "60", f_get_swing_values(_sd_60, sd_length), lookahead = barmerge.lookahead_on )
+[sh120, sl120, csh120, csl120, csh_time120, csl_time120, atr120] = 
+ request.security(syminfo.ticker, "120", f_get_swing_values(_sd_120, sd_length), lookahead = barmerge.lookahead_on )
+[sh180, sl180, csh180, csl180, csh_time180, csl_time180, atr180] = 
+ request.security(syminfo.ticker, "180", f_get_swing_values(_sd_180, sd_length), lookahead = barmerge.lookahead_on )
+[sh240, sl240, csh240, csl240, csh_time240, csl_time240, atr240] = 
+ request.security(syminfo.ticker, "240", f_get_swing_values(_sd_240, sd_length), lookahead = barmerge.lookahead_on )
+[sh1d, sl1d, csh1d, csl1d, csh_time1d, csl_time1d, atr1d] = 
+ request.security(syminfo.ticker, "D", f_get_swing_values(_sd_1d, sd_length), lookahead = barmerge.lookahead_on )
+[sh1w, sl1w, csh1w, csl1w, csh_time1w, csl_time1w, atr1w] = 
+ request.security(syminfo.ticker, "W", f_get_swing_values(_sd_1w, sd_length), lookahead = barmerge.lookahead_on )
+
+
+// draw price action labels for current chart
+var float psh = na
+var float psl = na
+psh := not na(sh) ? csh[1] : psh[1]
+psl := not na(sl) ? csl[1] : psl[1]
+
+if show_priceaction
+    if not na(sh) 
+        f_sh_sl_labels(csh, psh, 1)
+    else if not na(sl)
+        f_sh_sl_labels(csl, psl, -1)
+
+
+// draw supply/demands
+if show_supplydemand1
+    if not na(sh) 
+        f_supply_demand(current_supply_box, 1, atr, csh_time, csh, "")
+    if not na(sl) 
+        f_supply_demand(current_demand_box, -1, atr, csl_time, csl, "")
+
+if _sd_30
+    if na(sh30) and not na(sh30[1]) 
+        f_supply_demand(supply_box30, 1, atr30, csh_time30, csh30, "30min")
+    if na(sl30) and not na(sl30[1]) 
+        f_supply_demand(demand_box30, -1, atr30, csl_time30, csl30, "30min")
+
+if _sd_60
+    if na(sh60) and not na(sh60[1]) 
+        f_supply_demand(supply_box60, 1, atr60, csh_time60, csh60, "60min")
+    if na(sl60) and not na(sl60[1]) 
+        f_supply_demand(demand_box60, -1, atr60, csl_time60, csl60, "60min")
+
+if _sd_120
+    if na(sh120) and not na(sh120[1]) 
+        f_supply_demand(supply_box120, 1, atr120, csh_time120, csh120, "120min")
+    if na(sl120) and not na(sl120[1]) 
+        f_supply_demand(demand_box120, -1, atr120, csl_time120, csl120, "120min")
+
+if _sd_180
+    if na(sh180) and not na(sh180[1]) 
+        f_supply_demand(supply_box180, 1, atr180, csh_time180, csh180, "180min")
+    if na(sl180) and not na(sl180[1]) 
+        f_supply_demand(demand_box180, -1, atr180, csl_time180, csl180, "180min")
+
+if _sd_240
+    if na(sh240) and not na(sh240[1]) 
+        f_supply_demand(supply_box240, 1, atr240, csh_time240, csh240, "240min")
+    if na(sl240) and not na(sl240[1]) 
+        f_supply_demand(demand_box240, -1, atr240, csl_time240, csl240, "240min")
+
+if _sd_1d
+    if na(sh1d) and not na(sh1d[1]) 
+        f_supply_demand(supply_box1d, 1, atr1d, csh_time1d, csh1d, "D")
+    if na(sl1d) and not na(sl1d[1]) 
+        f_supply_demand(demand_box1d, -1, atr1d, csl_time1d, csl1d, "D")
+
+if _sd_1w
+    if na(sh1w) and not na(sh1w[1]) 
+        f_supply_demand(supply_box1w, 1, atr1w, csh_time1w, csh1w, "W")
+    if na(sl1w) and not na(sl1w[1]) 
+        f_supply_demand(demand_box1w, -1, atr1w, csl_time1w, csl1w, "W")
+
+// bar_mult = timeframe.in_seconds("30") / timeframe.in_seconds() 
+// bgcolor(not na(sh30) ? color.new(color.red,50) : not na(sl30) ? color.new(color.green,50) : na, offset = -sd_length * bar_mult)
+
+
+
+
+// move s/d zones to bos
+f_sd_to_bos(current_supply_box, supply_bos, 1)
+f_sd_to_bos(current_demand_box, demand_bos, -1)
+
+f_sd_to_bos(supply_box30, supply_bos, 1)
+f_sd_to_bos(demand_box30, demand_bos, -1)
+
+f_sd_to_bos(supply_box60, supply_bos, 1)
+f_sd_to_bos(demand_box60, demand_bos, -1)
+
+f_sd_to_bos(supply_box120, supply_bos, 1)
+f_sd_to_bos(demand_box120, demand_bos, -1)
+
+f_sd_to_bos(supply_box180, supply_bos, 1)
+f_sd_to_bos(demand_box180, demand_bos, -1)
+
+f_sd_to_bos(supply_box240, supply_bos, 1)
+f_sd_to_bos(demand_box240, demand_bos, -1)
+
+f_sd_to_bos(supply_box1d, supply_bos, 1)
+f_sd_to_bos(demand_box1d, demand_bos, -1)
+
+f_sd_to_bos(supply_box1w, supply_bos, 1)
+f_sd_to_bos(demand_box1w, demand_bos, -1)
+
+
+
+
+
+
+// extend lines
+if barstate.islast
+
+    f_extend_box_endpoint(current_supply_box)
+    f_extend_box_endpoint(current_demand_box)
+
+    f_extend_box_endpoint(supply_box30)
+    f_extend_box_endpoint(demand_box30)
+
+    f_extend_box_endpoint(supply_box60)
+    f_extend_box_endpoint(demand_box60)
+
+    f_extend_box_endpoint(supply_box120)
+    f_extend_box_endpoint(demand_box120)
+
+    f_extend_box_endpoint(supply_box180)
+    f_extend_box_endpoint(demand_box180)
+
+    f_extend_box_endpoint(supply_box240)
+    f_extend_box_endpoint(demand_box240)
+
+    f_extend_box_endpoint(supply_box1d)
+    f_extend_box_endpoint(demand_box1d)
+
+    f_extend_box_endpoint(supply_box1w)
+    f_extend_box_endpoint(demand_box1w)
+
+
+
+

@@ -1,0 +1,6 @@
+Last question. Do you want the scan to wait for the candle to finish closing for a true signal?
+
+
+See the picture for what I mean. The candles colored light blue are when the condition is true. However the candle will be painted blue while the candle is still forming and will stay blue if it is still true when it closes. 
+
+The arrow next to blue candle would be the scan. All the arrow is saying is that the last candle closed and met the conditions.

@@ -1,0 +1,16 @@
+#
+# TD Ameritrade IP Company, Inc. (c) 2008-2021
+#
+
+input price = close;
+input length = 20;
+input displace = 0;
+
+plot HMA = MovingAverage(AverageType.HULL, price, length)[-displace];
+
+HMA.DefineColor("Up", GetColor(1));
+HMA.DefineColor("Down", GetColor(0));
+HMA.AssignValueColor(if HMA > HMA[1] then HMA.color("Up") else HMA.color("Down"));
+
+def hull_direction = if HMA > HMA[1] then 1 else -1;
+alert(hull_direction[1] != hull_direction[2], "Hull Change", alert.bar, sound.ding);

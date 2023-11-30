@@ -1,0 +1,553 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_mattmoheeka", overlay = true)
+
+trade_direction = input.string('Long', title = 'Trade Direction', options = ['Long', 'Short'])
+entry_type = input.string('High', title = 'Entry Type', options = ['High', 'Low', 'Close', 'Open', 'OHLC4', 'HLC3', 'HL2', 'Fixed Price', '$ Offset', '% Offset', 'ATR Offset', 'Period Extreme'])
+entry_dollar_offset = input.float(1.0, title = 'Entry Dollar Offset')
+entry_percent_offset = input.float(1.0, title = 'Entry Percent Offset')
+entry_atr_offset = input.float(1.0, title = 'Entry ATR Offset')
+entry_extreme_periods = input.int(3, title = 'Entry Extreme Periods')
+entry_fixed_price = input.float(100.00, title = 'Entry Fixed Price')
+
+stop_type = input.string('Candle', title = 'Stop Type', options = ['Candle', 'ATR', 'Kase', '$ Offset', '% Offset', 'Fixed Price', 'MA', 'MA %', 'Period Extreme'])
+stop_dollar_offset = input.float(0.5, title = 'Stop Dollar Offset')
+stop_percent_offset = input.float(1.0, title = 'Stop Percent Offset')
+stop_atr_offset = input.float(1.5, title = 'Stop ATR Offset')
+stop_extreme_periods = input.int(3, title = 'Stop Extreme Periods')
+stop_fixed_price = input.float(90.0, title = 'Stop Fixed Price')
+
+target_type = input.string('Risk Multiple', title = 'Target Type', options = ['Risk Multiple', '$ Offset', '% Offset', 'Fixed Price'])
+target_risk_mult = input.float(2.0, title = 'Target Risk Mult')
+target_dollar_offset = input.float(1.0, title = 'Target Dollar Offset')
+target_percent_offset = input.float(1.0, title = 'Target Percent Offset')
+target_fixed_price = input.float(110.0, title = 'Target Fixed Price')
+
+risk_per_trade_type = input.string('Fixed $', title = 'Risk per Trade Method', options = ['Fixed $', '% of Buying Power'])
+risk_fixed_dollar_amount = input.float(100.0, title = 'Risk Fixed Dollar Amount')
+risk_fixed_percent_amount = input.float(1.0, title = 'Risk Pct of Buying Power')
+
+balance = input.float(100000, title = 'Balance')
+balance_bp_mult = input.float(4.0, title = 'Balance BP Multiple')
+futures_mode = input.bool(false, title = 'Futures Mode')
+use_margin_pct = input.bool(false, title = 'Use Margin Percent')
+margin_pct_of_cv = input.float(10.0, title = 'Margin Percent of Contract Value')
+num_ticks_padding = input.int(1, title = 'Num Ticks Padding')
+round_shares = input.bool(false, title = 'Round Shares')
+round_shares_to_nearest = input.float(100.0, title = 'Round Shares to Nearest')
+candle_timeframe_mode = input.string('Chart', title = 'Candle Timeframe Mode', options = ['Chart', 'Higher Timeframe'])
+higher_timeframe = input.timeframe('D', title = 'Higher Timeframe')
+heikin_ashi_mode = input.bool(false, title = 'Heikin Ashi Mode')
+ma_type = input.string('EMA', title = 'MA Type', options = ['SMA', 'EMA', 'SMMA', 'WMA', 'VWMA', 'HULL'])
+ma_price = input.source(close, title = 'MA Price')
+ma_length = input.int(10, title = 'MA Length')
+atr_length = input.int(14, title = 'ATR Length')
+kase_line = input.string('Warning', title = 'Kase Line', options = ['Warning', 'StdDev1', 'StdDev2', 'StdDev3'])
+plot_all_kase_lines = input.bool(true, title = 'Plot All Kase Lines')
+label_offset = input.int(0, title = 'Label Offset')
+
+//LABELS
+show_dollar_rr = input.bool(true, title = 'Show Dollar RR Label')
+show_percent_rr = input.bool(true, title = 'Show Percent RR Label')
+show_rr_ratio = input.bool(true, title = 'Show RR Ratio Label')
+show_entry = input.bool(true, title = 'Show Entry Label')
+show_stop = input.bool(true, title = 'Show Stop Label')
+show_target = input.bool(true, title = 'Show Target Label')
+show_shares = input.bool(true, title = 'Show Shares Label')
+show_stop_size = input.bool(true, title = 'Show Stop Size Label')
+show_target_size = input.bool(true, title = 'Show Target Size Label')
+show_bp = input.bool(true, title = 'Show BP Label')
+show_tick_size = input.bool(true, title = 'Show Tick Size Label')
+show_atr = input.bool(true, title = 'Show ATR Label')
+show_atr_pct = input.bool(true, title = 'Show ATR % Label')
+show_beta = input.bool(true, title = 'Show Beta Label')
+
+beta_length = input.int(21, title = 'Beta Length')
+beta_symbol = input.symbol("SPX", title = 'Beta Symbol')
+
+entry_label_text = input.string("Entry:", title = 'Entry Label Text')
+target_label_text = input.string("Target:", title = 'Target Label Text')
+stop_label_text = input.string("Stop:", title = 'Stop Label Text')
+shares_label_text = input.string("Shares:", title = 'Shares Label Text')
+target_size_label_text = input.string("Target Size:", title = 'Target Size Label Text')
+stop_size_label_text = input.string("Stop Size:", title = 'Stop Size Label Text')
+atr_label_text = input.string("ATR:", title = 'ATR Label Text')
+atr_pct_label_text = input.string("ATR %:", title = 'ATR pct Label Text')
+beta_label_text = input.string("Beta:", title = 'Beta Label Text')
+rr_label_text = input.string("Risk/Reward Ratio = 1:", title = 'Risk Reward Label Text')
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+        "HMA" => ta.hma(source, length)
+        
+//3. Setup account size and risk amount for trades
+candleStopTimeframe = candle_timeframe_mode == 'Chart' ? "" : higher_timeframe
+riskOnEachTrade = risk_per_trade_type == "Fixed $" ? risk_fixed_dollar_amount : (risk_fixed_percent_amount / 100) * (balance * balance_bp_mult)
+whichBuyingPower = balance * balance_bp_mult
+
+//4. Setup tick size and entry/stop padding
+tickSize = syminfo.mintick
+tickValue = syminfo.mintick * syminfo.pointvalue
+padding = num_ticks_padding * tickSize
+
+// 5. ENTRY TYPES AND PRICES
+haClose = request.security(syminfo.tickerid, candleStopTimeframe, ohlc4)
+
+open_calc = request.security(syminfo.tickerid, candleStopTimeframe, open[1])
+close_calc = request.security(syminfo.tickerid, candleStopTimeframe, close[1])
+
+open_source = request.security(syminfo.tickerid, candleStopTimeframe, open)
+high_source = request.security(syminfo.tickerid, candleStopTimeframe, high)
+low_source = request.security(syminfo.tickerid, candleStopTimeframe, low)
+close_source = request.security(syminfo.tickerid, candleStopTimeframe, close)
+
+hl2_source = (high_source + low_source) / 2
+hlc3_source = (high_source + low_source + close_source) / 3
+ohlc4_source =  (open_source + high_source + low_source + close_source) / 4
+
+var haOpen = 0.00
+haOpen := ((haOpen[1] + haClose[1]) / 2) + ((open_calc + close_calc / 2))
+hahigh = math.max(high_source, math.max(haOpen, haClose))
+halow = math.min(low_source, math.min(haOpen, haClose))
+
+h = heikin_ashi_mode ? hahigh : high_source
+l = heikin_ashi_mode ? halow : low_source
+c = heikin_ashi_mode ? haClose : close_source
+o = heikin_ashi_mode ? haOpen : open_source
+
+tr = request.security(syminfo.tickerid, candleStopTimeframe, ta.tr(false))
+atr =  math.round(request.security(syminfo.tickerid, candleStopTimeframe, ta.atr(atr_length) / tickSize),0) * tickSize
+
+var entryTypePrice = 0.00
+
+if entry_type == 'Close'
+    entryTypePrice := math.round(c / tickSize, 0) * tickSize
+else if entry_type == 'High'
+    entryTypePrice := math.round(h / tickSize, 0) * tickSize
+else if entry_type == 'Low'
+    entryTypePrice := math.round(l / tickSize, 0) * tickSize
+else if entry_type == 'Open'
+    entryTypePrice := math.round(o / tickSize, 0) * tickSize
+else if entry_type == 'HL2'
+    entryTypePrice := math.round(hl2_source / tickSize, 0) * tickSize
+else if entry_type == 'HLC3'
+    entryTypePrice := math.round(hlc3_source / tickSize, 0) * tickSize
+else if entry_type == 'OHLC4'
+    entryTypePrice := math.round(ohlc4_source / tickSize, 0) * tickSize
+else if entry_type == 'Fixed Price'
+    entryTypePrice := math.round(entry_fixed_price / tickSize, 0) * tickSize
+else if entry_type == '$ Offset'
+    entryTypePrice := math.round((c + entry_dollar_offset) / tickSize, 0) * tickSize
+else if entry_type == '% Offset'
+    entryTypePrice := math.round((c + (entry_percent_offset / 100) * c[1]) / tickSize, 0) * tickSize
+else if entry_type == 'ATR Offset'
+    entryTypePrice := math.round((c + (atr * entry_atr_offset)) / tickSize, 0) * tickSize
+else if entry_type == 'Period Extreme'
+    if trade_direction == 'Long'
+        entryTypePrice := math.round(ta.highest(h, entry_extreme_periods) / tickSize, 0) * tickSize
+    else 
+        entryTypePrice := math.round(ta.lowest(l, entry_extreme_periods) / tickSize, 0) * tickSize
+else
+    entryTypePrice := na
+
+entryPrice = trade_direction == 'Long' ? entryTypePrice + padding : entryTypePrice - padding
+
+
+// # 6. STOP TYPES
+// ## 6a. candle
+candleStop = trade_direction == 'Long' ? (math.floor(l / tickSize) * tickSize) - padding : (math.ceil(h / tickSize) * tickSize) + padding
+
+// ## 6b. ATR
+adjustedATR = math.round((atr * stop_atr_offset) / tickSize, 0) * tickSize
+atrStop = trade_direction == 'Long' ? entryPrice - adjustedATR - padding : entryPrice + adjustedATR + padding
+
+// ## 6c. Kase
+TRD = 2 * tr
+
+warningLine = trade_direction == 'Long' ? entryPrice - math.round(ta.rma(TRD, atr_length)/ tickSize, 0) * tickSize : entryPrice + math.round(ta.rma(TRD, atr_length) / tickSize, 0) * tickSize
+stdDev1 = trade_direction == 'Long' ? math.round((warningLine - ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize - padding : math.round((warningLine + ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize + padding
+stdDev2 = trade_direction == 'Long' ?  math.round((warningLine - 2 * ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize - padding : math.round((warningLine + 2 * ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize + padding
+stdDev3 = trade_direction == 'Long' ? math.round((warningLine - 3 * ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize - padding : math.round((warningLine + 3 * ta.stdev(TRD, atr_length)) / tickSize, 0) * tickSize + padding
+
+// ## 6d. $ stop
+manualStopDollars = trade_direction == 'Long' ? math.round((entryPrice - stop_dollar_offset) / tickSize, 0) * tickSize - padding : math.round((entryPrice + stop_dollar_offset) / tickSize, 0) * tickSize + padding
+
+// ## 6e % stop
+manualStopPct = trade_direction == 'Long' ? math.round((entryPrice - (stop_percent_offset / 100) * c[1]) / tickSize, 0) * tickSize - padding : math.round((entryPrice + (stop_percent_offset / 100) * c[1]) / tickSize, 0) * tickSize + padding
+
+// ## 6f ma stop
+ma_value = request.security(syminfo.tickerid, candleStopTimeframe, ma(ma_price, ma_length, ma_type))
+maStop = trade_direction == 'Long' ? math.round(ma_value / tickSize, 0) * tickSize - padding : math.round(ma_value / tickSize, 0) * tickSize + padding
+
+// ## 6g ma pct offset stop
+maStopPct = trade_direction == 'Long' ? math.round((ma_value - ((stop_percent_offset / 100) * c[1])) / tickSize, 0) * tickSize - padding : math.round((ma_value + ((stop_percent_offset / 100) * c[1])) / tickSize, 0) * tickSize + padding
+
+// ## 6h period extreme
+pdStop = trade_direction == 'Long' ? (math.floor(ta.lowest(l, stop_extreme_periods) / tickSize) * tickSize) - padding : (math.floor(ta.highest(h, stop_extreme_periods) / tickSize) * tickSize) + padding
+
+// ## 6j. Which Stop Price To Use
+var stop = 0.00
+
+if stop_type == "$ Offset" 
+	stop :=manualStopDollars
+else if stop_type == "% Offset" 
+    stop :=manualStopPct
+else if stop_type == "Fixed Price" 
+    stop :=stop_fixed_price
+else if stop_type == "Candle" 
+    stop :=candleStop
+else if stop_type == "ATR" 
+    stop :=atrStop
+else if stop_type == "MA" 
+    stop :=maStop
+else if stop_type == "MA %" 
+    stop :=maStopPct
+else if stop_type == "Period Extreme" 
+    stop :=pdStop
+else if kase_line == "Warning" 
+    stop :=warningLine
+else if kase_line == "StdDev1" 
+    stop :=stdDev1
+else if kase_line == "StdDev2" 
+    stop :=stdDev2
+else 
+    stop :=stdDev3
+
+// # 7. Risk
+stopSize = math.abs(entryPrice - stop)
+stopSizeTicks = (stopSize / tickSize)
+riskPerShare = stopSizeTicks * tickValue
+buyingPowerPerShare = (entryPrice / tickSize) * tickValue
+
+var marginPerShare = buyingPowerPerShare
+
+if use_margin_pct 
+    marginPerShare := buyingPowerPerShare * (margin_pct_of_cv / 100)
+else if not futures_mode 
+    marginPerShare := buyingPowerPerShare
+else if syminfo.tickerid == "CME:6A1!" 
+    marginPerShare := 2700.0
+else if syminfo.tickerid == "CME:6B1!" 
+    marginPerShare := 2970.0
+else if syminfo.tickerid == "CME:6C1!" 
+    marginPerShare := 1755.0
+else if syminfo.tickerid == "CME:6E1!" 
+    marginPerShare := 2502.0
+else if syminfo.tickerid == "CME:6J1!" 
+    marginPerShare := 4180.0
+else if syminfo.tickerid == "CME:6M1!" 
+    marginPerShare := 2090.0
+else if syminfo.tickerid == "CME:6N1!" 
+    marginPerShare := 2625.0
+else if syminfo.tickerid == "CME:6S1!" 
+    marginPerShare := 4400.0
+else if syminfo.tickerid == "CME:BTC1!" 
+    marginPerShare := 32262.45
+else if syminfo.tickerid == "NYMEX:BZ1!" 
+    marginPerShare := 7500.0
+else if syminfo.tickerid == "NYMEX:CL1!" 
+    marginPerShare := 9300.0
+else if syminfo.tickerid == "ICEUS_CT1!:" 
+    marginPerShare := 2915.0
+else if syminfo.tickerid == "ICE_US:DX1!" 
+    marginPerShare := 2090.0
+else if syminfo.tickerid == "CME_MINI:E71!" 
+    marginPerShare := 1251.80
+else if syminfo.tickerid == "CME_MINI:EMD1!" 
+    marginPerShare := 14850.0
+else if syminfo.tickerid == "CME_MINI:ES1!" 
+    marginPerShare := 13200.0
+else if syminfo.tickerid == "COMEX:GC1!" 
+    marginPerShare := 9900.0
+else if syminfo.tickerid == "CME:GE1!" 
+    marginPerShare := 550.0
+else if syminfo.tickerid == "CME:GF1!" 
+    marginPerShare := 6318.0
+else if syminfo.tickerid == "CME:HE1!" 
+    marginPerShare := 3420.0
+else if syminfo.tickerid == "COMEX:HG1!" 
+    marginPerShare := 4350.0
+else if syminfo.tickerid == "NYMEX:HO1!" 
+    marginPerShare := 9605.0
+else if syminfo.tickerid == "CME_MINI:J71!" 
+    marginPerShare := 2090.0
+else if syminfo.tickerid == "ICEUS:KC1!" 
+    marginPerShare := 4455.0
+else if syminfo.tickerid == "CBOT:KE1!" 
+    marginPerShare := 1265.0
+else if syminfo.tickerid == "CME:LBS1!" 
+    marginPerShare := 5232.50
+else if syminfo.tickerid == "CME:LE1!" 
+    marginPerShare := 3375.0
+else if syminfo.tickerid == "CME_MINI:M2K1!" 
+    marginPerShare := 660.0
+else if syminfo.tickerid == "CME_MINI:M6A1!" 
+    marginPerShare := 270.0
+else if syminfo.tickerid == "CME_MINI:M6B1!" 
+    marginPerShare := 297.0
+else if syminfo.tickerid == "CME_MINI:M6E1!" 
+    marginPerShare := 250.80
+else if syminfo.tickerid == "CME_MINI:MES1!" 
+    marginPerShare := 1320.0
+else if syminfo.tickerid == "COMEX_MINI:MGC1!"
+    marginPerShare := 990.0
+else if syminfo.tickerid == "CME_MINI:MNQ1!" 
+    marginPerShare := 1650.0
+else if syminfo.tickerid == "CBOT_MINI:MYM1!" 
+    marginPerShare := 1100.0
+else if syminfo.tickerid == "NYMEX:NG1!" 
+    marginPerShare := 3450.0
+else if syminfo.tickerid == "CME_NKD1!" 
+    marginPerShare := 8800.0
+else if syminfo.tickerid == "CME_MINI:NQ1!" 
+    marginPerShare := 16500.0
+else if syminfo.tickerid == "ICEUS:OJ1!" 
+    marginPerShare := 1638.0
+else if syminfo.tickerid == "NYMEX:PA1!" 
+    marginPerShare := 48750.0
+else if syminfo.tickerid == "NYMEX:PL1!" 
+    marginPerShare := 6000.0
+else if syminfo.tickerid == "NYMEX_MINI:QG1!" 
+    marginPerShare := 862.50
+else if syminfo.tickerid == "NYMEX_MINI:QM1!" 
+    marginPerShare := 4650.0
+else if syminfo.tickerid == "NYMEX:RB1!" 
+    marginPerShare := 10725.0
+else if syminfo.tickerid == "CME_MINI:RTY1!" 
+    marginPerShare := 6600.0
+else if syminfo.tickerid == "ICEUS_SB1!" 
+    marginPerShare := 1047.20
+else if syminfo.tickerid == "COMEX:SI1!" 
+    marginPerShare := 13200.0
+else if syminfo.tickerid == "COMEX_MINI:SIL1!" 
+    marginPerShare := 2640.0
+else if syminfo.tickerid == "CBOT:TN1!" 
+    marginPerShare := 4375.0
+else if syminfo.tickerid == "CBOT:UB1!" 
+    marginPerShare := 11000.0
+else if syminfo.tickerid == "CBOE:VX1!" 
+    marginPerShare := 22500.0
+else if syminfo.tickerid == "CBOT_MINI:XC1!" 
+    marginPerShare := 187.0
+else if syminfo.tickerid == "CBOT_MINI:XK1!"     
+    marginPerShare := 319.0
+else if syminfo.tickerid == "CBOT_MINI:XW1!" 
+    marginPerShare := 324.50
+else if syminfo.tickerid == "ICEUS:YG1!" 
+    marginPerShare := 5445.0
+else if syminfo.tickerid == "ICEUS:YI1!" 
+    marginPerShare := 2847.50
+else if syminfo.tickerid == "CBOT_MINI:YM1!"     
+    marginPerShare := 11000.0
+else if syminfo.tickerid == "CBOT:ZB1!" 
+    marginPerShare := 5170.0
+else if syminfo.tickerid == "CBOT:ZC1!" 
+    marginPerShare := 935.0
+else if syminfo.tickerid == "CBOT:ZF1!" 
+    marginPerShare := 715.0
+else if syminfo.tickerid == "CBOT:ZL1!" 
+    marginPerShare := 845.0
+else if syminfo.tickerid == "CBOT:ZM1!" 
+    marginPerShare := 1500.0
+else if syminfo.tickerid == "CBOT:ZN1!" 
+    marginPerShare := 1705.0
+else if syminfo.tickerid == "CBOT:ZO1!" 
+    marginPerShare := 1300.0
+else if syminfo.tickerid == "CBOT:ZQ1!"     
+    marginPerShare := 900.0
+else if syminfo.tickerid == "CBOT:ZS1!" 
+    marginPerShare := 1595.0
+else if syminfo.tickerid == "CBOT:ZT1!" 
+    marginPerShare := 500.50
+else if syminfo.tickerid == "CBOT:ZW1!" 
+    marginPerShare := 1600.50
+else 
+    marginPerShare := buyingPowerPerShare
+
+numShares = round_shares ? math.floor(math.min((whichBuyingPower / marginPerShare), (riskOnEachTrade / riskPerShare)) / round_shares_to_nearest) * round_shares_to_nearest : math.floor(math.min((whichBuyingPower / marginPerShare), (riskOnEachTrade / riskPerShare)))
+
+// # 8. Targets
+// # clean user input and setup stop-multiple or custom fixed targets
+var targetSize = 0.00
+
+if target_type == "Risk Multiple" 
+    targetSize := math.round(stopSize * target_risk_mult / tickSize, 0) * tickSize
+else if target_type == "Fixed Price"
+    if target_fixed_price >= entryPrice
+        targetSize := target_fixed_price - entryPrice
+    else 
+        targetSize := entryPrice - target_fixed_price
+else if target_type == "$ Offset" 
+    targetSize := (math.round(target_dollar_offset / tickSize, 0) * tickSize)
+else 
+    targetSize := (math.round(((target_percent_offset / 100) * c[1]) / tickSize, 0) * tickSize)
+
+targetSizeTicks = targetSize / tickSize
+target = trade_direction == "Long" ? entryPrice + targetSize : entryPrice - targetSize
+
+// # 9. risk to reward
+actualRisk = riskPerShare * numShares
+rewardPerShare = (targetSize / tickSize) * tickValue
+actualReward = rewardPerShare * numShares
+riskToReward = math.round(actualReward / actualRisk, 1)
+
+// # 10. percentage risk to reward
+riskPercent = stopSize / entryPrice
+rewardPercent = targetSize / entryPrice
+
+// # plots
+entry = plot(entryPrice, title = 'Entry', color = color.gray)
+stp = plot(stop, title = 'Stop', color = color.red)
+tgt = plot(target, title = 'Target', color = color.green)
+
+wl =  plot(stop_type == "Kase" and plot_all_kase_lines ? warningLine : na, title = 'WL', color = color.new(color.black,50))
+sd1 =  plot(stop_type == "Kase" and plot_all_kase_lines ? stdDev1 : na, title = 'SD1', color = color.new(color.black,50))
+sd2 =  plot(stop_type == "Kase" and plot_all_kase_lines ? stdDev2 : na, title = 'SD2', color = color.new(color.black,50))
+sd3 =  plot(stop_type == "Kase" and plot_all_kase_lines ? stdDev3 : na, title = 'SD3', color = color.new(color.black,50))
+
+//GLOBALCOLORS
+entry_label_color = input.color(color.white, title = 'Entry Label', group = 'Global Colors')
+stop_label_color = input.color(color.red, title = 'Stop Label', group = 'Global Colors')
+target_label_color = input.color(color.green, title = 'Entry Label', group = 'Global Colors')
+shares_label_color = input.color(color.orange, title = 'Shares Label', group = 'Global Colors')
+stop_size_label_color = input.color(color.red, title = 'Stop Size Label', group = 'Global Colors')
+target_size_label_color = input.color(color.green, title = 'Target Size Label', group = 'Global Colors')
+bp_label_color = input.color(color.white, title = 'BP Label', group = 'Global Colors')
+tick_size_label_color = input.color(color.gray, title = 'Tick Size Label', group = 'Global Colors')
+beta_label_color = input.color(color.aqua, title = 'Beta Label', group = 'Global Colors')
+atr_label_color = input.color(color.yellow, title = 'ATR Label', group = 'Global Colors')
+atr_pct_label_color = input.color(color.orange, title = 'Beta Label', group = 'Global Colors')
+rr_pct_label_color = input.color(color.gray, title = 'R:R Ratio Label', group = 'Global Colors')
+dollar_ratio_label_color = input.color(color.gray, title = 'Dollar Ratio Label', group = 'Global Colors')
+dollar_pct_label_color = input.color(color.white, title = 'Percent Ratio Label', group = 'Global Colors')
+
+
+beta_function(symbol2, length) =>
+    
+    ret = close/close[1]-1 
+    retb = request.security(symbol2, "", close/close[1]-1)
+
+    secd = ta.stdev(ret, length)
+    mktd = ta.stdev(retb, length)
+
+    correl = ta.correlation(ret, retb, length)
+    beta =  math.round(correl* secd / mktd,4)
+    
+    beta
+
+beta = beta_function(beta_symbol, beta_length)
+beta_text = beta
+
+//DASHBOARD
+dashboard_color = input.color(color.black, title='BG Color', inline='2', group='Dashboard Settings')
+dashboard_text = input.color(color.black, title='Text Color', inline='2', group='Dashboard Settings')
+
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline= '3', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.bottom_right 
+
+var table t = table.new(positioning, 5, 5, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)
+if barstate.islast
+
+    //COLUMN 1
+    //Risk Reward Labels
+    table.cell(t, 0, 0, text= show_dollar_rr 
+         ? "$" + str.tostring(actualRisk[label_offset]) + " risk to $" + str.tostring(actualReward[label_offset]) + " reward" : na, width=0, bgcolor=dollar_ratio_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    table.cell(t, 1, 0, text= show_percent_rr 
+         ? str.tostring(math.round(riskPercent[label_offset] * 100, 2)) + "% risk to " + str.tostring(math.round(rewardPercent[label_offset] * 100, 2)) + "% reward" : na, width=0, bgcolor=dollar_pct_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    table.cell(t, 2, 0, text= show_rr_ratio 
+         ? rr_label_text + str.tostring(riskToReward[label_offset]) : na, width=0, bgcolor=rr_pct_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+
+    //COLUMN 2
+    //BP
+    table.cell(t, 0, 1, text= show_bp 
+         ? "Buying Power Rqd: $" + str.tostring(marginPerShare[label_offset])  + " per share or " + str.tostring(numShares[label_offset] * marginPerShare[label_offset]) + " total" : 
+         na, width=0, bgcolor=bp_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    //Tick Size 
+    table.cell(t, 1, 1, text= show_tick_size 
+         ? "Tick Size: " + str.tostring(tickSize) + " Tick Value: $" + str.tostring(tickValue): na, width=0, bgcolor=tick_size_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    //Beta
+    table.cell(t, 2, 1, text= show_beta 
+         ? beta_label_text + " " + str.tostring(beta_text) : na, width=0, bgcolor=beta_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center) 
+
+    
+    //COLUMN 3
+    //Entry
+    table.cell(t, 0, 2, text= show_entry
+         ? entry_label_text +  " $" + str.tostring(entryPrice[label_offset]) : na, width=0, bgcolor=entry_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)           
+         
+    //Stop
+    table.cell(t, 1, 2, text= show_stop
+         ? stop_label_text +  " $" + str.tostring(stop[label_offset]) : na, width=0, bgcolor=stop_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)  
+
+    //Tgt
+    table.cell(t, 2, 2, text= show_target
+         ? target_label_text +  " $" + str.tostring(target[label_offset]) : na, width=0, bgcolor=target_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+
+    //COLUMN 4
+    //Stop Size
+    table.cell(t, 1, 3, text= show_stop_size
+         ? stop_size_label_text +  " $" + str.tostring(stopSize[label_offset]) : na, width=0, bgcolor=stop_size_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+
+    //Target Size
+    table.cell(t, 2, 3, text= show_target_size
+         ? target_size_label_text +  " $" + str.tostring(targetSize[label_offset]) : na, width=0, bgcolor=target_size_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+         
+    //Shares
+    table.cell(t, 0, 3, text= show_shares
+         ? shares_label_text + str.tostring(numShares[label_offset]) : na, width=0, bgcolor=shares_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+         
+    
+   
+    //COLUMN 5
+    //ATR
+    table.cell(t, 0, 4, text= show_atr 
+         ? atr_label_text +  " $" + str.tostring(atr[label_offset]) : na, width=0, bgcolor=atr_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.cell(t, 1, 4, text= show_atr_pct
+         ? atr_pct_label_text +  " " + str.tostring(math.round(atr[label_offset] / entryPrice[label_offset] * 100 ,2)) + "%" : na, width=0, bgcolor=atr_pct_label_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

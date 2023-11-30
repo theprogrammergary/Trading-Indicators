@@ -1,0 +1,105 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("7 in 1", overlay = true)
+
+// settings
+use_ma1     = input.bool(true, title = 'MA 1', group = 'Settings', inline = 'ma1')
+type_ma1    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma1')
+length_ma1  = input.int(9, title = '', group = 'Settings', inline = 'ma1')
+source_ma1  = input.source(close, title = '', group = 'Settings', inline = 'ma1')
+color_ma1   = input.color(color.blue, title = '', group = 'Settings', inline = 'ma1') 
+
+use_ma2     = input.bool(true, title = 'MA 2', group = 'Settings', inline = 'ma2')
+type_ma2    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma2')
+length_ma2  = input.int(13, title = '', group = 'Settings', inline = 'ma2')
+source_ma2  = input.source(close, title = '', group = 'Settings', inline = 'ma2')
+color_ma2   = input.color(color.orange, title = '', group = 'Settings', inline = 'ma2') 
+
+use_ma3     = input.bool(true, title = 'MA 3', group = 'Settings', inline = 'ma3')
+type_ma3    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma3')
+length_ma3  = input.int(21, title = '', group = 'Settings', inline = 'ma3')
+source_ma3  = input.source(close, title = '', group = 'Settings', inline = 'ma3')
+color_ma3   = input.color(color.yellow, title = '', group = 'Settings', inline = 'ma3') 
+
+use_ma4     = input.bool(true, title = 'MA 4', group = 'Settings', inline = 'ma4')
+type_ma4    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma4')
+length_ma4  = input.int(55, title = '', group = 'Settings', inline = 'ma4')
+source_ma4  = input.source(close, title = '', group = 'Settings', inline = 'ma4')
+color_ma4   = input.color(color.purple, title = '', group = 'Settings', inline = 'ma4')
+
+use_ma5     = input.bool(true, title = 'MA 5', group = 'Settings', inline = 'ma5')
+type_ma5    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma5')
+length_ma5  = input.int(100, title = '', group = 'Settings', inline = 'ma5')
+source_ma5  = input.source(close, title = '', group = 'Settings', inline = 'ma5')
+color_ma5   = input.color(color.lime, title = '', group = 'Settings', inline = 'ma5') 
+
+use_ma6     = input.bool(true, title = 'MA 6', group = 'Settings', inline = 'ma6')
+type_ma6    = input.string('EMA', title = '', options = ['MA', 'EMA'], group = 'Settings', inline = 'ma6')
+length_ma6  = input.int(200, title = '', group = 'Settings', inline = 'ma6')
+source_ma6  = input.source(close, title = '', group = 'Settings', inline = 'ma6')
+color_ma6   = input.color(color.rgb(255, 0, 4), title = '', group = 'Settings', inline = 'ma6') 
+
+use_vwap     = input.bool(true, title = 'VWAP', group = 'Settings', inline = 'ma7')
+anchor    = input.string('Session', title = '', options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group = 'Settings', inline = 'ma7')
+source_vwap  = input.source(hlc3, title = '', group = 'Settings', inline = 'ma7')
+color_vwap   = input.color(color.silver, title = '', group = 'Settings', inline = 'ma7') 
+
+
+
+// ma function
+f_ma(ma_type, ma_source, ma_length) =>
+    float ma = switch ma_type
+        "EMA" => ta.ema(ma_source, ma_length)
+        "MA" => ta.sma(ma_source, ma_length)
+        => ta.ema(ma_source, ma_length)
+
+
+
+// ma calculate
+ma1 = f_ma(type_ma1, source_ma1, length_ma1)
+ma2 = f_ma(type_ma2, source_ma2, length_ma2)
+ma3 = f_ma(type_ma3, source_ma3, length_ma3)
+ma4 = f_ma(type_ma4, source_ma4, length_ma4)
+ma5 = f_ma(type_ma5, source_ma5, length_ma5)
+ma6 = f_ma(type_ma6, source_ma6, length_ma6)
+
+// vwap calculate
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+	"Earnings"  => not na(new_earnings)
+	"Dividends" => not na(new_dividends)
+	"Splits"    => not na(new_split)
+	"Session"   => timeframe.change("D")
+	"Week"      => timeframe.change("W")
+	"Month"     => timeframe.change("M")
+	"Quarter"   => timeframe.change("3M")
+	"Year"      => timeframe.change("12M")
+	"Decade"    => timeframe.change("12M") and year % 10 == 0
+	"Century"   => timeframe.change("12M") and year % 100 == 0
+	=> false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(source_vwap[1]) and not isEsdAnchor
+	isNewPeriod := true
+
+float vwapValue = na
+[_vwap, _stdevUpper, _] = ta.vwap(source_vwap, isNewPeriod, 1)
+vwapValue := _vwap
+
+
+
+// ma plot
+plot(ma1, title = 'MA 1', color = color_ma1, display = use_ma1 ? display.all : display.none)
+plot(ma2, title = 'MA 2', color = color_ma2, display = use_ma2 ? display.all : display.none)
+plot(ma3, title = 'MA 3', color = color_ma3, display = use_ma3 ? display.all : display.none)
+plot(ma4, title = 'MA 4', color = color_ma4, display = use_ma4 ? display.all : display.none)
+plot(ma5, title = 'MA 5', color = color_ma5, display = use_ma5 ? display.all : display.none)
+plot(ma6, title = 'MA 6', color = color_ma6, display = use_ma6 ? display.all : display.none)
+
+// vwap plot
+plot(vwapValue, title = 'VWAP', color = color_vwap, display = use_vwap ? display.all : display.none)

@@ -1,0 +1,628 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("LinReg MTF More TFs", overlay=true)
+
+//CHOOSE ALERTS
+ALERTS_TF1 = input.bool(true, 'Alerts M5', group = 'Choose Active Alerts', inline = '1')
+ALERTS_TF2 = input.bool(true, 'Alerts M15', group = 'Choose Active Alerts', inline = '2')
+ALERTS_TF3 = input.bool(true, 'Alerts H1', group = 'Choose Active Alerts', inline = '3')
+ALERTS_TF4 = input.bool(true, 'Alerts H2', group = 'Choose Active Alerts', inline = '4')
+ALERTS_TF5 = input.bool(true, 'Alerts H3', group = 'Choose Active Alerts', inline = '5')
+ALERTS_TF6 = input.bool(true, 'Alerts H4', group = 'Choose Active Alerts', inline = '6')
+ALERTS_TF7 = input.bool(true, 'Alerts H6', group = 'Choose Active Alerts', inline = '1')
+ALERTS_TF8 = input.bool(true, 'Alerts H8', group = 'Choose Active Alerts', inline = '2')
+ALERTS_TF9 = input.bool(true, 'Alerts H10', group = 'Choose Active Alerts', inline = '3')
+ALERTS_TF10 = input.bool(true, 'Alerts H12', group = 'Choose Active Alerts', inline = '4')
+ALERTS_TF11 = input.bool(true, 'Alerts D1', group = 'Choose Active Alerts', inline = '5')
+ALERTS_TF12 = input.bool(true, 'Alerts D3', group = 'Choose Active Alerts', inline = '6')
+
+
+//
+//TF1
+//
+use_TF1 = input.bool(true, title = 'Show M5 ', inline='1', group='M5 Settings') 
+TF1_timeframe = "5"
+TF1_price = input.source(close, inline='1', title = ' ',  group='M5 Settings') 
+TF1_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='M5 Settings') 
+TF1_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='M5 Settings') 
+TF1_color = input.color(color.new(#ffee58, 0), title='upper Color', inline='4', group='M5 Settings') 
+TF1_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='M5 Settings') 
+TF1_width = input.int(1, title = 'Width', minval = 1, maxval = 5, inline='5', group='M5 Settings') 
+TF1_bg = input.int(90, minval = 0, maxval = 100, title = 'Background Transparency', inline='4', group='M5 Settings') 
+TF1_extendStyle = switch
+    TF1_extend == "Both" => extend.both
+    TF1_extend == "Left" => extend.left
+    TF1_extend == "Right" => extend.right
+    => extend.none
+//
+//TF2
+//
+use_TF2 = input.bool(true, title = 'Show M15 ', inline='1', group='M15 Settings') 
+TF2_timeframe = "15"
+TF2_price = input.source(close, inline='1', title = ' ',  group='M15 Settings') 
+TF2_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='M15 Settings') 
+TF2_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='M15 Settings') 
+TF2_color = input.color(color.new(#ff9800, 0), title='upper Color', inline='4', group='M15 Settings') 
+TF2_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='M15 Settings') 
+TF2_width = input.int(3, title = 'Width', minval = 1, maxval = 5, inline='5', group='M15 Settings') 
+TF2_bg = input.int(82, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='M15 Settings') 
+TF2_extendStyle = switch
+    TF2_extend == "Both" => extend.both
+    TF2_extend == "Left" => extend.left
+    TF2_extend == "Right" => extend.right
+    => extend.none
+//
+//TF3
+//
+use_TF3 = input.bool(true, title = 'Show H1 ', inline='1', group='H1 Settings') 
+TF3_timeframe = "60"
+TF3_price = input.source(close, inline='1', title = ' ',  group='H1 Settings') 
+TF3_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H1 Settings') 
+TF3_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H1 Settings') 
+TF3_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H1 Settings') 
+TF3_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H1 Settings') 
+TF3_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H1 Settings') 
+TF3_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H1 Settings') 
+TF3_extendStyle = switch
+    TF3_extend == "Both" => extend.both
+    TF3_extend == "Left" => extend.left
+    TF3_extend == "Right" => extend.right
+    => extend.none
+//
+//TF4
+//
+use_TF4 = input.bool(true, title = 'Show H2 ', inline='1', group='H2 Settings') 
+TF4_timeframe = "120"
+TF4_price = input.source(close, inline='1', title = ' ',  group='H2 Settings') 
+TF4_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H2 Settings') 
+TF4_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H2 Settings') 
+TF4_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H2 Settings') 
+TF4_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H2 Settings') 
+TF4_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H2 Settings') 
+TF4_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H2 Settings') 
+TF4_extendStyle = switch
+    TF4_extend == "Both" => extend.both
+    TF4_extend == "Left" => extend.left
+    TF4_extend == "Right" => extend.right
+    => extend.none
+//
+//TF5
+//
+use_TF5 = input.bool(true, title = 'Show H3 ', inline='1', group='H3 Settings') 
+TF5_timeframe = "180"
+TF5_price = input.source(close, inline='1', title = ' ',  group='H3 Settings') 
+TF5_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H3 Settings') 
+TF5_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H3 Settings') 
+TF5_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H3 Settings') 
+TF5_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H3 Settings') 
+TF5_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H3 Settings') 
+TF5_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H3 Settings') 
+TF5_extendStyle = switch
+    TF5_extend == "Both" => extend.both
+    TF5_extend == "Left" => extend.left
+    TF5_extend == "Right" => extend.right
+    => extend.none
+//
+//TF6
+//
+use_TF6 = input.bool(true, title = 'Show H4 ', inline='1', group='H4 Settings') 
+TF6_timeframe = "240"
+TF6_price = input.source(close, inline='1', title = ' ',  group='H4 Settings') 
+TF6_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H4 Settings') 
+TF6_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H4 Settings') 
+TF6_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H4 Settings') 
+TF6_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H4 Settings') 
+TF6_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H4 Settings') 
+TF6_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H4 Settings') 
+TF6_extendStyle = switch
+    TF6_extend == "Both" => extend.both
+    TF6_extend == "Left" => extend.left
+    TF6_extend == "Right" => extend.right
+    => extend.none
+//
+//TF7
+//
+use_TF7 = input.bool(true, title = 'Show H6 ', inline='1', group='H6 Settings')  
+TF7_timeframe = "360"
+TF7_price = input.source(close, inline='1', title = ' ',  group='H6 Settings') 
+TF7_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H6 Settings') 
+TF7_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H6 Settings')  
+TF7_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H6 Settings') 
+TF7_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H6 Settings') 
+TF7_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H6 Settings') 
+TF7_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H6 Settings') 
+TF7_extendStyle = switch
+    TF7_extend == "Both" => extend.both
+    TF7_extend == "Left" => extend.left
+    TF7_extend == "Right" => extend.right
+    => extend.none
+//
+//TF8
+//
+use_TF8 = input.bool(true, title = 'Show H8 ', inline='1', group='H8 Settings')  
+TF8_timeframe = "480"
+TF8_price = input.source(close, inline='1', title = ' ',  group='H8 Settings') 
+TF8_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H8 Settings') 
+TF8_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H8 Settings')  
+TF8_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H8 Settings') 
+TF8_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H8 Settings') 
+TF8_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H8 Settings') 
+TF8_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H8 Settings') 
+TF8_extendStyle = switch
+    TF8_extend == "Both" => extend.both
+    TF8_extend == "Left" => extend.left
+    TF8_extend == "Right" => extend.right
+    => extend.none
+//
+//TF9
+//
+use_TF9 = input.bool(true, title = 'Show H10 ', inline='1', group='H10 Settings')  
+TF9_timeframe = "600"
+TF9_price = input.source(close, inline='1', title = ' ',  group='H10 Settings') 
+TF9_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H10 Settings') 
+TF9_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H10 Settings')  
+TF9_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H10 Settings') 
+TF9_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H10 Settings') 
+TF9_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H10 Settings') 
+TF9_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H10 Settings') 
+TF9_extendStyle = switch
+    TF9_extend == "Both" => extend.both
+    TF9_extend == "Left" => extend.left
+    TF9_extend == "Right" => extend.right
+    => extend.none
+//
+//TF10
+//
+use_TF10 = input.bool(true, title = 'Show H12 ', inline='1', group='H12 Settings')  
+TF10_timeframe = "720"
+TF10_price = input.source(close, inline='1', title = ' ',  group='H12 Settings') 
+TF10_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='H12 Settings') 
+TF10_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='H12 Settings')  
+TF10_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='H12 Settings') 
+TF10_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='H12 Settings') 
+TF10_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='H12 Settings') 
+TF10_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='H12 Settings') 
+TF10_extendStyle = switch
+    TF10_extend == "Both" => extend.both
+    TF10_extend == "Left" => extend.left
+    TF10_extend == "Right" => extend.right
+    => extend.none
+//
+//TF11
+//
+use_TF11 = input.bool(true, title = 'Show D1 ', inline='1', group='D1 Settings')  
+TF11_timeframe = "D"
+TF11_price = input.source(close, inline='1', title = ' ',  group='D1 Settings') 
+TF11_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='D1 Settings') 
+TF11_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='D1 Settings')  
+TF11_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='D1 Settings') 
+TF11_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='D1 Settings') 
+TF11_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='D1 Settings') 
+TF11_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='D1 Settings') 
+TF11_extendStyle = switch
+    TF11_extend == "Both" => extend.both
+    TF11_extend == "Left" => extend.left
+    TF11_extend == "Right" => extend.right
+    => extend.none
+    //
+//TF12
+//
+use_TF12 = input.bool(true, title = 'Show D3 ', inline='1', group='D3 Settings')  
+TF12_timeframe = "3D"
+TF12_price = input.source(close, inline='1', title = ' ',  group='D3 Settings') 
+TF12_linreg_length = input.int(title='Length ', defval=100, inline='3', maxval = 500, minval = 10, group='D3 Settings') 
+TF12_linreg_deviation = input.float(title='Deviation ', defval=2, step=0.25, minval=0.1, maxval=5.00, inline='3', group='D3 Settings')  
+TF12_color = input.color(color.new(#0086ff, 0), title='upper Color', inline='4', group='D3 Settings') 
+TF12_extend = input.string(defval = 'None', title = 'Extension', options = ['Both', 'Right', 'Left', 'None'], inline='5', group='D3 Settings') 
+TF12_width = input.int(5, title = 'Width', minval = 1, maxval = 5, inline='5', group='D3 Settings') 
+TF12_bg = input.int(75, minval = 0, maxval = 100, title = 'Background Transparency', inline='6', group='D3 Settings') 
+TF12_extendStyle = switch
+    TF12_extend == "Both" => extend.both
+    TF12_extend == "Left" => extend.left
+    TF12_extend == "Right" => extend.right
+    => extend.none
+//
+//FUNCTION TO CALCULATE VALUES
+//
+calculate_linreg(source, length, deviation) =>
+    a = ta.wma(source, length)
+    b = ta.sma(source, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(source[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation
+    
+    
+    y1_midvalue = A + 0
+    y2_midvalue = -m + (B + 0)
+    
+    
+    y1a =  A - linreg_1
+    y1b = A + linreg_1
+    y2a = -m + (B - linreg_1)
+    y2b = -m + (B + linreg_1)
+    
+    y1_uppervalue = math.max(y1a,y1b)
+    y1_lowervalue = math.min(y1a,y1b)
+    y2_uppervalue = math.max(y2a,y2b)
+    y2_lowervalue = math.min(y2a,y2b)
+    
+    
+    x1_value = time[length]
+    
+    [x1_value, y1_midvalue, y2_midvalue, y1_uppervalue, y2_uppervalue, y1_lowervalue, y2_lowervalue]
+//
+//
+
+//
+//FUNCTION TO DRAW LINES
+//
+drawLinReg(color_input, extension_input, width_input, x1_value, y1_value, y2_value, linreg_length, TF_input, draw_label) =>
+
+    if draw_label
+        label label_variable = label.new(bar_index + 5, y2_value, text=str.tostring(TF_input) + "min | " + str.tostring(math.round_to_mintick(y2_value)), style=label.style_label_left, textcolor = color.black, color = color_input, textalign = text.align_left)
+        label.delete(label_variable[1])
+        label.set_tooltip(label_variable, 'testing123')
+        
+    line line_variable = line.new(x1_value, y1_value, time, y2_value, extend = extension_input, color = color_input, width = width_input, xloc = xloc.bar_time)
+    line_variable
+    
+//
+//
+
+[TF1_x1_value, TF1_y1_midvalue, TF1_y2_midvalue, TF1_y1_uppervalue, TF1_y2_uppervalue, TF1_y1_lowervalue, TF1_y2_lowervalue]= request.security(syminfo.tickerid, (TF1_timeframe), calculate_linreg(TF1_price, TF1_linreg_length, TF1_linreg_deviation))
+[TF2_x1_value, TF2_y1_midvalue, TF2_y2_midvalue, TF2_y1_uppervalue, TF2_y2_uppervalue, TF2_y1_lowervalue, TF2_y2_lowervalue]= request.security(syminfo.tickerid, (TF2_timeframe), calculate_linreg(TF2_price, TF2_linreg_length, TF2_linreg_deviation))
+[TF3_x1_value, TF3_y1_midvalue, TF3_y2_midvalue, TF3_y1_uppervalue, TF3_y2_uppervalue, TF3_y1_lowervalue, TF3_y2_lowervalue]= request.security(syminfo.tickerid, (TF3_timeframe), calculate_linreg(TF3_price, TF3_linreg_length, TF3_linreg_deviation))
+[TF4_x1_value, TF4_y1_midvalue, TF4_y2_midvalue, TF4_y1_uppervalue, TF4_y2_uppervalue, TF4_y1_lowervalue, TF4_y2_lowervalue]= request.security(syminfo.tickerid, (TF4_timeframe), calculate_linreg(TF4_price, TF4_linreg_length, TF4_linreg_deviation))
+[TF5_x1_value, TF5_y1_midvalue, TF5_y2_midvalue, TF5_y1_uppervalue, TF5_y2_uppervalue, TF5_y1_lowervalue, TF5_y2_lowervalue]= request.security(syminfo.tickerid, (TF5_timeframe), calculate_linreg(TF5_price, TF5_linreg_length, TF5_linreg_deviation))
+[TF6_x1_value, TF6_y1_midvalue, TF6_y2_midvalue, TF6_y1_uppervalue, TF6_y2_uppervalue, TF6_y1_lowervalue, TF6_y2_lowervalue]= request.security(syminfo.tickerid, (TF6_timeframe), calculate_linreg(TF6_price, TF6_linreg_length, TF6_linreg_deviation))
+[TF7_x1_value, TF7_y1_midvalue, TF7_y2_midvalue, TF7_y1_uppervalue, TF7_y2_uppervalue, TF7_y1_lowervalue, TF7_y2_lowervalue]= request.security(syminfo.tickerid, (TF7_timeframe), calculate_linreg(TF7_price, TF7_linreg_length, TF7_linreg_deviation))
+[TF8_x1_value, TF8_y1_midvalue, TF8_y2_midvalue, TF8_y1_uppervalue, TF8_y2_uppervalue, TF8_y1_lowervalue, TF8_y2_lowervalue]= request.security(syminfo.tickerid, (TF8_timeframe), calculate_linreg(TF8_price, TF8_linreg_length, TF8_linreg_deviation))
+[TF9_x1_value, TF9_y1_midvalue, TF9_y2_midvalue, TF9_y1_uppervalue, TF9_y2_uppervalue, TF9_y1_lowervalue, TF9_y2_lowervalue]= request.security(syminfo.tickerid, (TF9_timeframe), calculate_linreg(TF9_price, TF9_linreg_length, TF9_linreg_deviation))
+[TF10_x1_value, TF10_y1_midvalue, TF10_y2_midvalue, TF10_y1_uppervalue, TF10_y2_uppervalue, TF10_y1_lowervalue, TF10_y2_lowervalue]= request.security(syminfo.tickerid, (TF10_timeframe), calculate_linreg(TF10_price, TF10_linreg_length, TF10_linreg_deviation))
+[TF11_x1_value, TF11_y1_midvalue, TF11_y2_midvalue, TF11_y1_uppervalue, TF11_y2_uppervalue, TF11_y1_lowervalue, TF11_y2_lowervalue]= request.security(syminfo.tickerid, (TF11_timeframe), calculate_linreg(TF11_price, TF11_linreg_length, TF11_linreg_deviation))
+[TF12_x1_value, TF12_y1_midvalue, TF12_y2_midvalue, TF12_y1_uppervalue, TF12_y2_uppervalue, TF12_y1_lowervalue, TF12_y2_lowervalue]= request.security(syminfo.tickerid, (TF12_timeframe), calculate_linreg(TF12_price, TF12_linreg_length, TF12_linreg_deviation))
+
+
+
+var table = table.new(position = position.top_right, columns = 1, rows = 13, bgcolor = color.new(#000000,0), frame_color = color.new(#000000,0), border_width = 1, frame_width = 1)
+bull_color = input.color(color.teal, title = 'ABOVE Color')
+bear_color = input.color(color.red, title = 'BELOW Color')
+neutral_color = input.color(color.gray, title = 'Neutral Color')
+//
+//DRAW LINES AND RUN ALERTS  
+//
+if barstate.islast
+    //
+    //TF12    
+    if use_TF12 
+        TF12_mid = drawLinReg(color.new(TF12_color, 80), TF12_extendStyle, TF12_width, TF12_x1_value, TF12_y1_midvalue, TF12_y2_midvalue, TF12_linreg_length, TF12_timeframe, false)
+        TF12_upper = drawLinReg(color.new(TF12_color, 0), TF12_extendStyle, TF12_width, TF12_x1_value, TF12_y1_uppervalue, TF12_y2_uppervalue, TF12_linreg_length, TF12_timeframe, true)
+        TF12_lower = drawLinReg(color.new(TF12_color, 0), TF12_extendStyle, TF12_width, TF12_x1_value, TF12_y1_lowervalue, TF12_y2_lowervalue, TF12_linreg_length, TF12_timeframe,true)
+        linefill TF12_fill = linefill.new(TF12_upper, TF12_lower, color.new(TF12_color,TF12_bg)) 
+        
+        if not na(TF12_mid[1])
+            line.delete(TF12_mid[1])
+            line.delete(TF12_upper[1])
+            line.delete(TF12_lower[1])
+            linefill.delete(TF12_fill[1])
+    //
+    //TF11    
+    if use_TF11 
+        TF11_mid = drawLinReg(color.new(TF11_color, 80), TF11_extendStyle, TF11_width, TF11_x1_value, TF11_y1_midvalue, TF11_y2_midvalue, TF11_linreg_length, TF11_timeframe, false)
+        TF11_upper = drawLinReg(color.new(TF11_color, 0), TF11_extendStyle, TF11_width, TF11_x1_value, TF11_y1_uppervalue, TF11_y2_uppervalue, TF11_linreg_length, TF11_timeframe, true)
+        TF11_lower = drawLinReg(color.new(TF11_color, 0), TF11_extendStyle, TF11_width, TF11_x1_value, TF11_y1_lowervalue, TF11_y2_lowervalue, TF11_linreg_length, TF11_timeframe,true)
+        linefill TF11_fill = linefill.new(TF11_upper, TF11_lower, color.new(TF11_color,TF11_bg)) 
+        
+        if not na(TF11_mid[1])
+            line.delete(TF11_mid[1])
+            line.delete(TF11_upper[1])
+            line.delete(TF11_lower[1])
+            linefill.delete(TF11_fill[1])
+    //
+    //TF10    
+    if use_TF10 
+        TF10_mid = drawLinReg(color.new(TF10_color, 80), TF10_extendStyle, TF10_width, TF10_x1_value, TF10_y1_midvalue, TF10_y2_midvalue, TF10_linreg_length, TF10_timeframe, false)
+        TF10_upper = drawLinReg(color.new(TF10_color, 0), TF10_extendStyle, TF10_width, TF10_x1_value, TF10_y1_uppervalue, TF10_y2_uppervalue, TF10_linreg_length, TF10_timeframe, true)
+        TF10_lower = drawLinReg(color.new(TF10_color, 0), TF10_extendStyle, TF10_width, TF10_x1_value, TF10_y1_lowervalue, TF10_y2_lowervalue, TF10_linreg_length, TF10_timeframe,true)
+        linefill TF10_fill = linefill.new(TF10_upper, TF10_lower, color.new(TF10_color,TF10_bg)) 
+        
+        if not na(TF10_mid[1])
+            line.delete(TF10_mid[1])
+            line.delete(TF10_upper[1])
+            line.delete(TF10_lower[1])
+            linefill.delete(TF10_fill[1])
+    //
+    //TF9    
+    if use_TF9 
+        TF9_mid = drawLinReg(color.new(TF9_color, 80), TF9_extendStyle, TF9_width, TF9_x1_value, TF9_y1_midvalue, TF9_y2_midvalue, TF9_linreg_length, TF9_timeframe, false)
+        TF9_upper = drawLinReg(color.new(TF9_color, 0), TF9_extendStyle, TF9_width, TF9_x1_value, TF9_y1_uppervalue, TF9_y2_uppervalue, TF9_linreg_length, TF9_timeframe, true)
+        TF9_lower = drawLinReg(color.new(TF9_color, 0), TF9_extendStyle, TF9_width, TF9_x1_value, TF9_y1_lowervalue, TF9_y2_lowervalue, TF9_linreg_length, TF9_timeframe,true)
+        linefill TF9_fill = linefill.new(TF9_upper, TF9_lower, color.new(TF9_color,TF9_bg)) 
+        
+        if not na(TF9_mid[1])
+            line.delete(TF9_mid[1])
+            line.delete(TF9_upper[1])
+            line.delete(TF9_lower[1])
+            linefill.delete(TF9_fill[1])
+    //
+    //TF8    
+    if use_TF8 
+        TF8_mid = drawLinReg(color.new(TF8_color, 80), TF8_extendStyle, TF8_width, TF8_x1_value, TF8_y1_midvalue, TF8_y2_midvalue, TF8_linreg_length, TF8_timeframe, false)
+        TF8_upper = drawLinReg(color.new(TF8_color, 0), TF8_extendStyle, TF8_width, TF8_x1_value, TF8_y1_uppervalue, TF8_y2_uppervalue, TF8_linreg_length, TF8_timeframe, true)
+        TF8_lower = drawLinReg(color.new(TF8_color, 0), TF8_extendStyle, TF8_width, TF8_x1_value, TF8_y1_lowervalue, TF8_y2_lowervalue, TF8_linreg_length, TF8_timeframe,true)
+        linefill TF8_fill = linefill.new(TF8_upper, TF8_lower, color.new(TF8_color,TF8_bg)) 
+        
+        if not na(TF8_mid[1])
+            line.delete(TF8_mid[1])
+            line.delete(TF8_upper[1])
+            line.delete(TF8_lower[1])
+            linefill.delete(TF8_fill[1])
+    //
+    //TF7    
+    if use_TF7 
+        TF7_mid = drawLinReg(color.new(TF7_color, 80), TF7_extendStyle, TF7_width, TF7_x1_value, TF7_y1_midvalue, TF7_y2_midvalue, TF7_linreg_length, TF7_timeframe, false)
+        TF7_upper = drawLinReg(color.new(TF7_color, 0), TF7_extendStyle, TF7_width, TF7_x1_value, TF7_y1_uppervalue, TF7_y2_uppervalue, TF7_linreg_length, TF7_timeframe, true)
+        TF7_lower = drawLinReg(color.new(TF7_color, 0), TF7_extendStyle, TF7_width, TF7_x1_value, TF7_y1_lowervalue, TF7_y2_lowervalue, TF7_linreg_length, TF7_timeframe,true)
+        linefill TF7_fill = linefill.new(TF7_upper, TF7_lower, color.new(TF7_color,TF7_bg)) 
+        
+        if not na(TF7_mid[1])
+            line.delete(TF7_mid[1])
+            line.delete(TF7_upper[1])
+            line.delete(TF7_lower[1])
+            linefill.delete(TF7_fill[1])
+    //
+    //TF6    
+    if use_TF6 
+        TF6_mid = drawLinReg(color.new(TF6_color, 80), TF6_extendStyle, TF6_width, TF6_x1_value, TF6_y1_midvalue, TF6_y2_midvalue, TF6_linreg_length, TF6_timeframe, false)
+        TF6_upper = drawLinReg(color.new(TF6_color, 0), TF6_extendStyle, TF6_width, TF6_x1_value, TF6_y1_uppervalue, TF6_y2_uppervalue, TF6_linreg_length, TF6_timeframe, true)
+        TF6_lower = drawLinReg(color.new(TF6_color, 0), TF6_extendStyle, TF6_width, TF6_x1_value, TF6_y1_lowervalue, TF6_y2_lowervalue, TF6_linreg_length, TF6_timeframe,true)
+        linefill TF6_fill = linefill.new(TF6_upper, TF6_lower, color.new(TF6_color,TF6_bg)) 
+        
+        if not na(TF6_mid[1])
+            line.delete(TF6_mid[1])
+            line.delete(TF6_upper[1])
+            line.delete(TF6_lower[1])
+            linefill.delete(TF6_fill[1])
+    //
+    //TF5    
+    if use_TF5 
+        TF5_mid = drawLinReg(color.new(TF5_color, 80), TF5_extendStyle, TF5_width, TF5_x1_value, TF5_y1_midvalue, TF5_y2_midvalue, TF5_linreg_length, TF5_timeframe, false)
+        TF5_upper = drawLinReg(color.new(TF5_color, 0), TF5_extendStyle, TF5_width, TF5_x1_value, TF5_y1_uppervalue, TF5_y2_uppervalue, TF5_linreg_length, TF5_timeframe, true)
+        TF5_lower = drawLinReg(color.new(TF5_color, 0), TF5_extendStyle, TF5_width, TF5_x1_value, TF5_y1_lowervalue, TF5_y2_lowervalue, TF5_linreg_length, TF5_timeframe,true)
+        linefill TF5_fill = linefill.new(TF5_upper, TF5_lower, color.new(TF5_color,TF5_bg)) 
+        
+        if not na(TF5_mid[1])
+            line.delete(TF5_mid[1])
+            line.delete(TF5_upper[1])
+            line.delete(TF5_lower[1])
+            linefill.delete(TF5_fill[1])
+    //
+    //TF4    
+    if use_TF4 
+        TF4_mid = drawLinReg(color.new(TF4_color, 80), TF4_extendStyle, TF4_width, TF4_x1_value, TF4_y1_midvalue, TF4_y2_midvalue, TF4_linreg_length, TF4_timeframe, false)
+        TF4_upper = drawLinReg(color.new(TF4_color, 0), TF4_extendStyle, TF4_width, TF4_x1_value, TF4_y1_uppervalue, TF4_y2_uppervalue, TF4_linreg_length, TF4_timeframe, true)
+        TF4_lower = drawLinReg(color.new(TF4_color, 0), TF4_extendStyle, TF4_width, TF4_x1_value, TF4_y1_lowervalue, TF4_y2_lowervalue, TF4_linreg_length, TF4_timeframe,true)
+        linefill TF4_fill = linefill.new(TF4_upper, TF4_lower, color.new(TF4_color,TF4_bg)) 
+        
+        if not na(TF4_mid[1])
+            line.delete(TF4_mid[1])
+            line.delete(TF4_upper[1])
+            line.delete(TF4_lower[1])
+            linefill.delete(TF4_fill[1])
+    //
+    //TF3    
+    if use_TF3 
+        TF3_mid = drawLinReg(color.new(TF3_color, 80), TF3_extendStyle, TF3_width, TF3_x1_value, TF3_y1_midvalue, TF3_y2_midvalue, TF3_linreg_length, TF3_timeframe, false)
+        TF3_upper = drawLinReg(color.new(TF3_color, 0), TF3_extendStyle, TF3_width, TF3_x1_value, TF3_y1_uppervalue, TF3_y2_uppervalue, TF3_linreg_length, TF3_timeframe, true)
+        TF3_lower = drawLinReg(color.new(TF3_color, 0), TF3_extendStyle, TF3_width, TF3_x1_value, TF3_y1_lowervalue, TF3_y2_lowervalue, TF3_linreg_length, TF3_timeframe,true)
+        linefill TF3_fill = linefill.new(TF3_upper, TF3_lower, color.new(TF3_color,TF3_bg)) 
+        
+        if not na(TF3_mid[1])
+            line.delete(TF3_mid[1])
+            line.delete(TF3_upper[1])
+            line.delete(TF3_lower[1])
+            linefill.delete(TF3_fill[1])
+    //TF2
+    if use_TF2 
+        TF2_mid = drawLinReg(color.new(TF2_color, 80), TF2_extendStyle, TF2_width, TF2_x1_value, TF2_y1_midvalue, TF2_y2_midvalue, TF2_linreg_length, TF2_timeframe, false)
+        TF2_upper = drawLinReg(color.new(TF2_color, 0), TF2_extendStyle, TF2_width, TF2_x1_value, TF2_y1_uppervalue, TF2_y2_uppervalue, TF2_linreg_length, TF2_timeframe, true)
+        TF2_lower = drawLinReg(color.new(TF2_color, 0), TF2_extendStyle, TF2_width, TF2_x1_value, TF2_y1_lowervalue, TF2_y2_lowervalue, TF2_linreg_length, TF2_timeframe,true)
+        linefill TF2_fill = linefill.new(TF2_upper, TF2_lower, color.new(TF2_color,TF2_bg)) 
+        
+        if not na(TF2_mid[1])
+            line.delete(TF2_mid[1])
+            line.delete(TF2_upper[1])
+            line.delete(TF2_lower[1])
+            linefill.delete(TF2_fill[1])
+    //TF1
+    if use_TF1 
+        TF1_mid = drawLinReg(color.new(TF1_color, 80), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_midvalue, TF1_y2_midvalue, TF1_linreg_length, TF1_timeframe, false)
+        TF1_upper = drawLinReg(color.new(TF1_color, 0), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_uppervalue, TF1_y2_uppervalue, TF1_linreg_length, TF1_timeframe, true)
+        TF1_lower = drawLinReg(color.new(TF1_color, 0), TF1_extendStyle, TF1_width, TF1_x1_value, TF1_y1_lowervalue, TF1_y2_lowervalue, TF1_linreg_length, TF1_timeframe,true)
+        linefill TF1_fill = linefill.new(TF1_upper, TF1_lower, color.new(TF1_color,TF1_bg)) 
+        
+        if not na(TF1_mid[1])
+            line.delete(TF1_mid[1])
+            line.delete(TF1_upper[1])
+            line.delete(TF1_lower[1])
+            linefill.delete(TF1_fill[1])
+
+    
+    //
+    //ALERTS
+    //
+    TF1_alert = high >= TF1_y2_uppervalue and ALERTS_TF1 ? 1 : low <= TF1_y2_lowervalue and ALERTS_TF1 ? -1 : 0 
+    TF2_alert = high >= TF2_y2_uppervalue and ALERTS_TF2 ? 1 : low <= TF2_y2_lowervalue and ALERTS_TF2 ? -1 : 0 
+    TF3_alert = high >= TF3_y2_uppervalue and ALERTS_TF3 ? 1 : low <= TF3_y2_lowervalue and ALERTS_TF3 ? -1 : 0 
+    TF4_alert = high >= TF4_y2_uppervalue and ALERTS_TF4 ? 1 : low <= TF4_y2_lowervalue and ALERTS_TF4 ? -1 : 0 
+    TF5_alert = high >= TF5_y2_uppervalue and ALERTS_TF5 ? 1 : low <= TF5_y2_lowervalue and ALERTS_TF5 ? -1 : 0 
+    TF6_alert = high >= TF6_y2_uppervalue and ALERTS_TF6 ? 1 : low <= TF6_y2_lowervalue and ALERTS_TF6 ? -1 : 0 
+    TF7_alert = high >= TF7_y2_uppervalue and ALERTS_TF7 ? 1 : low <= TF7_y2_lowervalue and ALERTS_TF7 ? -1 : 0 
+    TF8_alert = high >= TF8_y2_uppervalue and ALERTS_TF8 ? 1 : low <= TF8_y2_lowervalue and ALERTS_TF8 ? -1 : 0 
+    TF9_alert = high >= TF9_y2_uppervalue and ALERTS_TF9 ? 1 : low <= TF9_y2_lowervalue and ALERTS_TF9 ? -1 : 0 
+    TF10_alert = high >= TF10_y2_uppervalue and ALERTS_TF10 ? 1 : low <= TF10_y2_lowervalue and ALERTS_TF10 ? -1 : 0 
+    TF11_alert = high >= TF11_y2_uppervalue and ALERTS_TF11 ? 1 : low <= TF11_y2_lowervalue and ALERTS_TF11 ? -1 : 0 
+    TF12_alert = high >= TF12_y2_uppervalue and ALERTS_TF12 ? 1 : low <= TF12_y2_lowervalue and ALERTS_TF12 ? -1 : 0 
+
+
+    TF1_COLOR = TF1_alert == 1 ? bull_color : TF1_alert == -1 ? bear_color : neutral_color
+    TF2_COLOR = TF2_alert == 1 ? bull_color : TF2_alert == -1 ? bear_color : neutral_color
+    TF3_COLOR = TF3_alert == 1 ? bull_color : TF3_alert == -1 ? bear_color : neutral_color
+    TF4_COLOR = TF4_alert == 1 ? bull_color : TF4_alert == -1 ? bear_color : neutral_color
+    TF5_COLOR = TF5_alert == 1 ? bull_color : TF5_alert == -1 ? bear_color : neutral_color
+    TF6_COLOR = TF6_alert == 1 ? bull_color : TF6_alert == -1 ? bear_color : neutral_color
+    TF7_COLOR = TF7_alert == 1 ? bull_color : TF7_alert == -1 ? bear_color : neutral_color
+    TF8_COLOR = TF8_alert == 1 ? bull_color : TF8_alert == -1 ? bear_color : neutral_color
+    TF9_COLOR = TF9_alert == 1 ? bull_color : TF9_alert == -1 ? bear_color : neutral_color
+    TF10_COLOR = TF10_alert == 1 ? bull_color : TF10_alert == -1 ? bear_color : neutral_color
+    TF11_COLOR = TF11_alert == 1 ? bull_color : TF11_alert == -1 ? bear_color : neutral_color
+    TF12_COLOR = TF12_alert == 1 ? bull_color : TF12_alert == -1 ? bear_color : neutral_color
+
+
+    table.cell(table_id = table, column = 0, row = 0, text = str.tostring('M5'), bgcolor = TF1_COLOR)
+    table.cell(table_id = table, column = 0, row = 1, text = str.tostring('M15'), bgcolor = TF2_COLOR)
+    table.cell(table_id = table, column = 0, row = 2, text = str.tostring('H1'), bgcolor = TF3_COLOR)
+    table.cell(table_id = table, column = 0, row = 3, text = str.tostring('H2'), bgcolor = TF4_COLOR)
+    table.cell(table_id = table, column = 0, row = 4, text = str.tostring('H3'), bgcolor = TF5_COLOR)
+    table.cell(table_id = table, column = 0, row = 5, text = str.tostring('H4'), bgcolor = TF6_COLOR)
+    table.cell(table_id = table, column = 0, row = 6, text = str.tostring('H6'), bgcolor = TF7_COLOR)
+    table.cell(table_id = table, column = 0, row = 7, text = str.tostring('H8'), bgcolor = TF8_COLOR)
+    table.cell(table_id = table, column = 0, row = 8, text = str.tostring('H10'), bgcolor = TF9_COLOR)
+    table.cell(table_id = table, column = 0, row = 9, text = str.tostring('H12'), bgcolor = TF10_COLOR)
+    table.cell(table_id = table, column = 0, row = 10, text = str.tostring('D1'), bgcolor = TF11_COLOR)
+    table.cell(table_id = table, column = 0, row = 11, text = str.tostring('D3'), bgcolor = TF12_COLOR)
+
+
+    new_above_alert = ( (TF1_alert == 1) or 
+     (TF2_alert == 1) or 
+     (TF3_alert == 1) or
+     (TF4_alert == 1) or
+     (TF5_alert == 1) or
+     (TF6_alert == 1) or
+     (TF7_alert == 1) or
+     (TF8_alert == 1) or
+     (TF9_alert == 1) or
+     (TF11_alert == 1) or
+     (TF11_alert == 1) or
+     (TF12_alert == 1) )
+    
+    
+    new_below_alert = ( (TF1_alert == -1) or 
+     (TF2_alert == -1) or 
+     (TF3_alert == -1) or
+     (TF4_alert == -1) or
+     (TF5_alert == -1) or
+     (TF6_alert == -1) or
+     (TF7_alert == -1) or
+     (TF8_alert == -1) or
+     (TF9_alert == -1) or
+     (TF10_alert == -1) or
+     (TF11_alert == -1) or
+     (TF12_alert == -1) )
+
+    
+    var above_alert_text_TF1 = ''
+    var above_alert_text_TF2 = ''
+    var above_alert_text_TF3 = ''
+    var above_alert_text_TF4 = ''
+    var above_alert_text_TF5 = ''
+    var above_alert_text_TF6 = ''
+    var above_alert_text_TF7 = ''
+    var above_alert_text_TF8 = ''
+    var above_alert_text_TF9 = ''
+    var above_alert_text_TF10 = ''
+    var above_alert_text_TF11 = ''
+    var above_alert_text_TF12 = ''
+
+    var below_alert_text_TF1 = ''
+    var below_alert_text_TF2 = ''
+    var below_alert_text_TF3 = ''
+    var below_alert_text_TF4 = ''
+    var below_alert_text_TF5 = ''
+    var below_alert_text_TF6 = ''
+    var below_alert_text_TF7 = ''
+    var below_alert_text_TF8 = ''
+    var below_alert_text_TF9 = ''
+    var below_alert_text_TF10 = ''
+    var below_alert_text_TF11 = ''
+    var below_alert_text_TF12 = ''
+    
+    
+    above_alert_text_TF1 := TF1_alert == 1 ?  'M5' : " "
+    above_alert_text_TF2 := TF2_alert == 1 ?  ", " + 'M15' : " "
+    above_alert_text_TF3 := TF3_alert == 1 ?  ", " + 'H1' : " "
+    above_alert_text_TF4 := TF4_alert == 1 ?  ", " + 'H2' : " "
+    above_alert_text_TF5 := TF5_alert == 1 ?  ", " + 'H3' : " "
+    above_alert_text_TF6 := TF6_alert == 1 ?  ", " + 'H4' : " "
+    above_alert_text_TF7 := TF7_alert == 1 ?  ", " + 'H6' : " "
+    above_alert_text_TF8 := TF8_alert == 1 ?  ", " + 'H8' : " "
+    above_alert_text_TF9 := TF9_alert == 1 ?  ", " + 'H10' : " "
+    above_alert_text_TF10 := TF10_alert == 1 ?  ", " + 'H12' : " "
+    above_alert_text_TF11 := TF11_alert == 1 ?  ", " + 'D1' : " "
+    above_alert_text_TF12 := TF12_alert == 1 ?  ", " + 'D3' : " "
+
+
+    below_alert_text_TF1 := TF1_alert == -1 ?  'M5' : " "
+    below_alert_text_TF2 := TF2_alert == -1 ?  ", " + 'M15' : " "
+    below_alert_text_TF3 := TF3_alert == -1 ?  ", " + 'H1' : " "
+    below_alert_text_TF4 := TF4_alert == -1 ?  ", " + 'H2' : " "
+    below_alert_text_TF5 := TF5_alert == -1 ?  ", " + 'H3' : " "
+    below_alert_text_TF6 := TF6_alert == -1 ?  ", " + 'H4' : " "
+    below_alert_text_TF7 := TF7_alert == -1 ?  ", " + 'H6' : " "
+    below_alert_text_TF8 := TF8_alert == -1 ?  ", " + 'H8' : " "
+    below_alert_text_TF9 := TF9_alert == -1 ?  ", " + 'H10' : " "
+    below_alert_text_TF10 := TF10_alert == -1 ?  ", " + 'H12' : " "
+    below_alert_text_TF11 := TF11_alert == -1 ?  ", " + 'D1' : " "
+    below_alert_text_TF12 := TF12_alert == -1 ?  ", " + 'D3' : " "
+
+    above_header = "ABOVE: "
+    below_header = "\n\nBELOW: "
+
+    if new_above_alert
+        alert(above_header+ 
+         above_alert_text_TF1 +
+         above_alert_text_TF2 +
+         above_alert_text_TF3 +
+         above_alert_text_TF4 +
+         above_alert_text_TF5 +
+         above_alert_text_TF6 +
+         above_alert_text_TF7 +
+         above_alert_text_TF8 +
+         above_alert_text_TF9 +
+         above_alert_text_TF10 +
+         above_alert_text_TF11 +
+         above_alert_text_TF12 +
+         below_header + 
+         below_alert_text_TF1 +
+         below_alert_text_TF2 +
+         below_alert_text_TF3 +
+         below_alert_text_TF4 +
+         below_alert_text_TF5 +
+         below_alert_text_TF6 +
+         below_alert_text_TF7 +
+         below_alert_text_TF8 +
+         below_alert_text_TF9 +
+         below_alert_text_TF10 +
+         below_alert_text_TF11 +
+         below_alert_text_TF12, alert.freq_once_per_bar_close)
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

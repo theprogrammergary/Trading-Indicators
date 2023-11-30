@@ -1,0 +1,45 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("TDI MTF")
+
+
+rsiPeriod = input.int(11, minval = 1, title = "RSI Period", group = 'TDI Settings')
+bandLength = input.int(31, minval = 1, title = "Band Length", group = 'TDI Settings')
+lengthrsipl = input.int(1, minval = 0, title = "Fast MA on RSI", group = 'TDI Settings')
+lengthtradesl = input.int(9, minval = 1, title = "Slow MA on RSI", group = 'TDI Settings')
+
+confirmation_tf = input.timeframe('60', title = 'TF', group = 'TDI Settings')
+
+// function to calculate tdi
+f_calculate_tdi(src) =>
+    
+    r = ta.rsi(src, rsiPeriod)                                                 
+    ma = ta.sma(r, bandLength)                                                 
+    offs = (1.6185 * ta.stdev(r, bandLength))
+    up = ma + offs                                                          
+    dn = ma - offs                                                          
+    mid = (up + dn) / 2                                                     
+    fastMA = ta.sma(r, lengthrsipl)                                            
+    slowMA = ta.sma(r, lengthtradesl)       
+
+    [up, dn, mid, slowMA, fastMA]
+
+src_ = timeframe.period == confirmation_tf ? close : close[1]
+[up1, dn1, mid1, slowMA1, fastMA1] = request.security(syminfo.tickerid, confirmation_tf, f_calculate_tdi(src_), lookahead = barmerge.lookahead_on)
+                                                            
+upl = plot(up1, "Upper Band", color = color.blue)                              
+dnl = plot(dn1, "Lower Band", color = color.blue)                              
+midl = plot(mid1, "Middle of Bands", color = color.yellow, linewidth = 2)      
+
+plot(slowMA1, "Slow MA", color=color.green, linewidth=2)
+plot(fastMA1, "Fast MA", color=color.red, linewidth=2)                         
+
+fill(upl, midl, color.new(color.red,90))                                     
+fill(midl, dnl, color.new(color.green,90))             
+
+
+hline(30)                                                               
+hline(50)                                                               
+hline(70)  

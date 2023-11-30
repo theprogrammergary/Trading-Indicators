@@ -1,0 +1,5 @@
+Please read the disclaimer. 
+
+For this to work properly you need to set intrabar order generation to on. That way you ensure that you are entering and exit at the correct times. Look at the attached picture to see how.
+
+Also look how much simpler my code is to do the same thing.

@@ -1,0 +1,76 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Level Theory", overlay = true, max_lines_count = 500)
+
+
+// --LEVEL SETTINGS-- //
+rounding_value = input.float(100, title = 'Rounding Value ', group = 'Level Settings', inline = '1')
+use_qtr_levels = input.bool(true, title = 'Quarter Levels', group = 'Level Settings', inline = '3')
+css_qtr = input.color(color.new(color.yellow,70), title = '', group = 'Level Settings', inline = '3')
+style_qtr = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '3')
+width_qtr = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '3')
+
+use_half_levels = input.bool(true, title = 'Half Levels   ', group = 'Level Settings', inline = '4')
+css_half = input.color(color.new(color.yellow,35), title = '', group = 'Level Settings', inline = '4')
+style_half = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '4')
+width_half = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '4')
+
+use_whole_levels = input.bool(true, title = 'Whole Levels ', group = 'Level Settings', inline = '5')
+css_whole = input.color(color.yellow, title = '', group = 'Level Settings', inline = '5')
+style_whole = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '5')
+width_whole = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '5')
+// --LEVEL SETTINGS-- //
+
+
+
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+f_draw_lines(lines, baseline, half_value, qtr_value) =>
+    
+    // clear
+    array_size = array.size(lines) 
+    if array_size > 0
+        for i = 0 to array_size- 1
+            line.delete(array.get(lines, i))
+        array.clear(lines)
+
+
+    for i = 0 to 10
+
+        if use_whole_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+(i*rounding_value), x2 = bar_index + 1, y2 = baseline+(i*rounding_value), extend = extend.both, width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-(i*rounding_value), x2 = bar_index + 1, y2 = baseline-(i*rounding_value), extend = extend.both,  width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+
+        if use_half_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+half_value+(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline+half_value+(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-half_value-(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline-half_value-(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+
+        if use_qtr_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+qtr_value+(i*(half_value)), x2 = bar_index + 1, y2 = baseline+qtr_value+(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-qtr_value-(i*(half_value)), x2 = bar_index + 1, y2 = baseline-qtr_value-(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+
+
+// --DRAW LINES-- //
+var lines = array.new_line(100, na)
+baseline = math.round( close / rounding_value) * rounding_value
+whole_value = rounding_value
+half_value = (rounding_value/2)
+qtr_value = (half_value/2)
+min_increment = use_qtr_levels ? qtr_value : use_half_levels ? half_value : use_whole_levels ? whole_value : na
+if barstate.islast or baseline != baseline[1]
+    f_draw_lines(lines, baseline, half_value, qtr_value) 
+// --DRAW LINES-- //
+
+
+
+
+
+

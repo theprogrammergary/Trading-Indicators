@@ -1,0 +1,4 @@
+I am about done with the scripts. The QQE_Mod works perfectly. The SSL works, but because it is so much code (almost 700 lines in TOS) it runs slowly. Is there anything I can remove such as lines, dots, etc. Or can I remove any of the moving average types. The moving average types take up the majority of the code and cause it to run slowly. 
+
+
+For example under SSL / Baseline Type do you really need all of those different types of averages or just a select few? Let me know because if you just need a few a will make a slim version so it runs better in TOS.

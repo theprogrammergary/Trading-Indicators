@@ -1,0 +1,150 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_inti_untestedlines", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_bars_back = 5000)
+
+//-----INPUTS-----//
+number_of_days = 500
+
+ext_untested = input.string('Today', title = 'Extension', options = ['Today', 'Forever'], group = 'Untested Settings', inline = '2')
+css_untested = input.color(color.new(color.white, 40), title = '', group = 'Untested Settings', inline = '3')
+style_untested = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Untested Settings', inline = '3')
+width_untested = input.int(1, title = '', minval = 1, maxval = 5, group = 'Untested Settings', inline = '3')
+
+ext_tested = input.string('Intersection', title = 'Extension', options = ['Today', 'Intersection', 'Forever'], group = 'Tested Settings', inline = '4')
+css_tested = input.color(color.new(color.yellow,25), title = '', group = 'Tested Settings', inline = '5')
+style_tested = input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Tested Settings', inline = '5')
+width_tested = input.int(1, title = '', minval = 1, maxval = 5, group = 'Tested Settings', inline = '5')
+f_style_tested = (style_tested == 'Solid' ? line.style_solid : style_tested == 'Dashed' ? line.style_dashed : style_tested == 'Dotted' ? line.style_dotted : line.style_solid)
+//-----INPUTS-----//
+
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+
+//--FUNCTION TO DRAW INITIAL LINES--//
+f_new_lines(highs_array, lows_array) =>
+
+    high_value = request.security(syminfo.tickerid, 'D', high[1], lookahead = barmerge.lookahead_on)
+    low_value = request.security(syminfo.tickerid, 'D', low[1], lookahead = barmerge.lookahead_on)
+
+    yesterday_time = request.security(syminfo.tickerid, 'D', time[1], lookahead = barmerge.lookahead_on)
+    today_time = request.security(syminfo.tickerid, 'D', time, lookahead = barmerge.lookahead_on)
+
+    // high line, delete oldest and then add new one
+    box.delete( array.get(highs_array, array.size(highs_array) - 1) )
+    f_array_add_pop(highs_array, box.new(left = yesterday_time, top = high_value, right = today_time, bottom = high_value, xloc = xloc.bar_time, border_color = css_untested, 
+     extend = extend.right, bgcolor = css_untested, border_style = (style_untested == 'Solid' ? line.style_solid : style_untested == 'Dashed' ? line.style_dashed :
+     style_untested == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    // low line, delete oldest and then add new one
+    box.delete( array.get(lows_array, array.size(lows_array) - 1) )
+    f_array_add_pop(lows_array, box.new(left = yesterday_time, top = low_value, right = today_time, bottom = low_value, xloc = xloc.bar_time, border_color = css_untested, 
+     extend = extend.right, bgcolor = css_untested, border_style = (style_untested == 'Solid' ? line.style_solid : style_untested == 'Dashed' ? line.style_dashed : 
+     style_untested == 'Dotted' ? line.style_dotted : line.style_solid)))
+//--FUNCTION TO DRAW INITIAL LINES--//
+
+
+//--FUNCTION TO CHANGE TO TESTED--//
+f_check_4_test(highs_array, lows_array, highs_tested_array, lows_tested_array) =>
+    
+    for i = 0 to array.size(highs_array) - 1
+        high_to_break = box.get_top(array.get(highs_array,i))
+        start_time = box.get_left(array.get(highs_array,i))
+        end_time = box.get_right(array.get(highs_array,i))
+
+        if high > high_to_break
+            f_array_add_pop(lows_tested_array, line.new(x1 = start_time, y1 = high_to_break, x2 = time, y2 = high_to_break, xloc = xloc.bar_time, extend =  extend.none, color = css_tested, 
+             style = (style_tested == 'Solid' ? line.style_solid : style_tested == 'Dashed' ? line.style_dashed : style_tested == 'Dotted' ? line.style_dotted : line.style_solid), width = width_tested))
+            box.delete(array.get(highs_array, i))
+            line.delete(array.get(highs_tested_array, array.size(lows_tested_array) - 1))
+
+
+    for i = 0 to array.size(lows_array) - 1
+        low_to_break = box.get_top(array.get(lows_array,i))
+        start_time = box.get_left(array.get(lows_array,i))
+        end_time = box.get_right(array.get(lows_array,i))
+
+        if low < low_to_break
+            f_array_add_pop(lows_tested_array, line.new(x1 = start_time, y1 = low_to_break, x2 = time, y2 = low_to_break, xloc = xloc.bar_time, extend = extend.none, color = css_tested, 
+             style = (style_tested == 'Solid' ? line.style_solid : style_tested == 'Dashed' ? line.style_dashed : style_tested == 'Dotted' ? line.style_dotted : line.style_solid), width = width_tested))
+            box.delete(array.get(lows_array, i))
+            line.delete(array.get(lows_tested_array, array.size(lows_tested_array) - 1))
+//--FUNCTION TO CHANGE TO TESTED--//
+
+
+//--FUNCTION TO MANAGE BOX EXTENSIONS--//
+f_manage_box(highs_array, lows_array) =>
+
+    extension_type = ext_untested == 'Today' ? extend.none : extend.right
+
+    for i = 0 to array.size(highs_array) - 1
+        box.set_right(array.get(highs_array,i), time)
+        box.set_extend(array.get(highs_array,i), extension_type)
+
+    for i = 0 to array.size(lows_array) - 1
+        box.set_right(array.get(lows_array,i), time)
+        box.set_extend(array.get(lows_array,i), extension_type)
+//--FUNCTION TO MANAGE BOX EXTENSIONS--//
+
+
+//--FUNCTION TO MANAGE LINE EXTENSIONS--//
+f_manage_line(highs_tested_array, lows_tested_array) =>
+
+    extension_type = ext_tested == 'Today' or ext_tested == 'Intersection' ? extend.none : extend.right
+
+    for i = 0 to array.size(highs_tested_array) - 1
+        if ext_tested != 'Intersection'
+            line.set_x2(array.get(highs_tested_array,i), time)
+        line.set_extend(array.get(highs_tested_array,i), extension_type)
+
+    for i = 0 to array.size(lows_tested_array) - 1
+        if ext_tested != 'Intersection'
+            line.set_x2(array.get(lows_tested_array,i), time)
+        line.set_extend(array.get(lows_tested_array,i), extension_type)
+//--FUNCTION TO MANAGE BOX EXTENSIONS--//
+
+
+//-----FUNCTIONS-----//
+
+
+
+//-----DEFINE VARIABLES-----//
+//--ARRAYS FOR UNTESTED DAILY HIGH/LOWS--//
+var untested_highs = array.new_box(number_of_days, na)
+var untested_lows = array.new_box(number_of_days, na)
+//--ARRAYS FOR UNTESTED DAILY HIGH/LOWS--//
+
+
+//--ARRAYS FOR TESTED DAILY HIGH/LOWS--//
+var tested_highs = array.new_line(number_of_days, na)
+var tested_lows = array.new_line(number_of_days, na)
+//--ARRAYS FOR TESTED DAILY HIGH/LOWS--//
+//-----DEFINE VARIABLES-----//
+
+
+
+//-----RUN CODE-----//
+new_day = ta.change(time("D"))
+// bgcolor(new_day ? color.new(color.red, 80) : na)
+
+// draw new lines on a new day
+if new_day
+    f_new_lines(untested_highs, untested_lows)
+
+// see if we need to switch lines to tested state
+f_check_4_test(untested_highs, untested_lows, tested_highs, tested_lows)
+
+
+// manage the extensions of boxes or untested lines
+if barstate.islast
+    f_manage_box(untested_highs, untested_lows) 
+    f_manage_line(tested_highs, tested_lows) 
+
+//-----RUN CODE-----//

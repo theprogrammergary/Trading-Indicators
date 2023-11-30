@@ -1,0 +1,51 @@
+declare upper;
+
+input rsi_above = 51;
+input rsi_below = 49;
+
+def rsi = reference RSI();
+
+plot up_arrow = rsi > rsi_above;
+plot down_arrow = rsi < rsi_below;
+
+up_arrow.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_UP);
+up_arrow.SetDefaultColor(Color.GREEN);
+
+down_arrow.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_DOWN);
+down_arrow.SetDefaultColor(Color.RED);
+
+
+input volume_trigger = 100000;
+def daily_volume = volume(period = AggregationPeriod.DAY);
+def volume_signal = daily_volume >= volume_trigger;
+
+input rsi_trigger_value = 5;
+input rsi_trigger_over_x_bars = 2;
+input rsi_trigger_true_within_x_bars = 9;
+
+def rsi_chg = rsi - rsi[rsi_trigger_over_x_bars];
+
+def rsi_big_increase = rsi_chg >= rsi_trigger_value;
+def rsi_big_decrease = rsi_chg <= -rsi_trigger_value;
+def rsi_either_increase_or_decrease = rsi_big_increase is true within rsi_trigger_true_within_x_bars bars or rsi_big_decrease is true within rsi_trigger_true_within_x_bars bars;
+
+plot True = up_arrow
+and close > low + (high - low) * 0.75
+and open > low + (high - low) * 0.05
+and close[1] > low[1] + (high[1] - low[1]) * 0.75
+and open[1] > low[1] + (high[1] - low[1]) * 0.05
+and volume_signal
+and (close > open)
+and (high - low) > (high[1] - low [1])
+and (high - low) > (high[2] - low [2])
+and (high - low >= 0.20)
+and low > ((low[1] + (high[1] - low[1]) * 0.50))
+and (high - low) > ((high[1] - low[1]) + ((high[1] - low [1]) * 0.75))
+and (high - low) > ((high[2] - low[2]) + ((high[2] - low [2]) * 0.75))
+and open is less than SimpleMovingAvg("price" = close, "length" = 7)."SMA"
+
+and rsi_either_increase_or_decrease;
+
+True.SetLineWeight(5);
+True.SetDefaultColor(Color.YELLOW);
+True.SetPaintingStrategy(PaintingStrategy.BOOLEAN_POINTS);

@@ -1,0 +1,232 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_mattmoheeka_combined", overlay = true)
+
+
+hide_on_daily = timeframe.isdwm ? true : false
+
+//inputs
+timeframe = input.timeframe('D', title = 'Time Period', group = 'Settings')
+add_on_one = input.float(5.00, title = 'Add On #1', group = 'Settings')
+add_on_two = input.float(10.00, title = 'Add On #2', group = 'Settings')
+show_previous_days = input.bool(true, title = 'Show Previous Days', group = 'Settings')
+extend_today = input.bool(false, title = 'Extend Today Across Chart', group = 'Settings')
+
+// barcolor(session.ispremarket ? color.yellow : color.black)
+
+todays_o = request.security(syminfo.tickerid, timeframe, open, lookahead = barmerge.lookahead_on)
+todays_c = request.security(syminfo.tickerid, timeframe, close, lookahead = barmerge.lookahead_on) //because it doesnt plot on PM correctly
+yesterdays_c = request.security(syminfo.tickerid, timeframe, close[1], lookahead = barmerge.lookahead_on)
+
+today_open = session.ispremarket ? na : todays_o
+y_close = session.ispremarket ? todays_c : yesterdays_c
+
+plot_cond = not hide_on_daily and show_previous_days
+
+//colors
+one_color = input.color(color.new(color.yellow,0), title = 'One Color', group = 'Visual Settings')
+two_color = input.color(color.new(color.yellow,0), title = 'Two Color', group = 'Visual Settings')
+
+yc0_color = input.color(color.new(color.orange,0), title = 'yc0 Color', group = 'Visual Settings')
+yc1_color = input.color(color.new(color.orange,0), title = 'yc1 Color', group = 'Visual Settings')
+
+new_day = dayofmonth != dayofmonth[1]
+
+
+//plots
+one_plot = plot(plot_cond ? today_open + add_on_one : na, title = 'One', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : one_color, editable = false)
+two_plot = plot(plot_cond ? today_open + add_on_two : na, title = 'Two', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : two_color, editable = false)
+
+yc0_plot = plot(plot_cond ? y_close + add_on_one : na, title = 'yC0', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc0_color, editable = false)
+yc1_plot = plot(plot_cond ? y_close + add_on_two : na, title = 'yC1', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc1_color, editable = false)
+
+
+if extend_today
+
+    one_line = line.new(x1=bar_index - 10, x2=bar_index, y1=today_open + add_on_one, y2=today_open + add_on_one, xloc=xloc.bar_index, width=1, color=one_color, extend=extend.both, style=line.style_solid)
+    line.delete(one_line[1])
+    
+    two_line = line.new(x1=bar_index - 10, x2=bar_index, y1=today_open + add_on_two, y2=today_open + add_on_two, xloc=xloc.bar_index, width=1, color=two_color, extend=extend.both, style=line.style_solid)
+    line.delete(two_line[1])
+
+    yc0_line = line.new(x1=bar_index - 10, x2=bar_index, y1=y_close + add_on_one, y2=y_close + add_on_one, xloc=xloc.bar_index, width=1, color=yc0_color, extend=extend.both, style=line.style_solid)
+    line.delete(yc0_line[1])
+
+    yc1_line = line.new(x1=bar_index - 10, x2=bar_index, y1=y_close + add_on_two, y2=y_close + add_on_two, xloc=xloc.bar_index, width=1, color=yc1_color, extend=extend.both, style=line.style_solid)
+    line.delete(yc1_line[1])
+
+
+
+// candle color settings
+default_bullbody        = input.color(color.new(#ffffff, 100), title = 'Bull Body', group = 'Default Candles')
+default_bulloutline     = input.color(color.new(#007633, 0), title = 'Bull Outline', group = 'Default Candles')
+default_bullwick        = input.color(color.new(#007633,0), title = 'Bull Wick', group = 'Default Candles')
+
+default_bearbody        = input.color(color.new(#ffffff, 100), title = 'Bear Body', group = 'Default Candles')
+default_bearoutline     = input.color(color.new(#8c2830, 0), title = 'Bear Outline', group = 'Default Candles')
+default_bearwick        = input.color(color.new(#8c2830,0), title = 'Bear Wick', group = 'Default Candles')
+
+
+// first candle of day settings
+_color_firsts         = input.bool(true, title = 'Color First Candles', group = 'First Candles')
+first_time            = input.session("0930-0931", title = 'First Candle Time (EST.)', group = 'First Candles')
+first_bullbody        = input.color(color.new(#20ff36, 0), title = 'Bull Body', group = 'First Candles')
+first_bulloutline     = input.color(color.new(#2f7736, 0), title = 'Bull Outline', group = 'First Candles')
+first_bullwick        = input.color(color.new(#2f7736,0), title = 'Bull first', group = 'First Candles')
+
+first_bearbody        = input.color(color.new(#ff2989, 0), title = 'Bear Body', group = 'First Candles')
+first_bearoutline     = input.color(color.new(#a42525, 0), title = 'Bear Outline', group = 'First Candles')
+first_bearwick        = input.color(color.new(#a42525,0), title = 'Bear first', group = 'First Candles')
+
+
+// wick settings
+_wickratio_size = input.float(1.1, title = 'Wick Compared Against Body Ratio', group = 'Wick Candles')
+_wicktowickratio_size = input.float(1.1, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Wick Candles', minval = 1.0)
+wick_bullbody        = input.color(color.new(#7cf1ff, 0), title = 'Bull Body', group = 'Wick Candles')
+wick_bulloutline     = input.color(color.new(#7cf1ff, 0), title = 'Bull Outline', group = 'Wick Candles')
+wick_bullwick        = input.color(color.new(#7cf1ff,0), title = 'Bull Wick', group = 'Wick Candles')
+
+wick_bearbody        = input.color(color.new(#ffeb3b, 0), title = 'Bear Body', group = 'Wick Candles')
+wick_bearoutline     = input.color(color.new(#ffeb3b, 0), title = 'Bear Outline', group = 'Wick Candles')
+wick_bearwick        = input.color(color.new(#ffeb3b,0), title = 'Bear Wick', group = 'Wick Candles')
+
+
+// doji settings
+_color_dojis = input.bool(true, title = 'Color Doji Candles', group = 'Doji Candles')
+_dojiratio_size = input.float(1.0, title = 'Wick Compared Against Body Ratio', group = 'Doji Candles')
+_dojitodojiratio_size = input.float(1.0, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Doji Candles')
+doji_body        = input.color(color.new(#2962ff, 0), title = 'Doji Body', group = 'Doji Candles')
+doji_outline     = input.color(color.new(#2962ff, 0), title = 'Doji Outline', group = 'Doji Candles')
+doji_wick        = input.color(color.new(#2962ff,0), title = 'Doji Wick', group = 'Doji Candles')
+
+
+// first candle calculations
+var bool is_first_candle = na
+var bool first_candle_bull = na 
+var bool first_candle_bear = na 
+is_first_candle := time('', first_time, 'America/New_York') and _color_firsts
+first_candle_bull := is_first_candle and close >= open
+first_candle_bear := is_first_candle and close < open
+// bgcolor(is_first_candle ? color.yellow : na)
+
+
+// wick calculations
+var float body_size = na
+var float topwick_size = na
+var float bottomwick_size = na
+var float wick_size = na
+var float body_wick_ratio = na
+
+var bool top_wicked = na
+var bool bottom_wicked = na
+
+body_size := math.abs(close-open)
+topwick_size := high - math.max(close,open)
+bottomwick_size := math.min(close,open) - low
+wick_size := topwick_size + bottomwick_size
+body_wick_ratio := wick_size / body_size
+
+_candleSignalBodySize = input.float(0.01, title = 'Signal Body Size', group = 'Candle Signal Value')
+
+signal_bodysize = math.abs(high - low)/low
+
+top_wicked := barstate.isconfirmed and (topwick_size/body_size) >= _wickratio_size and (topwick_size/bottomwick_size >= _wicktowickratio_size and signal_bodysize > _candleSignalBodySize)
+bottom_wicked := barstate.isconfirmed and (bottomwick_size/body_size) >= _wickratio_size and (bottomwick_size/topwick_size >= _wicktowickratio_size and signal_bodysize > _candleSignalBodySize)
+
+
+// doji calculations
+var bool is_doji = na
+is_doji := barstate.isconfirmed and _color_dojis and math.min(topwick_size/body_size, bottomwick_size/body_size) >= _wickratio_size and (math.max(topwick_size/bottomwick_size, bottomwick_size/topwick_size) <= _dojitodojiratio_size)
+// bgcolor(is_doji ? color.yellow : na)
+
+
+// color calculations
+var color css_body = na
+var color css_wick = na
+var color css_outline = na
+var bool  bullish_candle = na
+var bool  bearish_candle = na
+
+bullish_candle := close > open
+bearish_candle := close < open
+
+css_body := first_candle_bull ? first_bullbody : 
+ first_candle_bear ? first_bearbody :
+ is_doji ? doji_body : 
+ top_wicked ? wick_bearbody : 
+ bottom_wicked ? wick_bullbody : 
+ bullish_candle ? default_bullbody : 
+ bearish_candle ? default_bearbody : 
+ default_bullbody
+
+css_wick := first_candle_bull ? first_bullwick : 
+ first_candle_bear ? first_bearwick :
+ is_doji ? doji_wick : 
+ top_wicked ? wick_bearwick : 
+ bottom_wicked ? wick_bullwick : 
+ bullish_candle ? default_bullwick : 
+ bearish_candle ? default_bearwick : 
+ default_bullwick
+
+css_outline := first_candle_bull ? first_bulloutline : 
+ first_candle_bear ? first_bearoutline :
+ is_doji ? doji_outline : 
+ top_wicked ? wick_bearoutline : 
+ bottom_wicked ? wick_bulloutline : 
+ bullish_candle ? default_bulloutline : 
+ bearish_candle ? default_bearoutline : 
+ default_bulloutline
+
+plotcandle(open,high,low,close,title='Custom Candles', color = css_body, wickcolor = css_wick, bordercolor = css_outline)
+
+
+// alerts
+alertcondition(is_doji, 'Doji Candle', 'Doji Candle')
+alertcondition(bottom_wicked, 'Bottom Wicked', 'Bottom Wicked')
+alertcondition(top_wicked, 'Top Wicked', 'Top Candlwicked')
+
+
+
+
+
+// combined logic
+// one_plot = plot(plot_cond ? today_open + add_on_one : na, title = 'One', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : one_color, editable = false)
+// two_plot = plot(plot_cond ? today_open + add_on_two : na, title = 'Two', style = plot.style_linebr, color=session.ispremarket or new_day ? color.new(#000000,100) : two_color, editable = false)
+
+// yc0_plot = plot(plot_cond ? y_close + add_on_one : na, title = 'yC0', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc0_color, editable = false)
+// yc1_plot = plot(plot_cond ? y_close + add_on_two : na, title = 'yC1', style = plot.style_linebr, color= new_day ? color.new(#000000,100) : yc1_color, editable = false)
+
+var bool touchOne = false
+var bool touchTwo = false
+var bool yc0 = false
+var bool yc1 = false
+
+touchOneCond = high >= today_open + add_on_one and low <= today_open + add_on_one
+touchTwoCond = high >= today_open + add_on_two and low <= today_open + add_on_two
+yc0Cond = high >= y_close + add_on_one and low <= y_close + add_on_one
+yc1Cond = high >= y_close + add_on_two and low <= y_close + add_on_two
+
+touchOne := touchOneCond 
+touchTwo := touchTwoCond 
+yc0 := yc0Cond 
+yc1 := yc1Cond 
+
+
+// CREATE alerts
+var bool topWick_touch = false
+var bool botWick_touch = false
+var bool doji_touch = false
+
+
+topWick_touch := top_wicked and (touchOneCond or touchTwoCond or yc0Cond or yc1Cond)
+botWick_touch := bottom_wicked and (touchOneCond or touchTwoCond or yc0Cond or yc1Cond)
+doji_touch := is_doji and (touchOneCond or touchTwoCond or yc0Cond or yc1Cond)
+
+
+alertcondition(is_doji, 'Doji Candle & Level', 'Doji Candle & Level')
+alertcondition(bottom_wicked, 'Bottom Wicked & Level', 'Bottom Wicked & Level')
+alertcondition(topWick_touch, 'Top Wicked & Level', 'Top Wicked & Level')
+
+bgcolor(topWick_touch or botWick_touch or doji_touch ? color.new(color.white,90) : na)

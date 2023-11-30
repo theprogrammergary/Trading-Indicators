@@ -1,0 +1,6 @@
+I am just sending this over. It is not complete I need the market to be open to finish completing the alert text functionality. The alerts work they just have to be in the right order to display the correct text in case R1 and R2 are equal to each other.
+
+
+For the coloring in the radarscreen I stuck with the same model used in the previous trend trader. Let me know if you would like something different.
+
+I should have this completed tomorrow afternoon and then I will re-send everything along with a video explaining more in detail. If you see anything from this version let me know.

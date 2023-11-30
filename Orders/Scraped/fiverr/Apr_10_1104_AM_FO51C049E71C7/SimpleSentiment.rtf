@@ -1,0 +1,186 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Calibri;}}
+{\colortbl ;\red0\green0\blue255;}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\f0\fs22\lang9 // This source code is subject to the terms of the Mozilla Public License 2.0 at {{\field{\*\fldinst{HYPERLINK https://mozilla.org/MPL/2.0/ }}{\fldrslt{https://mozilla.org/MPL/2.0/\ul0\cf0}}}}\f0\fs22\par
+\par
+//@version=5\par
+indicator("Simple Sentiment", overlay = true)\par
+\par
+//DASHBOARD\par
+panelbull_color = input.color(#27a69b, title='Bull Color', inline='1', group='Dashboard Settings')\par
+panelbear_color = input.color(#b63632, title='Bear Color', inline='1', group='Dashboard Settings')\par
+panelneutral_color = input.color(color.gray, title='Neutral Color', inline='1', group='Dashboard Settings')\par
+\par
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Dashboard Settings')\par
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small\par
+positioning = position.top_right \par
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Dashboard Settings')\par
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Dashboard Settings')\par
+dashboard_bull = color.new(panelbull_color,40)\par
+dashboard_bear = color.new(panelbear_color,40)\par
+\par
+use_symbol1 = input.bool(false, ' ', group='Scanner Settings', inline = '1')\par
+symbol1 = input.symbol("BTCUSD", title = 'Symbol 1', group='Scanner Settings', inline = '1')\par
+real_symbol1 = use_symbol1 ? symbol1 : syminfo.tickerid\par
+\par
+//MAIN CODE\par
+tf1 = "1"\par
+tf2 = "5"\par
+tf3 = "15"\par
+tf4 = "30"\par
+tf5 = "60"\par
+tf6 = "240"\par
+\par
+tf1_bars_back = 100\par
+tf2_bars_back = 12\par
+tf3_bars_back = 4\par
+tf4_bars_back = 2\par
+tf5_bars_back = 1\par
+tf6_bars_back = 1\par
+\par
+get_count_function(symbol, tf, bars_back) =>\par
+\par
+    bull_count = request.security(symbol, tf , math.sum(close[1] >= open[1] ? 1 : 0,bars_back), lookahead = barmerge.lookahead_off)\par
+    bear_count = bars_back - bull_count\par
+    \par
+    what_color = bull_count > bear_count ? panelbull_color : bear_count > bull_count ? panelbear_color : panelneutral_color\par
+\par
+    [bull_count, bear_count, what_color]\par
+    \par
+[sym1_tf1_bull, sym1_tf1_bear, color_sym1_tf1] = get_count_function(real_symbol1, tf1, tf1_bars_back)\par
+[sym1_tf2_bull, sym1_tf2_bear, color_sym1_tf2] = get_count_function(real_symbol1, tf2, tf2_bars_back)\par
+[sym1_tf3_bull, sym1_tf3_bear, color_sym1_tf3] = get_count_function(real_symbol1, tf3, tf3_bars_back)\par
+[sym1_tf4_bull, sym1_tf4_bear, color_sym1_tf4] = get_count_function(real_symbol1, tf4, tf4_bars_back)\par
+[sym1_tf5_bull, sym1_tf5_bear, color_sym1_tf5] = get_count_function(real_symbol1, tf5, tf5_bars_back)\par
+[sym1_tf6_bull, sym1_tf6_bear, color_sym1_tf6] = get_count_function(real_symbol1, tf6, tf6_bars_back)\par
+\par
+all_green = color_sym1_tf1 == panelbull_color and\par
+     color_sym1_tf2 == panelbull_color and\par
+     color_sym1_tf3 == panelbull_color and\par
+     color_sym1_tf4 == panelbull_color and\par
+     color_sym1_tf5 == panelbull_color and\par
+     color_sym1_tf6 == panelbull_color\par
+\par
+all_red = color_sym1_tf1 == panelbear_color and\par
+     color_sym1_tf2 == panelbear_color and\par
+     color_sym1_tf3 == panelbear_color and\par
+     color_sym1_tf4 == panelbear_color and\par
+     color_sym1_tf5 == panelbear_color and\par
+     color_sym1_tf6 == panelbear_color\par
+     \par
+//SIGNAL INPUTS\par
+useTradingHours = input.bool(false, title = " ", group = "Trade Settings", inline = '1')\par
+trading_time = input.session("0930-1600", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Trade Settings", inline = '1')\par
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")\par
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Trade Settings", inline = '2')\par
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Trade Settings", inline = '3')\par
+\par
+//ENTRY / EXIT SIGNALS\par
+var in_trade = false\par
+var trade_side = 0\par
+\par
+long_entry = long_trades and trading_hours_cond and (all_green and not all_green[1]) and trade_side[1] != 1\par
+short_entry = short_trades and trading_hours_cond and (all_red and not all_red[1])  and trade_side[1] != -1\par
+\par
+//TARGETS AND STOPS\par
+use_profit_target = input.bool(true, title = " ", group = "Trade Settings", inline = '5')\par
+pt_amount = input.float(2.00, minval = 0.00, maxval = 99.0, step = 0.25, title = "Profit Target %",  tooltip = "Profit Target %. Based off asset price from entry." , group = "Trade Settings", inline = '5')\par
+use__stop = input.bool(true, title = " ", group = "Trade Settings", inline = '6')\par
+stop_amount = input.float(1.50, minval = 0.00, maxval = 99.0, step = 0.25, title = "Stop %" ,  tooltip = "Stop %. Based off asset price from entry.", group = "Trade Settings", inline = '6')\par
+\par
+var target = 99999999.99\par
+var stop = 0.000000\par
+var entry_price = 0.00\par
+\par
+entry_price := long_entry[1] or short_entry[1] ? open :  in_trade == true ? entry_price[1] : na\par
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]\par
+\par
+if use_profit_target\par
+    target := trade_side == 1 ? entry_price + (entry_price * (pt_amount/100)) : trade_side == -1 ? entry_price - (entry_price * (pt_amount/100)) : na\par
+if use__stop    \par
+    stop := trade_side == 1 ? entry_price - (entry_price * (stop_amount/100)) : trade_side == -1 ? entry_price + (entry_price * (stop_amount/100)) : na\par
+\par
+tgt_hit = trade_side == 1 and high >= target or trade_side == -1 and low <= target\par
+stop_hit = trade_side == 1 and low <= stop or trade_side == -1 and high >= stop\par
+\par
+long_exit = ((not short_trades and (all_red[1] or not trading_hours_cond)) or (tgt_hit or stop_hit)) and in_trade[1] == true and trade_side[1] == 1\par
+short_exit = ((not long_trades and (all_green[1] or not trading_hours_cond)) or (tgt_hit or stop_hit)) and in_trade[1] == true and trade_side[1] == -1\par
+\par
+in_trade := long_entry[1] or short_entry[1] ? true : long_exit or short_exit ?  false : in_trade[1]\par
+    \par
+//PLOTS\par
+show_signals = input.bool(true, title = 'Show Signals', inline='1', group='Visual Settings')\par
+// label_offset = input.int(25, minval = 1, title=' | Offset', inline='1', group='Visual Settings')\par
+\par
+plotshape(show_signals and long_entry[1] , style = shape.triangleup, location = location.belowbar, color=color.new(panelbull_color, 30), size=size.small, title = 'Long Entry')\par
+plotshape(show_signals and short_entry[1] , style = shape.triangledown, location = location.abovebar, color=color.new(panelbear_color, 30), size=size.small, title = 'SS Entry')\par
+\par
+plotshape(show_signals and short_exit, style = shape.triangleup, location = location.belowbar, color=color.new(dashboard_text, 30), size=size.small, title = 'SS Exit')\par
+plotshape(show_signals and long_exit, style = shape.triangledown, location = location.abovebar, color=color.new(dashboard_text, 30), size=size.small, title = 'Long Exit')\par
+\par
+show_lines = input.bool(true, title = 'Show Lines', inline='1', group='Visual Settings')\par
+entry_color = input.color(color.blue, title = 'Entry Color', group = 'Visual Settings', inline = '3')\par
+tgt_color = input.color(#27a69b, title = 'Tgt Color', group = 'Visual Settings', inline = '3')\par
+stop_color = input.color(#b63632, title = 'Stop Color', group = 'Visual Settings', inline = '3')\par
+\par
+plot(show_lines ? entry_price : na, title = 'Entry Line', color = entry_color, style = plot.style_circles, editable = false)\par
+plot(show_lines ? target : na, title = 'Target Line', color = tgt_color, style = plot.style_circles, editable = false)\par
+plot(show_lines ? stop : na, title = 'Stop Line', color = stop_color, style = plot.style_circles, editable = false)\par
+\par
+//BG Color\par
+var last_signal_no_stop_tgt = 0\par
+last_signal_no_stop_tgt := all_green and not all_green[1] ? 1 : all_red and not all_red[1] ? -1 : last_signal_no_stop_tgt[1]\par
+\par
+var last_signal_stop_tgt = 0\par
+last_signal_stop_tgt := trade_side\par
+\par
+last_signal = (use_profit_target or use__stop) ? last_signal_stop_tgt : last_signal_no_stop_tgt\par
+\par
+color_bg = input.bool(true, title = 'Color BG', inline='1', group='Visual Settings')\par
+bgcolor(not color_bg ? na : last_signal == 1 ? color.new(panelbull_color,80) : last_signal == -1 ? color.new(panelbear_color,80) : na)\par
+\par
+\par
+//ALERTS\par
+if long_entry\par
+    alert('Long Entry' , alert.freq_once_per_bar_close)\par
+if short_entry\par
+    alert('Short Entry' , alert.freq_once_per_bar_close)\par
+    \par
+if long_exit\par
+    alert('Long Exit', alert.freq_once_per_bar)\par
+if short_exit\par
+    alert('Short Exit', alert.freq_once_per_bar)\par
+    \par
+alertcondition(all_green and not all_green[1] , title='All Timeframes Green', message='All Timeframes Green')\par
+alertcondition(all_red and not all_red[1] , title='All Timeframes Red', message='All Timeframes Red')\par
+\par
+\par
+\par
+\par
+\par
+//TABLE\par
+var table t = table.new(positioning, 7, 3, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)\par
+if barstate.islast\par
+\par
+    //Column 1\par
+    table.cell(t, 0, 0, text='Simple Sentiment', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 0, 1, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 0, 2, text=str.substring(real_symbol1, str.pos(real_symbol1, ":") + 1), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    \par
+    table.cell(t, 1, 1, text= tf1, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 2, 1, text= tf2, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 3, 1, text= tf3, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 4, 1, text= tf4, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)       \par
+    table.cell(t, 5, 1, text= tf5, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 6, 1, text= tf6, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)  \par
+    \par
+    table.cell(t, 1, 2, text= "   ", width=3, bgcolor=color_sym1_tf1, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 2, 2, text= "   ", width=3, bgcolor=color_sym1_tf2, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)   \par
+    table.cell(t, 3, 2, text= "   ", width=3, bgcolor=color_sym1_tf3, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    \par
+    table.cell(t, 4, 2, text= "   ", width=3, bgcolor=color_sym1_tf4, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    \par
+    table.cell(t, 5, 2, text= "   ", width=3, bgcolor=color_sym1_tf5, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    table.cell(t, 6, 2, text= "   ", width=3, bgcolor=color_sym1_tf6, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)\par
+    \par
+    table.merge_cells(t, 0, 0, 6, 0)\par
+}
+ 

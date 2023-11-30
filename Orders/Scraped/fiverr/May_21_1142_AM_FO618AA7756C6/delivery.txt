@@ -1,0 +1,13 @@
+Please read the disclaimer.
+
+Here is the link
+https://tos.mx/YcQy5ed
+
+Use the input setting offset to change from 0.01 to whatever you want. Now the plots input has 4 types. 
+
+Long_CurrentPrice
+Long_yC
+Short_CurrentPrice
+Short_yC
+
+Let me know if you have any questions.

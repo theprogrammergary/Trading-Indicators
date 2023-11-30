@@ -1,0 +1,181 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_dan_skarda", overlay=true, margin_long=100, margin_short=100, default_qty_type = strategy.percent_of_equity, default_qty_value = 20)
+
+// inputs
+tradeTime       = input.session("0915-1615", title = 'Trade Time', group = 'Settings', inline = "0")
+
+shortMaLength   = input.int(5, title = 'Short MA', group = 'Settings', inline = '1')
+shortMaType     = input.string("EMA", title = "", options = ["EMA", "SMA", "HMA", "WMA"], group = 'Settings', inline = '1')
+
+longMaLength    = input.int(10, title = 'Long MA', group = 'Settings', inline = '2')
+longMaType      = input.string("EMA", title = "", options = ["EMA", "SMA", "HMA", "WMA"], group = 'Settings', inline = '2')
+
+incrementTP     = input.bool(true, title = 'Incremental TP', group = 'Settings', inline = '3')
+iTPAmount       = input.float(0.25, step = 0.25, title ="%", group = 'Settings', inline = '3')
+
+cumTP           = input.bool(true, title = 'Cumulative TP', group = 'Settings', inline = '4')
+cumTPAmount     = input.float(1000, step=100, title ="$", group = 'Settings', inline = '4')
+
+incrementSL     = input.bool(true, title = 'Incremental SL', group = 'Settings', inline = '5')
+iSLAmount       = input.float(0.40, step = 0.25,  title ="%", group = 'Settings', inline = '5')
+
+cumSL           = input.bool(true, title = 'Cumulative SL', group = 'Settings', inline = '6')
+cumSLAmount     = input.float(1000, step=100, title ="$", group = 'Settings', inline = '6')
+
+
+// calculate mas
+f_ma(i_maType, i_maLength) =>
+    float ma = switch i_maType
+        "EMA" => ta.ema(close, i_maLength)
+        "SMA" => ta.sma(close, i_maLength)
+        "HMA" => ta.rma(close, i_maLength)
+        "WMA" => ta.rma(close, i_maLength)
+        => ta.ema(close, i_maLength)
+
+short_MA    = f_ma(shortMaType, shortMaLength)
+long_MA     = f_ma(longMaType, longMaLength)
+plot(short_MA, color = color.yellow, title =' Short MA')
+plot(long_MA, color = color.orange, title =' Long MA')
+
+
+// strategy logic
+isTradeTime = time == time(timeframe.period, tradeTime, "America/New_York")
+
+var bool tradingOkay    = false
+var bool longsOkay      = false
+var bool shortsOkay     = false
+var float begSessEquity = 0.00
+var float sessionPNL    = 0.00
+
+var float iLongTarget    = 0.00
+var float iShortTarget   = 0.00
+var float iLongStop      = 0.00
+var float iShortStop     = 0.00
+
+var float cLongTarget    = 0.00
+var float cShortTarget   = 0.00
+var float cLongStop      = 0.00
+var float cShortStop     = 0.00
+
+var float LongTarget    = 0.00
+var float ShortTarget   = 0.00
+var float LongStop      = 0.00
+var float ShortStop     = 0.00
+
+
+
+begSessEquity   := isTradeTime and not isTradeTime[1] ? strategy.equity : begSessEquity[1]
+sessionPNL      := math.round(strategy.equity - begSessEquity, 2)
+tradingOkay     := ((sessionPNL <= cumTPAmount) or not cumTP) and ((sessionPNL >= -cumSLAmount) or not cumSL)
+
+longsOkay       := strategy.position_size <= 0 ? true : strategy.position_size > 0 ? false : longsOkay[1]
+shortsOkay      := strategy.position_size >= 0 ? true : strategy.position_size < 0 ? false : shortsOkay[1]
+
+
+iLongTarget  := not incrementTP ? na
+ : strategy.position_size > 0 ? strategy.position_avg_price + (strategy.position_avg_price * (iTPAmount/100))
+ : na
+iShortTarget := not incrementTP ? na
+ : strategy.position_size < 0 ? strategy.position_avg_price - (strategy.position_avg_price * (iTPAmount/100))
+ : na
+
+iLongStop    := not incrementSL ? na
+ : strategy.position_size > 0 ? strategy.position_avg_price - (strategy.position_avg_price * (iSLAmount/100))
+ : na
+iShortStop   := not incrementSL ? na
+ : strategy.position_size < 0 ? strategy.position_avg_price + (strategy.position_avg_price * (iSLAmount/100))
+ : na
+
+cLongTarget     := not cumTP ? na
+ : strategy.position_size > 0 and strategy.position_size[1] <= 0 ? strategy.position_avg_price + ((cumTPAmount-sessionPNL) / strategy.position_size)
+ : strategy.position_size > 0 ? cLongTarget[1]
+ : na
+cShortTarget    := not cumTP ? na
+ : strategy.position_size < 0 and strategy.position_size[1] >= 0 ? strategy.position_avg_price + ((cumTPAmount-sessionPNL) / strategy.position_size)
+ : strategy.position_size < 0 ? cShortTarget[1]
+ : na
+
+cLongStop       := not cumSL ? na
+ : strategy.position_size > 0 and strategy.position_size[1] <= 0 ? strategy.position_avg_price + ((-cumSLAmount-sessionPNL) / strategy.position_size)
+ : strategy.position_size > 0 ? cLongStop[1]
+ : na
+cShortStop      := not cumSL ? na
+ : strategy.position_size < 0 and strategy.position_size[1] >= 0 ? strategy.position_avg_price + ((-cumSLAmount-sessionPNL) / strategy.position_size)
+ : strategy.position_size < 0 ? cShortStop[1]
+ : na
+
+// plot(cLongTarget, color = color.rgb(0, 0, 0), style = plot.style_circles, linewidth = 3)
+// plot(cLongStop, color = color.rgb(212, 0, 148), style = plot.style_circles, linewidth = 3)
+// plot(cShortTarget, color = color.rgb(0, 0, 0), style = plot.style_circles, linewidth = 3)
+// plot(cShortStop, color = color.rgb(212, 0, 148), style = plot.style_circles, linewidth = 3)
+
+// plot(iLongTarget, color = color.rgb(255, 255, 255), style = plot.style_circles, linewidth = 3)
+// plot(iLongStop, color = color.rgb(148, 0, 212), style = plot.style_circles, linewidth = 3)
+// plot(iShortTarget, color = color.rgb(255, 255, 255), style = plot.style_circles, linewidth = 3)
+// plot(iShortStop, color = color.rgb(145, 0, 212), style = plot.style_circles, linewidth = 3)
+
+LongTarget      := strategy.position_size > 0 ? math.min(nz(cLongTarget,iLongTarget), nz(iLongTarget,cLongTarget)) : na
+LongStop        := strategy.position_size > 0 ? math.max(nz(cLongStop,iLongStop), nz(iLongStop,cLongStop)) : na
+
+ShortTarget     := strategy.position_size < 0 ? math.max(nz(cShortTarget,iShortTarget), nz(iShortTarget,cShortTarget)) : na
+ShortStop       := strategy.position_size < 0 ? math.min(nz(cShortStop,iShortStop), nz(iShortStop,cShortStop)) : na
+// plot(sessionPNL, color = color.fuchsia, style = plot.style_circles)
+// barcolor(isTradeTime ? color.yellow : na)
+
+
+// orders
+longCondition = ta.crossover(short_MA, long_MA)
+shortCondition = ta.crossunder(short_MA, long_MA)
+
+if isTradeTime
+    if tradingOkay
+        if (longCondition and longsOkay)
+            strategy.entry("LE", strategy.long, comment = 'LONG')
+
+        if (shortCondition and shortsOkay)
+            strategy.entry("SS_E", strategy.short, comment = 'SHORT')
+
+    else 
+        if sessionPNL >= cumTPAmount
+            strategy.close_all("Cum.TP", immediately=true)
+
+        if sessionPNL <= cumSLAmount
+            strategy.close_all("Cum.SL", immediately=true)
+
+    if strategy.position_size > 0
+        strategy.exit("LX", "LE", limit = LongTarget, stop = LongStop, comment_profit = "Inc.TP", comment_loss = "Inc.SL")
+    if strategy.position_size < 0
+        strategy.exit("SS_X", "SS_E", limit = ShortTarget, stop = ShortStop, comment_profit = "Inc.TP", comment_loss = "Inc.SL")
+
+else
+    strategy.close_all("CLOSE DAY", "CLOSE DAY", immediately=true)
+
+
+
+// plot position 
+pEntry  = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+pTarget = plot(strategy.position_size > 0 ? LongTarget : strategy.position_size < 0 ? ShortTarget : na, title = 'Target', color = color.green, style = plot.style_circles)
+pStop   = plot(strategy.position_size > 0 ? LongStop : strategy.position_size < 0 ? ShortStop : na, title = 'Stop', color = color.red, style = plot.style_circles)
+
+fill(pEntry, pTarget, color = color.new(color.green, 90))
+fill(pEntry, pStop, color = color.new(color.red, 90))
+
+
+
+// table
+var table = table.new(position = position.top_right, columns = 1, rows = 2, bgcolor = chart.fg_color)
+
+if barstate.islastconfirmedhistory
+
+    if cumTP or cumSL
+        table.cell(table, 0, 0,
+         text = "Session PNL " + str.tostring(sessionPNL), bgcolor = sessionPNL > 0 ? color.rgb(43, 91, 45) : sessionPNL < 0 ? color.rgb(192, 17, 17) : chart.bg_color,
+         text_color = color.white, text_size = size.small)
+
+    if not na(strategy.openprofit) and strategy.openprofit != 0.00
+        table.cell(table, 0, 1,
+         text = "Open PNL " + str.tostring(strategy.openprofit), bgcolor = strategy.openprofit > 0 ? color.rgb(43, 91, 45) : strategy.openprofit < 0 ? color.rgb(192, 17, 17) : chart.bg_color,
+         text_color = color.white, text_size = size.small)

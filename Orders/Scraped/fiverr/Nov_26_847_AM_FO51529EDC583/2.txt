@@ -1,0 +1,97 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_jlirano_111622_2", overlay=true, margin_long=100, margin_short=100)
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "Bollinger Bands" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+symbol_tf = input.timeframe('', title = 'Timeframe to Use', group = 'Settings')
+
+source_open = request.security(syminfo.tickerid, symbol_tf, symbol_tf == '' ? open : open[1], lookahead = barmerge.lookahead_on)
+source_high = request.security(syminfo.tickerid, symbol_tf, symbol_tf == '' ? high : high[1], lookahead = barmerge.lookahead_on)
+source_low = request.security(syminfo.tickerid, symbol_tf, symbol_tf == '' ? low : low[1], lookahead = barmerge.lookahead_on)
+source_close = request.security(syminfo.tickerid, symbol_tf, symbol_tf == '' ? close : close[1], lookahead = barmerge.lookahead_on)
+
+// RSI
+chart_rsiLengthInput = input.int(14, minval=1, title="RSI Length", group = 'Settings')
+chart_rsiSourceInput = source_close
+chart_maTypeInput = input.string("SMA", title="RSI MA Type", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = 'Settings')
+chart_maLengthInput = input.int(14, title="RSI MA Length", group = 'Settings')
+
+chart_up = ta.rma(math.max(ta.change(chart_rsiSourceInput), 0), chart_rsiLengthInput)
+chart_down = ta.rma(-math.min(ta.change(chart_rsiSourceInput), 0), chart_rsiLengthInput)
+chart_rsi = chart_down == 0 ? 100 : chart_up == 0 ? 0 : 100 - (100 / (1 + chart_up / chart_down))
+chart_rsiMA = ma(chart_rsi, chart_maLengthInput, chart_maTypeInput)
+
+inversersi_bull = chart_rsi > chart_rsiMA
+inversersi_bear = chart_rsi < chart_rsiMA
+
+// HA
+chart_len = input.int(10, minval=1, maxval=500, title="HA Length", group = 'Settings')
+chart_haClose = (source_open + source_high + source_low + source_close) / 4
+chart_haOpen = float(na)
+chart_haOpen := na(chart_haOpen[1]) ? (source_open + source_close) / 2 : (nz(chart_haOpen[1]) + nz(chart_haClose[1])) / 2
+chart_haHigh = math.max(source_high, math.max(chart_haOpen, chart_haClose))
+chart_haLow = math.min(source_low, math.min(chart_haOpen, chart_haClose))
+
+// STOCH
+chart_periodK = input.int(14, title="Stoch %K Length", minval=1, group = 'Settings')
+chart_smoothK = input.int(3, title="Stock %K Smoothing", minval=1, group = 'Settings')
+chart_periodD = input.int(3, title="Stock %D Smoothing", minval=1, group = 'Settings')
+chart_k = ta.sma(ta.stoch(source_close, source_high, source_low, chart_periodK), chart_smoothK)
+chart_d = ta.sma(chart_k, chart_periodD)
+
+// // //
+chart_avg = math.avg(chart_haOpen,chart_haHigh,chart_haLow,chart_haClose)
+chart_HA_movingAverage = ta.wma(chart_avg, chart_len)
+
+chartha_bull = chart_HA_movingAverage <= chart_HA_movingAverage[1]
+chartha_bear = chart_HA_movingAverage > chart_HA_movingAverage[1]
+
+chart_bull = chart_HA_movingAverage <= chart_HA_movingAverage[1] and chart_rsi < chart_rsiMA and chart_k < chart_d
+chart_bear = chart_HA_movingAverage > chart_HA_movingAverage[1] and chart_rsi > chart_rsiMA and chart_k > chart_d
+// 
+
+
+// --STRATEGY INPUTS-- //
+strategy_start = input.time(timestamp("01 January 2020 00:00:00 UTC-5"), "Strategy Start Date", group = "StrategySettings", inline = '1')
+use_trading_hours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "StrategySettings", inline = '2')
+trading_time = input.session("0930-1600", title = " ", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "StrategySettings", inline = '2')
+trading_hours_cond = not use_trading_hours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "StrategySettings", inline = '3')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "StrategySettings", inline = '4')
+
+long_entry = long_trades and trading_hours_cond and chart_bull
+long_exit = long_trades and chartha_bull[1] and not chartha_bull
+
+short_entry = short_trades and trading_hours_cond and  chart_bear
+short_exit = short_trades and chartha_bear[1] and not chartha_bear
+
+past_strategy_start_date = time >= strategy_start ? true : false
+// --STRATEGY INPUTS-- //
+
+
+// --ORDERS-- //
+if past_strategy_start_date
+    if long_exit
+        strategy.close("LE", comment = 'LX')
+
+    if short_exit
+        strategy.close("SS_E", comment = 'SS_X')
+
+    if long_entry
+        strategy.entry("LE", strategy.long)
+
+    if short_entry
+        strategy.entry("SS_E", strategy.short)
+// --ORDERS-- //
+

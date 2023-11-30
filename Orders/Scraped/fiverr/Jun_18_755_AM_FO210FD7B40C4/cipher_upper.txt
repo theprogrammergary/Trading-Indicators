@@ -1,0 +1,363 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © vumanchu
+
+//@version=5
+indicator(title='VMC Cipher', overlay = true)
+
+
+bull_color1 = input.color(color.new(#1ecd25, 0), title = 'Bull 1', inline = '1')
+bull_color2 = input.color(color.new(#346836, 0), title = 'Bull 2', inline = '1')
+
+bear_color1 = input.color(color.new(#e31414, 0), title = 'Bear 1', inline = '1')
+bear_color2 = input.color(color.new(#6f2d2d, 0), title = 'Bear 2', inline = '1')
+
+
+// TRADE SIGNAL SETTINGS
+signal_looping  = input.int(2, title = 'Number of dots to look at for a signal​', group = 'Trade Settings', inline = '0',
+ minval = 1, maxval = 20)
+
+use_reg_div     = input.bool(true, title = 'Regular Div.  ', group = 'Trade Settings', inline = '1')
+use_hid_div     = input.bool(false, title = 'Hidden Div.', group = 'Trade Settings', inline = '1')
+
+use_trade_cond1 = input.bool(true, title = '1. Dot Above/Below   ', group = 'Trade Settings', inline = '4')
+dot_below       = input.int(0, title = '', group = 'Trade Settings', inline = '4')
+dot_above       = input.int(0, title = '', group = 'Trade Settings', inline = '4')
+
+use_trade_cond2 = input.bool(true, title = '2. MFI Above/Below its MA         ', group = 'Trade Settings', inline = '2')
+rsimfi_length   = input.int(20, title = '', group = 'Trade Settings', inline = '2')
+
+use_trade_cond3 = input.bool(true, title = '3. RSI Above/Below    ', group = 'Trade Settings', inline = '3')
+rsi_below       = input.int(50, title = '', group = 'Trade Settings', inline = '3')
+rsi_above       = input.int(50, title = '', group = 'Trade Settings', inline = '3')
+
+use_trade_cond4 = input.bool(true, title = '4. WT Above/Below    ', group = 'Trade Settings', inline = '5')
+wave_below      = input.int(-60, title = '', group = 'Trade Settings', inline = '5')
+wave_above      = input.int(60, title = '', group = 'Trade Settings', inline = '5')
+
+use_trade_cond5 = input.bool(true, title = '5. Max Bars between dots ', group = 'Trade Settings', inline = '6')
+bn_buy          = input.int(25, title = '', group = 'Trade Settings', inline = '6')
+bn_sell         = input.int(25, title = '', group = 'Trade Settings', inline = '6')
+
+
+// PARAMETERS {
+// WaveTrend
+wtChannelLen    = input(9, title='WT Channel Length', group = 'Wave Trend Settings', inline = '1')
+wtAverageLen    = input(12, title='WT Average Length', group = 'Wave Trend Settings', inline = '2')
+wtMASource      = input(hlc3, title='WT MA Source', group = 'Wave Trend Settings', inline = '3')
+wtMALen         = input(3, title='WT MA Length', group = 'Wave Trend Settings', inline = '4')
+
+// RSI+MFI
+rsiMFIperiod        = input(60, title='MFI Period', group = 'MFI Settings', inline = '2')
+rsiMFIMultiplier    =  input.float(150, title='MFI Area multiplier', group = 'MFI Settings', inline = '3')
+rsiMFIPosY          = input(2.5, title='MFI Area Y Pos', group = 'MFI Settings', inline = '4')
+
+// RSI
+rsiSRC          = input(close, title='RSI Source', group = 'RSI Settings', inline = '2')
+rsiLen          = input(14, title='RSI Length', group = 'RSI Settings', inline = '3')
+rsiOversold     = input.int(30, title='RSI Oversold', minval=0, maxval=100, group = 'RSI Settings', inline = '4')
+rsiOverbought   = input.int(60, title='RSI Overbought', minval=0, maxval=100, group = 'RSI Settings', inline = '5')
+
+// } PARAMETERS
+
+
+
+
+
+// FUNCTIONS {
+// Divergences 
+f_top_fractal(src) =>
+    src[4] < src[2] and src[3] < src[2] and src[2] > src[1] and src[2] > src[0]
+f_bot_fractal(src) =>
+    src[4] > src[2] and src[3] > src[2] and src[2] < src[1] and src[2] < src[0]
+f_fractalize(src) =>
+    f_top_fractal(src) ? 1 : f_bot_fractal(src) ? -1 : 0
+
+f_findDivs(src, topLimit, botLimit, useLimits) =>
+    fractalTop = f_fractalize(src) > 0 and (useLimits ? src[2] >= topLimit : true) ? src[2] : na
+    fractalBot = f_fractalize(src) < 0 and (useLimits ? src[2] <= botLimit : true) ? src[2] : na
+    highPrev = ta.valuewhen(fractalTop, src[2], 0)[2]
+    highPrice = ta.valuewhen(fractalTop, high[2], 0)[2]
+    lowPrev = ta.valuewhen(fractalBot, src[2], 0)[2]
+    lowPrice = ta.valuewhen(fractalBot, low[2], 0)[2]
+    bearSignal = fractalTop and high[2] > highPrice and src[2] < highPrev
+    bullSignal = fractalBot and low[2] < lowPrice and src[2] > lowPrev
+    bearDivHidden = fractalTop and high[2] < highPrice and src[2] > highPrev
+    bullDivHidden = fractalBot and low[2] > lowPrice and src[2] < lowPrev
+    [fractalTop, fractalBot, lowPrev, bearSignal, bullSignal, bearDivHidden, bullDivHidden]
+
+// RSI+MFI
+f_rsimfi(_period, _multiplier, _tf) =>
+    request.security(syminfo.tickerid, _tf, ta.sma((close - open) / (high - low) * _multiplier, _period) - rsiMFIPosY)
+
+// WaveTrend
+f_wavetrend(src, chlen, avg, malen, tf) =>
+    tfsrc = request.security(syminfo.tickerid, tf, src)
+    esa = ta.ema(tfsrc, chlen)
+    de = ta.ema(math.abs(tfsrc - esa), chlen)
+    ci = (tfsrc - esa) / (0.015 * de)
+    wt1 = math.round(request.security(syminfo.tickerid, tf, ta.ema(ci, avg)),2)
+    wt2 = math.round(request.security(syminfo.tickerid, tf, ta.sma(wt1, malen)),2)
+    wtVwap = wt1 - wt2
+    wtCross = ta.cross(wt1, wt2)
+    wtCrossUp = wt2 - wt1 <= 0
+    wtCrossDown = wt2 - wt1 >= 0
+    wtCrosslast = ta.cross(wt1[2], wt2[2])
+    wtCrossUplast = wt2[2] - wt1[2] <= 0
+    wtCrossDownlast = wt2[2] - wt1[2] >= 0
+    [wt1, wt2, wtCross, wtCrossUp, wtCrossDown, wtCrosslast, wtCrossUplast, wtCrossDownlast, wtVwap]
+
+// MACD
+f_macd(src, fastlen, slowlen, sigsmooth, tf) =>
+    fast_ma = request.security(syminfo.tickerid, tf, ta.ema(src, fastlen))
+    slow_ma = request.security(syminfo.tickerid, tf, ta.ema(src, slowlen))
+    macd = fast_ma - slow_ma
+    signal = request.security(syminfo.tickerid, tf, ta.sma(macd, sigsmooth))
+    hist = macd - signal
+    [macd, signal, hist]
+// } FUNCTIONS  
+
+
+
+// CALCULATE INDICATORS {
+// RSI
+rsi = ta.rsi(rsiSRC, rsiLen)
+
+// RSI + MFI Area
+rsiMFI = f_rsimfi(rsiMFIperiod, rsiMFIMultiplier, timeframe.period)
+rsiMFI_ma = ta.sma(rsiMFI, rsimfi_length)
+rsiMFIColor = rsiMFI > 0 ? bull_color1 : bear_color1
+
+// Calculates WaveTrend
+[wt1, wt2,wtCross, wtCrossUp, wtCrossDown, wtCross_last, wtCrossUp_last, wtCrossDown_last, wtVwap] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen, timeframe.period)
+
+// } CALCULATE INDICATORS
+
+
+
+
+// {SIGNALS
+// function helpers
+f_array_add_pop(array, new) =>
+    array.pop(array)
+    array.unshift(array, new)
+
+
+// MAIN SIGNAL
+signal_side = wt2 - wt1 > 0 ? -1 : 1 
+dot_buy_signal = wtCross and signal_side == 1 and (wt2 < dot_below or not use_trade_cond1)
+dot_sell_signal = wtCross and signal_side == -1 and (wt2 > dot_above or not use_trade_cond1)
+plot(dot_buy_signal ? low : na, title='Bull circle', color=color.new(bull_color1,15), style=plot.style_circles, linewidth=2)
+plot(dot_sell_signal ? high : na, title='Bear circle', color=color.new(bear_color1,15), style=plot.style_circles, linewidth=2)
+plot(wtCross and signal_side == 1 and not dot_buy_signal ? low : na, title='Other Bull circle', color=color.new(bull_color1,35), style=plot.style_circles, linewidth=2)
+plot(wtCross and signal_side == -1 and not dot_sell_signal ? high : na, title='Other Bear circle', color=color.new(bear_color1,35), style=plot.style_circles, linewidth=2)
+
+
+// VARS FOR BUY/SELL LOGIC
+_array_size = signal_looping+1
+
+var buy_lows = array.new_float(_array_size, na)
+var buy_values = array.new_float(_array_size, na)
+var sell_highs = array.new_float(_array_size, na)
+var sell_values = array.new_float(_array_size, na)
+
+var buy_waves = array.new_float(_array_size, na)
+var sell_waves = array.new_float(_array_size, na)
+
+var buy_bns = array.new_int(_array_size, na)
+var sell_bns = array.new_int(_array_size, na)
+
+if dot_buy_signal
+    f_array_add_pop(buy_lows, low)
+    f_array_add_pop(buy_values, wt2)
+    f_array_add_pop(buy_waves, wt2)
+    f_array_add_pop(buy_bns, bar_index)
+
+
+if dot_sell_signal
+    f_array_add_pop(sell_highs, high)
+    f_array_add_pop(sell_values, wt2)
+    f_array_add_pop(sell_waves, wt2)
+    f_array_add_pop(sell_bns, bar_index)  
+
+
+
+// LOGIC
+// Buy Signal 
+// Reg = Price LL, Dot HL
+// Hid = Price HL, Dot LL
+// 1. Dot is above 0
+// 2. RSI MFI is above its MA
+// 3. RSI is above 50
+// 4. WT compare dot is below -70
+// 5. Max Bars between dots is 25
+
+// Sell Signal 
+// Reg = Price HH, Dot LH
+// Hid = Price LH, Dot HH
+// 1. Dot is below 0
+// 2. RSI MFI is below its MA
+// 3. RSI is below 50
+// 4. WT compare dot is above 70
+// 5. Max Bars between dots is 25
+f_buy_sell_signals(buy_dot, sell_dot,
+ buy_price_arr, buy_dot_arr, sell_price_arr, sell_dot_arr,
+ cond2_rsimfi, cond2_rsimfi_ma,
+ cond3_rsi_value,
+ buy_waves_arr, sell_waves_arr,
+ buy_bn_arr, sell_bn_arr) =>
+
+
+    var bool reg_b = na
+    var bool hid_b = na
+    var bool buy2 = na
+    var bool buy3 = na
+    var bool buy4 = na
+    var bool buy5 = na
+
+    var bool reg_s = na
+    var bool hid_s = na
+    var bool sell2 = na
+    var bool sell3 = na
+    var bool sell4 = na
+    var bool sell5 = na
+
+
+    var bool    buy_signal       = false
+    var bool    buy_hidd_signal  = false
+    var int     buy_array_size   = 0
+    var float   buy_price_arr0  = 0.00
+    var float   buy_dot_arr0    = 0.00
+    var int     buy_bn_arr0     = 0
+
+    var bool    sell_signal      = false
+    var bool    sell_hidd_signal = false
+    var int     sell_array_size  = 0
+    var float   sell_price_arr0 = 0.00
+    var float   sell_dot_arr0   = 0.00
+    var int     sell_bn_arr0    = 0
+
+    var int     index_of_buy     = 0
+    var int     index_of_sell    = 0
+
+    // look for buys
+    if buy_dot
+        buy_array_size  := array.size(buy_price_arr)
+        buy_price_arr0 := array.get(buy_price_arr,0)
+        buy_dot_arr0   := array.get(buy_dot_arr,0)
+        buy_bn_arr0    := array.get(buy_bn_arr,0)
+
+        for i = 1 to buy_array_size - 1
+            reg_b := (buy_price_arr0 <= array.get(buy_price_arr,i) and buy_dot_arr0 >= array.get(buy_dot_arr,i))
+            hid_b := (buy_price_arr0 >= array.get(buy_price_arr,i) and buy_dot_arr0 <= array.get(buy_dot_arr,i))
+
+            buy2 := (cond2_rsimfi >= cond2_rsimfi_ma) or not use_trade_cond2
+            buy3 := (cond3_rsi_value <= rsi_below) or not use_trade_cond3
+            buy4 := (array.get(buy_waves_arr, i) <= wave_below) or not use_trade_cond4
+            buy5 := (buy_bn_arr0 - array.get(buy_bn_arr, i) <= bn_buy) or not use_trade_cond5
+
+            buy_signal := (reg_b and use_reg_div) and (buy2 and buy3 and buy4 and buy5)
+            buy_hidd_signal := (hid_b and use_hid_div) and (buy2 and buy3 and buy4 and buy5)
+
+            if buy_signal or buy_hidd_signal
+                index_of_buy := i
+                break
+ 
+    // look for sells
+    else if sell_dot
+        sell_array_size  := array.size(sell_price_arr)
+        sell_price_arr0 := array.get(sell_price_arr,0)
+        sell_dot_arr0   := array.get(sell_dot_arr,0)
+        sell_bn_arr0    := array.get(sell_bn_arr,0)
+
+        for i = 1 to sell_array_size - 1
+            reg_s := (sell_price_arr0 >= array.get(sell_price_arr,i) and sell_dot_arr0 <= array.get(sell_dot_arr,i))
+            hid_s := (sell_price_arr0 <= array.get(sell_price_arr,i) and sell_dot_arr0 >= array.get(sell_dot_arr,i))
+
+            sell2 := (cond2_rsimfi <= cond2_rsimfi_ma) or not use_trade_cond2
+            sell3 := (cond3_rsi_value >= rsi_above) or not use_trade_cond3
+            sell4 := (array.get(sell_waves_arr, i) >= wave_above) or not use_trade_cond4
+            sell5 := (sell_bn_arr0 - array.get(sell_bn_arr, i) <= bn_sell) or not use_trade_cond5
+
+            sell_signal := (reg_s and use_reg_div) and (sell2 and sell3 and sell4 and sell5)
+            sell_hidd_signal := (hid_s and use_hid_div) and (sell2 and sell3 and sell4 and sell5)
+
+            if sell_signal or sell_hidd_signal
+                index_of_sell := i
+                break
+ 
+    else 
+        buy_signal  := false
+        buy_hidd_signal  := false
+        sell_signal := false
+        sell_hidd_signal := false
+
+        reg_b := false
+        hid_b := false
+        reg_s := false
+        hid_s := false
+
+        buy2 := false
+        buy3 := false
+        buy4 := false
+        buy5 := false
+
+        sell2 := false
+        sell3 := false
+        sell4 := false
+        sell5 := false
+
+    [buy_signal, buy_hidd_signal, sell_signal, sell_hidd_signal, index_of_buy, index_of_sell]
+
+[buy_signal, buy_hide_signal, sell_signal, sell_hide_signal, index_of_buy, index_of_sell] = f_buy_sell_signals(dot_buy_signal, dot_sell_signal,
+ buy_lows, buy_values, sell_highs, sell_values,
+ rsiMFI, rsiMFI_ma,
+ rsi,
+ buy_waves, sell_waves,
+ buy_bns, sell_bns)
+
+plotshape(buy_signal ? -90 : na,title='BUY Signal', style = shape.triangleup,location = location.belowbar, color=bull_color1, size = size.tiny)
+plotshape(sell_signal ? 90 : na,title='SELL Signal', style = shape.triangledown,location = location.abovebar, color=bear_color1, size = size.tiny)
+bgcolor(buy_signal ? color.new(bull_color1, 75) : sell_signal ? color.new(bear_color1, 75) : na, title = 'Signal Background', display = display.none)
+// SIGNALS}
+
+
+// {TRENDLINES
+f_draw_divs(values_array, bn_array, array_index, color, hidden) =>
+
+    x_1 = array.get(bn_array, array_index)
+    x_2 = array.get(bn_array, 0)
+    y_1 = array.get(values_array, array_index)
+    y_2 = array.get(values_array, 0)
+    line.new(x1=x_1, y1=y_1, x2=x_2, y2=y_2, xloc = xloc.bar_index, extend = extend.none,
+     color = color, style = hidden ? line.style_dashed : line.style_solid)
+
+
+if buy_signal
+    f_draw_divs(buy_lows, buy_bns, index_of_buy, bull_color1, false)
+if buy_hide_signal
+    f_draw_divs(buy_lows, buy_bns, index_of_buy, bull_color1, true)
+
+if sell_signal
+    f_draw_divs(sell_highs, sell_bns, index_of_sell, bear_color1, false)
+if sell_hide_signal
+    f_draw_divs(sell_highs, sell_bns, index_of_sell, bear_color1, true)
+
+// TRENDLINES}
+
+
+
+
+// {ALERTS
+alertcondition(buy_signal or buy_hide_signal, "Buy Signal", "Buy Signal")
+alertcondition(sell_signal or sell_hide_signal, "Sell Signal", "Sell Signal")
+
+alertcondition(dot_buy_signal, "Green Dot", "Green Dot")
+alertcondition(dot_sell_signal, "Red Dot", "Red Dot")
+// ALERTS}
+
+
+// debugging
+// barcolor(dot_buy_signal ? color.lime : dot_sell_signal ? color.red : na)
+// if buy_signal
+//     label.new(bar_index + 5, 50, text = str.tostring(buy_lows), color = color.white)
+//     label.new(bar_index + 5, -50, text = str.tostring(buy_values), color = color.white)

@@ -1,0 +1,5 @@
+Please read the disclaimer.
+
+I didnt make a video for this one but import it like the last one and add it to the chart. Strategies can only be applied to dataset 1. I added the setting so you can choose between just colored bar background for a signal or all.
+
+Let me know if you have any questions.

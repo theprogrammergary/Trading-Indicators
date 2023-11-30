@@ -1,0 +1,629 @@
+//@version=5
+indicator("Multi-Asset Performance [Spaghetti] - By Leviathan", overlay=false, format = format.percent, max_lines_count = 31, max_boxes_count = 10, max_labels_count = 33)
+
+// Groups
+g0 = 'Options' 
+g1 = 'Asset Group 1'
+g2 = 'Asset Group 2'
+g3 = 'Asset group 3'
+g4 = 'Table'
+g5 = 'Other Settings'
+
+// Tooltips
+tt1    = 'Period (eg. 1 DAY) determines when the percentage change values reset and from where they get cumulated. Timeframe determines which timeframe candles are used in the calculation (leave this input as "Chart" unless you want to check the structure of higher timeframe change)'
+tt2    = 'Select the data that should be displayed. You can view % changes in either price, open interest or on balance volume. You can also select which group of 30 assets should be displayed'
+tt3    = 'Select the type of the visualization (lines, circles, areas, columns) and the coloring from 6 pre-prepared color palettes'
+tt4    = 'Select the style and size of labels that display the asset name. You can also uncheck the checkbox to hide the labels'
+tt5    = 'Smooth the values with a Simple Moving Average of custom length'
+tt6    = 'Highlight top and bottom X plots based on performance of percentage change in a given period. Select the color of the plots that are shadowed'
+tt7    = 'Select the mean of the asset group (average or first ticker on the list). You can also choose to plot the mean with a custom color by checking the checkbox'
+tt8    = 'Display a vertical profile of how the assets are distributed around the mean. Profile can be moved left and right by adjusting the offset value.'
+tt9    = 'Color the plots with a gradient based on max value, zero and min value.'
+tt10   = 'Select the position and the size of the table'
+tt11   = 'Select the size of table borders and table text'
+tt12   = 'Select the length (number of historical bars) that is used for calculating the correlation and beta'
+tt13   = 'Select the length (number of historical bars), that is used for calculating the Relative Strength Index'
+tt14   = 'Select an exact point in time that is used as an anchor when Timestamp is selected as a period.'
+tt15   = 'Select the width of the plots (eg. lines)'
+tt16   = 'Select the offset (number of bars to the right) for labels'
+tt17   = 'Select the horizontal size of the distribution profile.'
+
+// User Inputs - General
+tf2       = input.string('1 DAY', 'Period        ', options = ['Visible Range', 'Timestamp', '5 MIN', '15 MIN', '30 MIN', '45 MIN', '1 HOUR', '2 HOURS', '4 HOURS', '12 HOURS', '1 DAY', '2 DAYS', '3 DAYS', '1 WEEK', '2 WEEKS', '1 MONTH', '2 MONTHS', '3 MONTHS', '6 MONTHS', '1 YEAR'], inline = '1')
+tf        = input.timeframe('', '', inline = '1', tooltip = tt1)
+data_type = input.string('Price', 'Data          ', options = ['Price', 'OBV', 'Open Interest'], inline = '2')
+gn        = input.string('Group 1', '', options = ['Group 1', 'Group 2', 'Group 3'], inline = '2', tooltip = tt2)
+disp      = input.string('Lines', 'Appearance   ', options = ['Lines', 'Circles', 'Area', 'Columns'], inline = '3')
+colpal    = input.string('Palette 1', '', options = ['Palette 1', 'Palette 2', 'Palette 3', 'Palette 4', 'Palette 5', 'Palette 6'], inline = '3', tooltip = tt3)
+
+// User Inputs - Options
+showlbl   = input.bool(true, 'Labeling  ', inline = 'a', group = g0)
+lbltyp    = input.string('Label', '', options = ['Label', 'Label and Line', 'Text Label'], inline = 'a', group = g0)
+lblsize   = input.string('Small', '', options = ['Tiny', 'Small', 'Normal', 'Auto'], inline = 'a', group = g0, tooltip = tt4)
+smooth    = input.bool(false, 'Smoothing                ', inline = 'sma', group = g0)
+len       = input.int(5, '', inline = 'sma', group = g0, tooltip = tt5)
+highlight = input.bool(false, 'Highlight                  ', inline = 'hg', group = g0)
+counthl   = input.int(3, "", inline = 'hg', group = g0)
+nonhlcol  = input.color(color.rgb(120, 123, 134, 63), '', inline = 'hg', group = g0, tooltip = tt6)
+plotmean  = input.bool(false, 'Group Mean               ', inline = 'bs', group = g0)
+meantype  = input.string('Group Average', '', options = ['Group Average', 'First Ticker'], inline = 'bs', group = g0)
+meancol   = input.color(color.gray, '', inline = 'bs', group = g0, tooltip = tt7)
+showprof  = input.bool(false, 'Profile                    ', inline = 'prof', group = g0)
+profoffs  = input.int(15, '', inline = 'prof', group = g0)
+profcol   = input.color(#2195f3bf, '', inline = 'prof', group = g0, tooltip = tt8)
+hm        = input.bool(false, 'Gradient                  ', inline = 'hm', group = g0)
+hm1       = input.color(#5b9cf6, '', inline = 'hm', group = g0)
+hm3       = input.color(#ce93d8, '-', inline = 'hm', group = g0)
+hm2       = input.color(#f7525f, '-', inline = 'hm', group = g0, tooltip = tt9)
+
+// User Inputs - Table
+showtable = input.bool(false, 'Show Table', group = g4)
+tablepos  = input.string('Middle Right', 'Position & Size    ', options = ['Middle Right', 'Top Right', 'Bottom Right', 'Middle Left', 'Top Left', 'Bottom Left'], group = g4, inline = 'ta1')
+tablesize = input.float(3, '', minval = 1, maxval = 20, group = g4, inline = 'ta1', tooltip = tt10)
+textsize  = input.string('Tiny', 'Text & Border Size ', options = ['Tiny', 'Small', 'Normal', 'Auto'], group = g4, inline = 'ta2')
+bordsize  = input.int(0, '', group = g4, inline = 'ta2', tooltip = tt11)
+clen      = input.int(100, 'Reference Length   ', group = g4, inline = 'ta3', tooltip = tt12)
+rsilen    = input.int(14, 'RSI Length', group = g4, tooltip = tt13)
+
+show_tick = true
+show_chg  = input.bool(true, 'Percent Change ', group = g4, inline = 'ta4')
+show_corr = input.bool(false, 'Correlation to Mean', group = g4, inline = 'ta4')
+show_rsi  = input.bool(false, 'RSI Value       ', group = g4, inline = 'ta5')
+show_beta = input.bool(false, 'Beta Value', group = g4, inline = 'ta5')
+
+// User Inputs - Other
+starttime = input.time(timestamp("Aug 28 2023 00:00:00"), 'Timestamp', group = g5, tooltip = tt14)
+linewidth = input.int(1, 'Plot Width', group = g5, tooltip = tt15)
+offs      = input.int(3, 'Label Offset', group = g5, tooltip = tt16)
+profsize  = input.int(6, 'Profile Size', group = g5, tooltip = tt17)
+showtitle = input.bool(true, 'Show Title      ', group = g5, inline = 'title')
+titcol    = input.color(color.gray, '', group = g5, inline = 'title')
+showsep   = input.bool(true, 'Show Separators', group = g5, inline = 'sepa')
+bgcol     = input.color(#787b8629, '', group = g5, inline = 'sepa')
+
+// User Inputs - Groups
+group1     = input.string('Group 1', 'Group name', group = g1)
+group2     = input.string('Group 2', 'Group name', group = g2)
+group3     = input.string('Group 3', 'Group name', group = g3)
+
+// User Inputs - Bools
+showsym1   = input.bool(true, '', group = g1, inline = '1'  ), showsym1_  = input.bool(true, '', group = g2, inline = '1_'  ), showsym1__  = input.bool(true, '', group = g3, inline = '1__' )
+showsym2   = input.bool(true, '', group = g1, inline = '2'  ), showsym2_  = input.bool(true, '', group = g2, inline = '2_'  ), showsym2__  = input.bool(true, '', group = g3, inline = '2__' )
+showsym3   = input.bool(true, '', group = g1, inline = '3'  ), showsym3_  = input.bool(true, '', group = g2, inline = '3_'  ), showsym3__  = input.bool(true, '', group = g3, inline = '3__' )
+showsym4   = input.bool(true, '', group = g1, inline = '4'  ), showsym4_  = input.bool(true, '', group = g2, inline = '4_'  ), showsym4__  = input.bool(true, '', group = g3, inline = '4__' )
+showsym5   = input.bool(true, '', group = g1, inline = '5'  ), showsym5_  = input.bool(true, '', group = g2, inline = '5_'  ), showsym5__  = input.bool(true, '', group = g3, inline = '5__' )
+showsym6   = input.bool(true, '', group = g1, inline = '6'  ), showsym6_  = input.bool(true, '', group = g2, inline = '6_'  ), showsym6__  = input.bool(true, '', group = g3, inline = '6__' )
+showsym7   = input.bool(true, '', group = g1, inline = '7'  ), showsym7_  = input.bool(true, '', group = g2, inline = '7_'  ), showsym7__  = input.bool(true, '', group = g3, inline = '7__' )
+showsym8   = input.bool(true, '', group = g1, inline = '8'  ), showsym8_  = input.bool(true, '', group = g2, inline = '8_'  ), showsym8__  = input.bool(true, '', group = g3, inline = '8__' )
+showsym9   = input.bool(true, '', group = g1, inline = '9'  ), showsym9_  = input.bool(true, '', group = g2, inline = '9_'  ), showsym9__  = input.bool(true, '', group = g3, inline = '9__' )
+showsym10  = input.bool(true, '', group = g1, inline = '10' ), showsym10_ = input.bool(true, '', group = g2, inline = '10_' ), showsym10__ = input.bool(true, '', group = g3, inline = '10__')
+showsym11  = input.bool(true, '', group = g1, inline = '11' ), showsym11_ = input.bool(true, '', group = g2, inline = '11_' ), showsym11__ = input.bool(true, '', group = g3, inline = '11__')
+showsym12  = input.bool(true, '', group = g1, inline = '12' ), showsym12_ = input.bool(true, '', group = g2, inline = '12_' ), showsym12__ = input.bool(true, '', group = g3, inline = '12__')
+showsym13  = input.bool(true, '', group = g1, inline = '13' ), showsym13_ = input.bool(true, '', group = g2, inline = '13_' ), showsym13__ = input.bool(true, '', group = g3, inline = '13__')
+showsym14  = input.bool(true, '', group = g1, inline = '14' ), showsym14_ = input.bool(true, '', group = g2, inline = '14_' ), showsym14__ = input.bool(true, '', group = g3, inline = '14__')
+showsym15  = input.bool(true, '', group = g1, inline = '15' ), showsym15_ = input.bool(true, '', group = g2, inline = '15_' ), showsym15__ = input.bool(true, '', group = g3, inline = '15__')
+showsym16  = input.bool(true, '', group = g1, inline = '16' ), showsym16_ = input.bool(true, '', group = g2, inline = '16_' ), showsym16__ = input.bool(true, '', group = g3, inline = '16__')
+showsym17  = input.bool(true, '', group = g1, inline = '17' ), showsym17_ = input.bool(true, '', group = g2, inline = '17_' ), showsym17__ = input.bool(true, '', group = g3, inline = '17__')
+showsym18  = input.bool(true, '', group = g1, inline = '18' ), showsym18_ = input.bool(true, '', group = g2, inline = '18_' ), showsym18__ = input.bool(true, '', group = g3, inline = '18__')
+showsym19  = input.bool(true, '', group = g1, inline = '19' ), showsym19_ = input.bool(true, '', group = g2, inline = '19_' ), showsym19__ = input.bool(true, '', group = g3, inline = '19__')
+showsym20  = input.bool(true, '', group = g1, inline = '20' ), showsym20_ = input.bool(true, '', group = g2, inline = '20_' ), showsym20__ = input.bool(true, '', group = g3, inline = '20__')
+showsym21  = input.bool(true, '', group = g1, inline = '21' ), showsym21_ = input.bool(true, '', group = g2, inline = '21_' ), showsym21__ = input.bool(true, '', group = g3, inline = '21__')
+showsym22  = input.bool(true, '', group = g1, inline = '22' ), showsym22_ = input.bool(true, '', group = g2, inline = '22_' ), showsym22__ = input.bool(true, '', group = g3, inline = '22__')
+showsym23  = input.bool(true, '', group = g1, inline = '23' ), showsym23_ = input.bool(true, '', group = g2, inline = '23_' ), showsym23__ = input.bool(true, '', group = g3, inline = '23__')
+showsym24  = input.bool(true, '', group = g1, inline = '24' ), showsym24_ = input.bool(true, '', group = g2, inline = '24_' ), showsym24__ = input.bool(true, '', group = g3, inline = '24__')
+showsym25  = input.bool(true, '', group = g1, inline = '25' ), showsym25_ = input.bool(true, '', group = g2, inline = '25_' ), showsym25__ = input.bool(true, '', group = g3, inline = '25__')
+showsym26  = input.bool(true, '', group = g1, inline = '26' ), showsym26_ = input.bool(true, '', group = g2, inline = '26_' ), showsym26__ = input.bool(true, '', group = g3, inline = '26__')
+showsym27  = input.bool(true, '', group = g1, inline = '27' ), showsym27_ = input.bool(true, '', group = g2, inline = '27_' ), showsym27__ = input.bool(true, '', group = g3, inline = '27__')
+showsym28  = input.bool(true, '', group = g1, inline = '28' ), showsym28_ = input.bool(true, '', group = g2, inline = '28_' ), showsym28__ = input.bool(true, '', group = g3, inline = '28__')
+showsym29  = input.bool(true, '', group = g1, inline = '29' ), showsym29_ = input.bool(true, '', group = g2, inline = '29_' ), showsym29__ = input.bool(true, '', group = g3, inline = '29__')
+showsym30  = input.bool(true, '', group = g1, inline = '30' ), showsym30_ = input.bool(true, '', group = g2, inline = '30_' ), showsym30__ = input.bool(true, '', group = g3, inline = '30__')
+
+// User Inputs - Symbols
+sym1    = input.symbol('BINANCE:BTCUSDT.P',       '', group=g1, inline = '1'   ), sym1_   = input.symbol('BINANCE:BTCUSDT.P',      '', group=g2, inline = '1_'  ), sym1__  = input.symbol('BINANCE:BTCUSDT.P',   '', group=g3, inline = '1__' )
+sym2    = input.symbol('BINANCE:ETHUSDT.P',       '', group=g1, inline = '2'   ), sym2_   = input.symbol('BINANCE:BLZUSDT.P',      '', group=g2, inline = '2_'  ), sym2__  = input.symbol('BINANCE:NEARUSDT.P',  '', group=g3, inline = '2__' )
+sym3    = input.symbol('BINANCE:BNBUSDT.P',       '', group=g1, inline = '3'   ), sym3_   = input.symbol('BINANCE:CYBERUSDT.P',    '', group=g2, inline = '3_'  ), sym3__  = input.symbol('BINANCE:ATOMUSDT.P',  '', group=g3, inline = '3__' )
+sym4    = input.symbol('BINANCE:XRPUSDT.P',       '', group=g1, inline = '4'   ), sym4_   = input.symbol('BINANCE:RUNEUSDT.P',     '', group=g2, inline = '4_'  ), sym4__  = input.symbol('BINANCE:YGGUSDT.P',   '', group=g3, inline = '4__' )
+sym5    = input.symbol('BINANCE:ADAUSDT.P',       '', group=g1, inline = '5'   ), sym5_   = input.symbol('BINANCE:LEVERUSDT.P',    '', group=g2, inline = '5_'  ), sym5__  = input.symbol('BINANCE:SANDUSDT.P',  '', group=g3, inline = '5__' )
+sym6    = input.symbol('BINANCE:DOGEUSDT.P',      '', group=g1, inline = '6'   ), sym6_   = input.symbol('BINANCE:SFPUSDT.P',      '', group=g2, inline = '6_'  ), sym6__  = input.symbol('BINANCE:GMTUSDT.P',   '', group=g3, inline = '6__' )
+sym7    = input.symbol('BINANCE:SOLUSDT.P',       '', group=g1, inline = '7'   ), sym7_   = input.symbol('BINANCE:SUIUSDT.P',      '', group=g2, inline = '7_'  ), sym7__  = input.symbol('BINANCE:DYDXUSDT.P',  '', group=g3, inline = '7__' )
+sym8    = input.symbol('BINANCE:TRXUSDT.P',       '', group=g1, inline = '8'   ), sym8_   = input.symbol('BINANCE:OPUSDT.P',       '', group=g2, inline = '8_'  ), sym8__  = input.symbol('BINANCE:KAVAUSDT.P',  '', group=g3, inline = '8__' )
+sym9    = input.symbol('BINANCE:DOTUSDT.P',       '', group=g1, inline = '9'   ), sym9_   = input.symbol('BINANCE:UNFIUSDT.P',     '', group=g2, inline = '9_'  ), sym9__  = input.symbol('BINANCE:ASTRUSDT.P',  '', group=g3, inline = '9__' )
+sym10   = input.symbol('BINANCE:MATICUSDT.P',     '', group=g1, inline = '10'  ), sym10_  = input.symbol('BINANCE:CRVUSDT.P',      '', group=g2, inline = '10_' ), sym10__ = input.symbol('BINANCE:MANAUSDT.P',  '', group=g3, inline = '10__')
+sym11   = input.symbol('BINANCE:LTCUSDT.P',       '', group=g1, inline = '11'  ), sym11_  = input.symbol('BINANCE:COMPUSDT.P',     '', group=g2, inline = '11_' ), sym11__ = input.symbol('BINANCE:AAVEUSDT.P',  '', group=g3, inline = '11__')
+sym12   = input.symbol('BINANCE:1000SHIBUSDT.P',  '', group=g1, inline = '12'  ), sym12_  = input.symbol('BINANCE:TOMOUSDT.P',     '', group=g2, inline = '12_' ), sym12__ = input.symbol('BINANCE:ANTUSDT.P',   '', group=g3, inline = '12__')
+sym13   = input.symbol('BINANCE:BCHUSDT.P',       '', group=g1, inline = '13'  ), sym13_  = input.symbol('BINANCE:APEUSDT.P',      '', group=g2, inline = '13_' ), sym13__ = input.symbol('BINANCE:EDUUSDT.P',   '', group=g3, inline = '13__')
+sym14   = input.symbol('BINANCE:AVAXUSDT.P',      '', group=g1, inline = '14'  ), sym14_  = input.symbol('BINANCE:1000PEPEUSDT.P', '', group=g2, inline = '14_' ), sym14__ = input.symbol('BINANCE:FETUSDT.P',   '', group=g3, inline = '14__')
+sym15   = input.symbol('BINANCE:LINKUSDT.P',      '', group=g1, inline = '15'  ), sym15_  = input.symbol('BINANCE:WAVESUSDT.P',    '', group=g2, inline = '15_' ), sym15__ = input.symbol('BINANCE:AXSUSDT.P',   '', group=g3, inline = '15__')
+sym16   = input.symbol('BINANCE:XLMUSDT.P',       '', group=g1, inline = '16'  ), sym16_  = input.symbol('BINANCE:LPTUSDT.P',      '', group=g2, inline = '16_' ), sym16__ = input.symbol('BINANCE:SNXUSDT.P',   '', group=g3, inline = '16__')
+sym17   = input.symbol('BINANCE:XMRUSDT.P',       '', group=g1, inline = '17'  ), sym17_  = input.symbol('BINANCE:MKRUSDT.P',      '', group=g2, inline = '17_' ), sym17__ = input.symbol('BINANCE:ALGOUSDT.P',  '', group=g3, inline = '17__')
+sym18   = input.symbol('BINANCE:UNIUSDT.P',       '', group=g1, inline = '18'  ), sym18_  = input.symbol('BINANCE:OXTUSDT.P',      '', group=g2, inline = '18_' ), sym18__ = input.symbol('BINANCE:TRUUSDT.P',   '', group=g3, inline = '18__')
+sym19   = input.symbol('BINANCE:THETAUSDT.P',     '', group=g1, inline = '19'  ), sym19_  = input.symbol('BINANCE:CFXUSDT.P',      '', group=g2, inline = '19_' ), sym19__ = input.symbol('BINANCE:AMBUSDT.P',   '', group=g3, inline = '19__')
+sym20   = input.symbol('BINANCE:ATOMUSDT.P',      '', group=g1, inline = '20'  ), sym20_  = input.symbol('BINANCE:WLDUSDT.P',      '', group=g2, inline = '20_' ), sym20__ = input.symbol('BINANCE:C98USDT.P',   '', group=g3, inline = '20__')
+sym21   = input.symbol('BINANCE:HBARUSDT.P',      '', group=g1, inline = '21'  ), sym21_  = input.symbol('BINANCE:INJUSDT.P',      '', group=g2, inline = '21_' ), sym21__ = input.symbol('BINANCE:KNCUSDT.P',   '', group=g3, inline = '21__')
+sym22   = input.symbol('BINANCE:ICPUSDT.P',       '', group=g1, inline = '22'  ), sym22_  = input.symbol('BINANCE:LINAUSDT.P',     '', group=g2, inline = '22_' ), sym22__ = input.symbol('BINANCE:SXPUSDT.P',   '', group=g3, inline = '22__')
+sym23   = input.symbol('BINANCE:FILUSDT.P',       '', group=g1, inline = '23'  ), sym23_  = input.symbol('BINANCE:EOSUSDT.P',      '', group=g2, inline = '23_' ), sym23__ = input.symbol('BINANCE:ARKMUSDT.P',  '', group=g3, inline = '23__')
+sym24   = input.symbol('BINANCE:LDOUSDT.P',       '', group=g1, inline = '24'  ), sym24_  = input.symbol('BINANCE:SEIUSDT.P',      '', group=g2, inline = '24_' ), sym24__ = input.symbol('BINANCE:CELOUSDT.P',  '', group=g3, inline = '24__')
+sym25   = input.symbol('BINANCE:GRTUSDT.P',       '', group=g1, inline = '25'  ), sym25_  = input.symbol('BINANCE:BAKEUSDT.P',     '', group=g2, inline = '25_' ), sym25__ = input.symbol('BINANCE:SUSHIUSDT.P', '', group=g3, inline = '25__')
+sym26   = input.symbol('BINANCE:APTUSDT.P',       '', group=g1, inline = '26'  ), sym26_  = input.symbol('BINANCE:FTMUSDT.P',      '', group=g2, inline = '26_' ), sym26__ = input.symbol('BINANCE:ARPAUSDT.P',  '', group=g3, inline = '26__')
+sym27   = input.symbol('BINANCE:OPUSDT.P',        '', group=g1, inline = '27'  ), sym27_  = input.symbol('BINANCE:MASKUSDT.P',     '', group=g2, inline = '27_' ), sym27__ = input.symbol('BINANCE:MTLUSDT.P',   '', group=g3, inline = '27__')
+sym28   = input.symbol('BINANCE:ARBUSDT.P',       '', group=g1, inline = '28'  ), sym28_  = input.symbol('BINANCE:STMXUSDT.P',     '', group=g2, inline = '28_' ), sym28__ = input.symbol('BINANCE:RNDRUSDT.P',  '', group=g3, inline = '28__')
+sym29   = input.symbol('BINANCE:QNTUSDT.P',       '', group=g1, inline = '29'  ), sym29_  = input.symbol('BINANCE:GALAUSDT.P',     '', group=g2, inline = '29_' ), sym29__ = input.symbol('BINANCE:STXUSDT.P',   '', group=g3, inline = '29__')
+sym30   = input.symbol('BINANCE:VETUSDT.P',       '', group=g1, inline = '30'  ), sym30_  = input.symbol('BINANCE:WOOUSDT.P',      '', group=g2, inline = '30_' ), sym30__ = input.symbol('BINANCE:API3USDT.P',  '', group=g3, inline = '30__')
+
+// Assigning colors based on the selected palette
+sym1col    = colpal=='Palette 1' ? color.rgb(141, 211, 199) : colpal=='Palette 2' ? #1f77b4 : colpal=='Palette 3' ? #a0e4c0 : colpal=='Palette 4' ? #98bae3 : colpal=='Palette 5' ? #cc6565 : #1f77b4
+sym2col    = colpal=='Palette 1' ? color.rgb(255, 255, 179) : colpal=='Palette 2' ? #aec7e8 : colpal=='Palette 3' ? #7d8bae : colpal=='Palette 4' ? #8fb2dc : colpal=='Palette 5' ? #cc7a65 : #aec7e8
+sym3col    = colpal=='Palette 1' ? color.rgb(190, 186, 218) : colpal=='Palette 2' ? #ffbb78 : colpal=='Palette 3' ? #e5857b : colpal=='Palette 4' ? #86aad6 : colpal=='Palette 5' ? #cc8e65 : #ff7f0e
+sym4col    = colpal=='Palette 1' ? color.rgb(251, 128, 114) : colpal=='Palette 2' ? #2ca02c : colpal=='Palette 3' ? #f1b2b2 : colpal=='Palette 4' ? #7da2d0 : colpal=='Palette 5' ? #cca365 : #ffbb78
+sym5col    = colpal=='Palette 1' ? color.rgb(128, 177, 211) : colpal=='Palette 2' ? #98df8a : colpal=='Palette 3' ? #e8ccc7 : colpal=='Palette 4' ? #749bca : colpal=='Palette 5' ? #ccb765 : #2ca02c
+sym6col    = colpal=='Palette 1' ? color.rgb(253, 180, 98)  : colpal=='Palette 2' ? #d62728 : colpal=='Palette 3' ? #506488 : colpal=='Palette 4' ? #6c93c5 : colpal=='Palette 5' ? #cccc65 : #98df8a
+sym7col    = colpal=='Palette 1' ? color.rgb(179, 222, 105) : colpal=='Palette 2' ? #ff9896 : colpal=='Palette 3' ? #849bb1 : colpal=='Palette 4' ? #648bbf : colpal=='Palette 5' ? #b7cc65 : #d62728
+sym8col    = colpal=='Palette 1' ? color.rgb(252, 205, 229) : colpal=='Palette 2' ? #9467bd : colpal=='Palette 3' ? #e89c8f : colpal=='Palette 4' ? #5d83ba : colpal=='Palette 5' ? #a3cc65 : #ff9896
+sym9col    = colpal=='Palette 1' ? color.rgb(217, 217, 217) : colpal=='Palette 2' ? #c5b0d5 : colpal=='Palette 3' ? #f3c3c3 : colpal=='Palette 4' ? #557bb4 : colpal=='Palette 5' ? #8ecc65 : #9467bd
+sym10col   = colpal=='Palette 1' ? color.rgb(188, 128, 189) : colpal=='Palette 2' ? #8c564b : colpal=='Palette 3' ? #eddbd2 : colpal=='Palette 4' ? #4e72ae : colpal=='Palette 5' ? #7acc65 : #c5b0d5
+sym11col   = colpal=='Palette 1' ? color.rgb(204, 235, 197) : colpal=='Palette 2' ? #c49c94 : colpal=='Palette 3' ? #5b7085 : colpal=='Palette 4' ? #466aa9 : colpal=='Palette 5' ? #65cc65 : #8c564b
+sym12col   = colpal=='Palette 1' ? color.rgb(222, 203, 228) : colpal=='Palette 2' ? #e377c2 : colpal=='Palette 3' ? #8badb5 : colpal=='Palette 4' ? #3f62a3 : colpal=='Palette 5' ? #65cc7a : #c49c94
+sym13col   = colpal=='Palette 1' ? color.rgb(254, 217, 166) : colpal=='Palette 2' ? #f7b6d2 : colpal=='Palette 3' ? #d17584 : colpal=='Palette 4' ? #375a9e : colpal=='Palette 5' ? #65cc8e : #e377c2
+sym14col   = colpal=='Palette 1' ? color.rgb(255, 237, 111) : colpal=='Palette 2' ? #7f7f7f : colpal=='Palette 3' ? #f4c8c5 : colpal=='Palette 4' ? #2f5298 : colpal=='Palette 5' ? #65cca3 : #f7b6d2
+sym15col   = colpal=='Palette 1' ? color.rgb(152, 223, 138) : colpal=='Palette 2' ? #c7c7c7 : colpal=='Palette 3' ? #ddd8da : colpal=='Palette 4' ? #284a93 : colpal=='Palette 5' ? #65ccb7 : #7f7f7f
+sym16col   = colpal=='Palette 1' ? color.rgb(158, 218, 229) : colpal=='Palette 2' ? #bcbd22 : colpal=='Palette 3' ? #667c91 : colpal=='Palette 4' ? #20428d : colpal=='Palette 5' ? #65cccc : #c7c7c7
+sym17col   = colpal=='Palette 1' ? color.rgb(213, 62, 79)   : colpal=='Palette 2' ? #dbdb8d : colpal=='Palette 3' ? #92c0b8 : colpal=='Palette 4' ? #193a88 : colpal=='Palette 5' ? #65b7cc : #bcbd22
+sym18col   = colpal=='Palette 1' ? color.rgb(244, 109, 67)  : colpal=='Palette 2' ? #17becf : colpal=='Palette 3' ? #be6e8d : colpal=='Palette 4' ? #113282 : colpal=='Palette 5' ? #65a3cc : #dbdb8d
+sym19col   = colpal=='Palette 1' ? color.rgb(253, 174, 97)  : colpal=='Palette 2' ? #9edae5 : colpal=='Palette 3' ? #f7dde0 : colpal=='Palette 4' ? #0a2a7c : colpal=='Palette 5' ? #658ecc : #17becf
+sym20col   = colpal=='Palette 1' ? color.rgb(171, 221, 164) : colpal=='Palette 2' ? #9e4a55 : colpal=='Palette 3' ? #d4d9dd : colpal=='Palette 4' ? #5981b1 : colpal=='Palette 5' ? #657acc : #9edae5
+sym21col   = colpal=='Palette 1' ? color.rgb(128, 177, 211) : colpal=='Palette 2' ? #d9afa3 : colpal=='Palette 3' ? #70878e : colpal=='Palette 4' ? #6a89b5 : colpal=='Palette 5' ? #6565cc : #ff9896
+sym22col   = colpal=='Palette 1' ? color.rgb(253, 180, 98)  : colpal=='Palette 2' ? #42675a : colpal=='Palette 3' ? #99d2bc : colpal=='Palette 4' ? #7a91ba : colpal=='Palette 5' ? #7a65cc : #c5b0d5
+sym23col   = colpal=='Palette 1' ? color.rgb(179, 222, 105) : colpal=='Palette 2' ? #95aba7 : colpal=='Palette 3' ? #aa688b : colpal=='Palette 4' ? #8a99bf : colpal=='Palette 5' ? #8e65cc : #8c564b
+sym24col   = colpal=='Palette 1' ? color.rgb(252, 205, 229) : colpal=='Palette 2' ? #7d5ba6 : colpal=='Palette 3' ? #fad2e3 : colpal=='Palette 4' ? #9aa1c4 : colpal=='Palette 5' ? #a365cc : #c49c94
+sym25col   = colpal=='Palette 1' ? color.rgb(217, 217, 217) : colpal=='Palette 2' ? #b9a8d3 : colpal=='Palette 3' ? #ccd3d9 : colpal=='Palette 4' ? #aab9c9 : colpal=='Palette 5' ? #b765cc : #e377c2
+sym26col   = colpal=='Palette 1' ? color.rgb(188, 128, 189) : colpal=='Palette 2' ? #407088 : colpal=='Palette 3' ? #7c938a : colpal=='Palette 4' ? #bac1ce : colpal=='Palette 5' ? #cc65cc : #f7b6d2
+sym27col   = colpal=='Palette 1' ? color.rgb(204, 235, 197) : colpal=='Palette 2' ? #8aacc8 : colpal=='Palette 3' ? #a0a2e4 : colpal=='Palette 4' ? #cac9d3 : colpal=='Palette 5' ? #cc65b7 : #7f7f7f
+sym28col   = colpal=='Palette 1' ? color.rgb(222, 203, 228) : colpal=='Palette 2' ? #b15928 : colpal=='Palette 3' ? #966398 : colpal=='Palette 4' ? #dad1d8 : colpal=='Palette 5' ? #cc65a3 : #c7c7c7
+sym29col   = colpal=='Palette 1' ? color.rgb(254, 217, 166) : colpal=='Palette 2' ? #ffab70 : colpal=='Palette 3' ? #fbe7ec : colpal=='Palette 4' ? #e9d9dd : colpal=='Palette 5' ? #cc658e : #bcbd22
+sym30col   = colpal=='Palette 1' ? color.rgb(255, 237, 111) : colpal=='Palette 2' ? #e08e45 : colpal=='Palette 3' ? #e3ecf0 : colpal=='Palette 4' ? #f9e1e2 : colpal=='Palette 5' ? #cc657a : #dbdb8d
+
+// Assigning symbols based on the selected group
+S1  = gn == 'Group 1' ? sym1  : gn == 'Group 2' ? sym1_  : sym1__ , C1  = gn == 'Group 1' ? showsym1  : gn == 'Group 2' ? showsym1_  : showsym1__
+S2  = gn == 'Group 1' ? sym2  : gn == 'Group 2' ? sym2_  : sym2__ , C2  = gn == 'Group 1' ? showsym2  : gn == 'Group 2' ? showsym2_  : showsym2__
+S3  = gn == 'Group 1' ? sym3  : gn == 'Group 2' ? sym3_  : sym3__ , C3  = gn == 'Group 1' ? showsym3  : gn == 'Group 2' ? showsym3_  : showsym3__
+S4  = gn == 'Group 1' ? sym4  : gn == 'Group 2' ? sym4_  : sym4__ , C4  = gn == 'Group 1' ? showsym4  : gn == 'Group 2' ? showsym4_  : showsym4__
+S5  = gn == 'Group 1' ? sym5  : gn == 'Group 2' ? sym5_  : sym5__ , C5  = gn == 'Group 1' ? showsym5  : gn == 'Group 2' ? showsym5_  : showsym5__
+S6  = gn == 'Group 1' ? sym6  : gn == 'Group 2' ? sym6_  : sym6__ , C6  = gn == 'Group 1' ? showsym6  : gn == 'Group 2' ? showsym6_  : showsym6__
+S7  = gn == 'Group 1' ? sym7  : gn == 'Group 2' ? sym7_  : sym7__ , C7  = gn == 'Group 1' ? showsym7  : gn == 'Group 2' ? showsym7_  : showsym7__
+S8  = gn == 'Group 1' ? sym8  : gn == 'Group 2' ? sym8_  : sym8__ , C8  = gn == 'Group 1' ? showsym8  : gn == 'Group 2' ? showsym8_  : showsym8__
+S9  = gn == 'Group 1' ? sym9  : gn == 'Group 2' ? sym9_  : sym9__ , C9  = gn == 'Group 1' ? showsym9  : gn == 'Group 2' ? showsym9_  : showsym9__
+S10 = gn == 'Group 1' ? sym10 : gn == 'Group 2' ? sym10_ : sym10__, C10 = gn == 'Group 1' ? showsym10 : gn == 'Group 2' ? showsym10_ : showsym10__
+S11 = gn == 'Group 1' ? sym11 : gn == 'Group 2' ? sym11_ : sym11__, C11 = gn == 'Group 1' ? showsym11 : gn == 'Group 2' ? showsym11_ : showsym11__
+S12 = gn == 'Group 1' ? sym12 : gn == 'Group 2' ? sym12_ : sym12__, C12 = gn == 'Group 1' ? showsym12 : gn == 'Group 2' ? showsym12_ : showsym12__
+S13 = gn == 'Group 1' ? sym13 : gn == 'Group 2' ? sym13_ : sym13__, C13 = gn == 'Group 1' ? showsym13 : gn == 'Group 2' ? showsym13_ : showsym13__
+S14 = gn == 'Group 1' ? sym14 : gn == 'Group 2' ? sym14_ : sym14__, C14 = gn == 'Group 1' ? showsym14 : gn == 'Group 2' ? showsym14_ : showsym14__
+S15 = gn == 'Group 1' ? sym15 : gn == 'Group 2' ? sym15_ : sym15__, C15 = gn == 'Group 1' ? showsym15 : gn == 'Group 2' ? showsym15_ : showsym15__
+S16 = gn == 'Group 1' ? sym16 : gn == 'Group 2' ? sym16_ : sym16__, C16 = gn == 'Group 1' ? showsym16 : gn == 'Group 2' ? showsym16_ : showsym16__
+S17 = gn == 'Group 1' ? sym17 : gn == 'Group 2' ? sym17_ : sym17__, C17 = gn == 'Group 1' ? showsym17 : gn == 'Group 2' ? showsym17_ : showsym17__
+S18 = gn == 'Group 1' ? sym18 : gn == 'Group 2' ? sym18_ : sym18__, C18 = gn == 'Group 1' ? showsym18 : gn == 'Group 2' ? showsym18_ : showsym18__
+S19 = gn == 'Group 1' ? sym19 : gn == 'Group 2' ? sym19_ : sym19__, C19 = gn == 'Group 1' ? showsym19 : gn == 'Group 2' ? showsym19_ : showsym19__
+S20 = gn == 'Group 1' ? sym20 : gn == 'Group 2' ? sym20_ : sym20__, C20 = gn == 'Group 1' ? showsym20 : gn == 'Group 2' ? showsym20_ : showsym20__
+S21 = gn == 'Group 1' ? sym21 : gn == 'Group 2' ? sym21_ : sym21__, C21 = gn == 'Group 1' ? showsym21 : gn == 'Group 2' ? showsym21_ : showsym21__
+S22 = gn == 'Group 1' ? sym22 : gn == 'Group 2' ? sym22_ : sym22__, C22 = gn == 'Group 1' ? showsym22 : gn == 'Group 2' ? showsym22_ : showsym22__
+S23 = gn == 'Group 1' ? sym23 : gn == 'Group 2' ? sym23_ : sym23__, C23 = gn == 'Group 1' ? showsym23 : gn == 'Group 2' ? showsym23_ : showsym23__
+S24 = gn == 'Group 1' ? sym24 : gn == 'Group 2' ? sym24_ : sym24__, C24 = gn == 'Group 1' ? showsym24 : gn == 'Group 2' ? showsym24_ : showsym24__
+S25 = gn == 'Group 1' ? sym25 : gn == 'Group 2' ? sym25_ : sym25__, C25 = gn == 'Group 1' ? showsym25 : gn == 'Group 2' ? showsym25_ : showsym25__
+S26 = gn == 'Group 1' ? sym26 : gn == 'Group 2' ? sym26_ : sym26__, C26 = gn == 'Group 1' ? showsym26 : gn == 'Group 2' ? showsym26_ : showsym26__
+S27 = gn == 'Group 1' ? sym27 : gn == 'Group 2' ? sym27_ : sym27__, C27 = gn == 'Group 1' ? showsym27 : gn == 'Group 2' ? showsym27_ : showsym27__
+S28 = gn == 'Group 1' ? sym28 : gn == 'Group 2' ? sym28_ : sym28__, C28 = gn == 'Group 1' ? showsym28 : gn == 'Group 2' ? showsym28_ : showsym28__
+S29 = gn == 'Group 1' ? sym29 : gn == 'Group 2' ? sym29_ : sym29__, C29 = gn == 'Group 1' ? showsym29 : gn == 'Group 2' ? showsym29_ : showsym29__
+S30 = gn == 'Group 1' ? sym30 : gn == 'Group 2' ? sym30_ : sym30__, C30 = gn == 'Group 1' ? showsym30 : gn == 'Group 2' ? showsym30_ : showsym30__
+
+// Function for converting user input into time period
+f_switch(x) =>
+    switch x
+        '5 MIN'        => '5'
+        '15 MIN'       => '15'
+        '30 MIN'       => '30'
+        '45 MIN'       => '45'
+        '1 HOUR'       => '60'
+        '2 HOURS'      => '120'
+        '4 HOURS'      => '240'
+        '12 HOURS'     => '720'
+        '1 DAY'        => '1D'
+        '2 DAYS'       => '2D'
+        '3 DAYS'       => '3D'
+        '1 WEEK'       => 'W'
+        '2 WEEKS'      => '2W'
+        '1 MONTH'      => 'M'
+        '2 MONTHS'     => '2M'
+        '3 MONTHS'     => '3M'
+        '6 MONTHS'     => '6M'
+        '1 YEAR'       => '12M'
+
+// Function for switching plot style
+switchstyle(x) =>
+    switch x
+        'Lines'        => plot.style_linebr
+        'Circles'      => plot.style_circles
+        'Columns'      => plot.style_columns
+        'Area'         => plot.style_area
+
+// Function for switching text size
+switchsize(x) =>
+    switch x
+        'Tiny'         => size.tiny
+        'Small'        => size.small
+        'Normal'       => size.normal
+        'Auto'         => size.auto
+
+// Function for switching table position
+switchpos(x) =>
+    switch x
+        'Middle Right' => position.middle_right
+        'Top Right'    => position.top_right
+        'Bottom Right' => position.bottom_right
+        'Middle Left'  => position.middle_left
+        'Top Left'     => position.top_left
+        'Bottom Left'  => position.bottom_left
+
+// Modifying ticker names (so they can be used without their prefix eg. BINANCE:BTCUSDT.P -> BTCUSDT.P)
+t1  = array.get(str.split(S1,  ":"), 1), t11 = array.get(str.split(S11, ":"), 1), t21 = array.get(str.split(S21, ":"), 1)
+t2  = array.get(str.split(S2,  ":"), 1), t12 = array.get(str.split(S12, ":"), 1), t22 = array.get(str.split(S22, ":"), 1)
+t3  = array.get(str.split(S3,  ":"), 1), t13 = array.get(str.split(S13, ":"), 1), t23 = array.get(str.split(S23, ":"), 1)
+t4  = array.get(str.split(S4,  ":"), 1), t14 = array.get(str.split(S14, ":"), 1), t24 = array.get(str.split(S24, ":"), 1)
+t5  = array.get(str.split(S5,  ":"), 1), t15 = array.get(str.split(S15, ":"), 1), t25 = array.get(str.split(S25, ":"), 1)
+t6  = array.get(str.split(S6,  ":"), 1), t16 = array.get(str.split(S16, ":"), 1), t26 = array.get(str.split(S26, ":"), 1)
+t7  = array.get(str.split(S7,  ":"), 1), t17 = array.get(str.split(S17, ":"), 1), t27 = array.get(str.split(S27, ":"), 1)
+t8  = array.get(str.split(S8,  ":"), 1), t18 = array.get(str.split(S18, ":"), 1), t28 = array.get(str.split(S28, ":"), 1)
+t9  = array.get(str.split(S9,  ":"), 1), t19 = array.get(str.split(S19, ":"), 1), t29 = array.get(str.split(S29, ":"), 1)
+t10 = array.get(str.split(S10, ":"), 1), t20 = array.get(str.split(S20, ":"), 1), t30 = array.get(str.split(S30, ":"), 1)
+
+// Determining the periods
+new_period      = ta.change(time(f_switch(tf2)))
+count_period    = ta.barssince(new_period)
+startCondition  = tf2 == "Visible Range" ? time == chart.left_visible_bar_time : tf2=='Timestamp' ? time==starttime : new_period
+vr              = time > chart.left_visible_bar_time
+
+// Function for requesting price, obv and open interest data
+cumulativeChange(a) =>
+    symbol = data_type == 'Open Interest' ? a + '_OI' : a
+    src = data_type=='OBV' ? ta.obv : close
+    closePrice = request.security(symbol, tf, smooth ? ta.sma(src, len) : src)
+    startPrice = ta.valuewhen(startCondition, closePrice[1], 0)
+    change = (closePrice - startPrice) / startPrice * 100
+
+// Calculating % change values for each symbol
+V1  = cumulativeChange(S1) , V11 = cumulativeChange(S11), V21 = cumulativeChange(S21)
+V2  = cumulativeChange(S2) , V12 = cumulativeChange(S12), V22 = cumulativeChange(S22)
+V3  = cumulativeChange(S3) , V13 = cumulativeChange(S13), V23 = cumulativeChange(S23)
+V4  = cumulativeChange(S4) , V14 = cumulativeChange(S14), V24 = cumulativeChange(S24)
+V5  = cumulativeChange(S5) , V15 = cumulativeChange(S15), V25 = cumulativeChange(S25)
+V6  = cumulativeChange(S6) , V16 = cumulativeChange(S16), V26 = cumulativeChange(S26)
+V7  = cumulativeChange(S7) , V17 = cumulativeChange(S17), V27 = cumulativeChange(S27)
+V8  = cumulativeChange(S8) , V18 = cumulativeChange(S18), V28 = cumulativeChange(S28)
+V9  = cumulativeChange(S9) , V19 = cumulativeChange(S19), V29 = cumulativeChange(S29)
+V10 = cumulativeChange(S10), V20 = cumulativeChange(S20), V30 = cumulativeChange(S30)
+
+// Creating arrays
+database = array.new_float  (30, na)
+names    = array.new_string (30, na)
+cols     = array.new_color  (30, na)
+corrs    = array.new_float  (30, na)
+conds    = array.new_bool   (30, false)
+rsis     = array.new_float  (30, na)
+betas    = array.new_float  (30, na)
+
+// Pushing values, names, colors and conditions into arrays
+f_push_data(plot, name, col, cond, index) =>
+    array.set(conds, index, cond)
+    array.set(database, index, plot)
+    array.set(names, index, name)
+    array.set(cols, index, col)
+
+f_push_data(V1,  t1  , sym1col , C1 , 0 ), f_push_data(V11, t11 , sym11col, C11, 10), f_push_data(V21, t21 , sym21col, C21, 20)
+f_push_data(V2,  t2  , sym2col , C2 , 1 ), f_push_data(V12, t12 , sym12col, C12, 11), f_push_data(V22, t22 , sym22col, C22, 21)
+f_push_data(V3,  t3  , sym3col , C3 , 2 ), f_push_data(V13, t13 , sym13col, C13, 12), f_push_data(V23, t23 , sym23col, C23, 22)
+f_push_data(V4,  t4  , sym4col , C4 , 3 ), f_push_data(V14, t14 , sym14col, C14, 13), f_push_data(V24, t24 , sym24col, C24, 23)
+f_push_data(V5,  t5  , sym5col , C5 , 4 ), f_push_data(V15, t15 , sym15col, C15, 14), f_push_data(V25, t25 , sym25col, C25, 24)
+f_push_data(V6,  t6  , sym6col , C6 , 5 ), f_push_data(V16, t16 , sym16col, C16, 15), f_push_data(V26, t26 , sym26col, C26, 25)
+f_push_data(V7,  t7  , sym7col , C7 , 6 ), f_push_data(V17, t17 , sym17col, C17, 16), f_push_data(V27, t27 , sym27col, C27, 26)
+f_push_data(V8,  t8  , sym8col , C8 , 7 ), f_push_data(V18, t18 , sym18col, C18, 17), f_push_data(V28, t28 , sym28col, C28, 27)
+f_push_data(V9,  t9  , sym9col , C9 , 8 ), f_push_data(V19, t19 , sym19col, C19, 18), f_push_data(V29, t29 , sym29col, C29, 28)
+f_push_data(V10, t10 , sym10col, C10, 9 ), f_push_data(V20, t20 , sym20col, C20, 19), f_push_data(V30, t30 , sym30col, C30, 29)
+
+// Calculating group mean
+mean = meantype=='First Ticker' ? V1 : array.avg(database)
+
+// Function for calculating correlation
+f_corr(v) =>
+    m   = ta.change(mean)
+    val = ta.change(v)
+    math.round(ta.correlation(val, m, clen), 2)
+
+// Function for calculating beta
+f_beta(v) =>
+    m_std   = ta.stdev(ta.change(mean), clen)
+    val_std = ta.stdev(ta.change(v), clen)
+    corr    = f_corr(v)
+    beta    = corr * (val_std / m_std)
+    math.round(beta, 2)
+
+// Function of calculating RSI
+f_rsi(v) =>
+    rsi = ta.rsi(v, rsilen)
+    math.round(rsi, 0)
+
+// Calculating correlation and pushing the correlation values into an array
+if show_corr and showtable
+    array.set(corrs, 0,  f_corr(V1 )), array.set(corrs, 10, f_corr(V11)), array.set(corrs, 20, f_corr(V21))
+    array.set(corrs, 1,  f_corr(V2 )), array.set(corrs, 11, f_corr(V12)), array.set(corrs, 21, f_corr(V22))
+    array.set(corrs, 2,  f_corr(V3 )), array.set(corrs, 12, f_corr(V13)), array.set(corrs, 22, f_corr(V23))
+    array.set(corrs, 3,  f_corr(V4 )), array.set(corrs, 13, f_corr(V14)), array.set(corrs, 23, f_corr(V24))
+    array.set(corrs, 4,  f_corr(V5 )), array.set(corrs, 14, f_corr(V15)), array.set(corrs, 24, f_corr(V25))
+    array.set(corrs, 5,  f_corr(V6 )), array.set(corrs, 15, f_corr(V16)), array.set(corrs, 25, f_corr(V26))
+    array.set(corrs, 6,  f_corr(V7 )), array.set(corrs, 16, f_corr(V17)), array.set(corrs, 26, f_corr(V27))
+    array.set(corrs, 7,  f_corr(V8 )), array.set(corrs, 17, f_corr(V18)), array.set(corrs, 27, f_corr(V28))
+    array.set(corrs, 8,  f_corr(V9 )), array.set(corrs, 18, f_corr(V19)), array.set(corrs, 28, f_corr(V29))
+    array.set(corrs, 9,  f_corr(V10)), array.set(corrs, 19, f_corr(V20)), array.set(corrs, 29, f_corr(V30))
+
+// Calculating beta and pushing the beta values into an array
+if show_beta and showtable
+    array.set(betas, 0,  f_beta(V1 )), array.set(betas, 10, f_beta(V11)), array.set(betas, 20, f_beta(V21))
+    array.set(betas, 1,  f_beta(V2 )), array.set(betas, 11, f_beta(V12)), array.set(betas, 21, f_beta(V22))
+    array.set(betas, 2,  f_beta(V3 )), array.set(betas, 12, f_beta(V13)), array.set(betas, 22, f_beta(V23))
+    array.set(betas, 3,  f_beta(V4 )), array.set(betas, 13, f_beta(V14)), array.set(betas, 23, f_beta(V24))
+    array.set(betas, 4,  f_beta(V5 )), array.set(betas, 14, f_beta(V15)), array.set(betas, 24, f_beta(V25))
+    array.set(betas, 5,  f_beta(V6 )), array.set(betas, 15, f_beta(V16)), array.set(betas, 25, f_beta(V26))
+    array.set(betas, 6,  f_beta(V7 )), array.set(betas, 16, f_beta(V17)), array.set(betas, 26, f_beta(V27))
+    array.set(betas, 7,  f_beta(V8 )), array.set(betas, 17, f_beta(V18)), array.set(betas, 27, f_beta(V28))
+    array.set(betas, 8,  f_beta(V9 )), array.set(betas, 18, f_beta(V19)), array.set(betas, 28, f_beta(V29))
+    array.set(betas, 9,  f_beta(V10)), array.set(betas, 19, f_beta(V20)), array.set(betas, 29, f_beta(V30))
+
+// Calculating RSI and pushing the RSI values into an array
+if show_rsi and showtable
+    array.set(rsis,  0,  f_rsi(V1 )),  array.set(rsis,  10, f_rsi(V11)),  array.set(rsis,  20, f_rsi(V21))
+    array.set(rsis,  1,  f_rsi(V2 )),  array.set(rsis,  11, f_rsi(V12)),  array.set(rsis,  21, f_rsi(V22))
+    array.set(rsis,  2,  f_rsi(V3 )),  array.set(rsis,  12, f_rsi(V13)),  array.set(rsis,  22, f_rsi(V23))
+    array.set(rsis,  3,  f_rsi(V4 )),  array.set(rsis,  13, f_rsi(V14)),  array.set(rsis,  23, f_rsi(V24))
+    array.set(rsis,  4,  f_rsi(V5 )),  array.set(rsis,  14, f_rsi(V15)),  array.set(rsis,  24, f_rsi(V25))
+    array.set(rsis,  5,  f_rsi(V6 )),  array.set(rsis,  15, f_rsi(V16)),  array.set(rsis,  25, f_rsi(V26))
+    array.set(rsis,  6,  f_rsi(V7 )),  array.set(rsis,  16, f_rsi(V17)),  array.set(rsis,  26, f_rsi(V27))
+    array.set(rsis,  7,  f_rsi(V8 )),  array.set(rsis,  17, f_rsi(V18)),  array.set(rsis,  27, f_rsi(V28))
+    array.set(rsis,  8,  f_rsi(V9 )),  array.set(rsis,  18, f_rsi(V19)),  array.set(rsis,  28, f_rsi(V29))
+    array.set(rsis,  9,  f_rsi(V10)),  array.set(rsis,  19, f_rsi(V20)),  array.set(rsis,  29, f_rsi(V30))
+
+// Function for setting the color (normal, highlighted/shadowed/gradient)
+tp  = hm1, mid = hm3, bt  = hm2
+tr = time < starttime
+cr = time < chart.left_visible_bar_time
+
+f_set_color(x) =>
+    sym = array.get(database, x)
+    if highlight
+        top_x = array.max(database, counthl)
+        bottom_x = array.min(database, counthl)
+        op = sym > top_x
+        up = sym < bottom_x
+        colsrc =     sym >= 0 ? color.from_gradient(sym, 0, array.max(database), mid, tp) : color.from_gradient(sym, array.min(database), 0, bt, mid)
+        col = op or up ? colsrc : nonhlcol
+        tf2 == 'Visible Range' ? (cr ? na : col) : tf2=='Timestamp' ? (tr ? na : col) : (new_period ? na : col)
+    else if hm
+        col =     sym >= 0 ? color.from_gradient(sym, 0, array.max(database), mid, tp) : color.from_gradient(sym, array.min(database), 0, bt, mid)
+        tf2 == 'Visible Range' ? (cr ? na : col) : tf2=='Timestamp' ? (tr ? na : col) : (new_period ? na : col)
+    else 
+        col = array.get(cols, x)
+        tf2 == 'Visible Range' ? (cr ? na : col) : tf2=='Timestamp' ? (tr ? na : col) : (new_period ? na : col)
+
+// Function for conditional plotting
+f_plot(V, C) =>
+    C ? (tf2 == 'Visible Range' ? (vr ? V : 0) : tf2=='Timestamp' ? (time>starttime ? V : 0) : (new_period ? 0 : V)) : na
+
+// Plotting data 
+plot(f_plot(V1 , C1 ), color= f_set_color(0 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V2 , C2 ), color= f_set_color(1 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V3 , C3 ), color= f_set_color(2 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V4 , C4 ), color= f_set_color(3 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V5 , C5 ), color= f_set_color(4 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V6 , C6 ), color= f_set_color(5 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V7 , C7 ), color= f_set_color(6 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V8 , C8 ), color= f_set_color(7 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V9 , C9 ), color= f_set_color(8 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V10, C10), color= f_set_color(9 ), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V11, C11), color= f_set_color(10), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V12, C12), color= f_set_color(11), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V13, C13), color= f_set_color(12), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V14, C14), color= f_set_color(13), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V15, C15), color= f_set_color(14), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V16, C16), color= f_set_color(15), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V17, C17), color= f_set_color(16), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V18, C18), color= f_set_color(17), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V19, C19), color= f_set_color(18), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V20, C20), color= f_set_color(19), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V21, C21), color= f_set_color(20), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V22, C22), color= f_set_color(21), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V23, C23), color= f_set_color(22), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V24, C24), color= f_set_color(23), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V25, C25), color= f_set_color(24), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V26, C26), color= f_set_color(25), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V27, C27), color= f_set_color(26), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V28, C28), color= f_set_color(27), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V29, C29), color= f_set_color(28), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(V30, C30), color= f_set_color(29), title='', style = switchstyle(disp), linewidth = linewidth, editable = false)
+plot(f_plot(mean, plotmean), color = tf2 == 'Visible Range' ? (vr ? na : meancol) : tf2=='Timestamp' ? (tr ? na : meancol) : (new_period ? na : meancol), linewidth = 3, style = switchstyle(disp), title = 'Mean')
+
+// Function for creating symbol labels
+f_create_label(plot, x, t) =>
+    top_x = array.max(database, counthl)
+    bottom_x = array.min(database, counthl)
+    op = plot > top_x
+    up = plot < bottom_x
+
+    if highlight==false or (highlight and (op or up))
+        label.new(bar_index + offs, plot, str.tostring(t), size = switchsize(lblsize), color = lbltyp=='Text Label' ? na : f_set_color(x), textcolor = lbltyp=='Text Label' ? f_set_color(x) : (hm ? color.white : color.black), style = label.style_label_left)
+
+// Function for creating lines that connect the plot and the label
+f_create_line(plot, x, t) =>
+    top_x = array.max(database, counthl)
+    bottom_x = array.min(database, counthl)
+    op = plot > top_x
+    up = plot < bottom_x
+
+    if highlight==false or (highlight and (op or up))
+        line.new(bar_index, plot, bar_index+offs, plot, color = lbltyp=='Label and Line' ? f_set_color(x) : na, style = line.style_dotted, width = linewidth)
+
+// Generating labels and lines
+conds_size  = array.size(conds)
+var line li = na
+var label l = na
+
+if showlbl and barstate.islast
+    for i = 0 to conds_size - 1
+        if array.get(conds, i)
+            l  := f_create_label(array.get(database, i), i, array.get(names, i))
+            label.delete(l[1])
+            if lbltyp=='Label and Line'
+                li := f_create_line(array.get(database, i), i, array.get(names, i))
+                line.delete(li[1])
+
+// Table 
+h = tablesize
+table1 = table.new(switchpos(tablepos), 6, 35, border_color = chart.bg_color, border_width = bordsize)
+
+// Function to populate cells with ticker names
+f_ncell(cond, c, r, txt, col, ord) =>
+    if cond
+        table.cell(table1, c, r, str.tostring(array.get(names, ord)), bgcolor = col, text_color = hm ? color.white : color.black, height = h, text_size = switchsize(textsize))
+// Function to populate cells with plot values
+f_vcell(cond, c, r, txt, col, ord) =>
+    if cond
+        table.cell(table1, c, r, str.tostring(array.get(database, ord), format.percent), bgcolor = color.new(col, 10), text_color = hm ? color.white: color.black, height = h, text_size = switchsize(textsize))
+// Function to populate cells with correlation to mean values
+f_ccell(cond, c, r, txt, col, ord) =>
+    if cond
+        table.cell(table1, c, r, str.tostring(array.get(corrs, ord)), bgcolor = color.new(col, 10), text_color = hm ? color.white: color.black, height = h, text_size = switchsize(textsize))
+// Function to populate cells with RSI values
+f_rcell(cond, c, r, txt, col, ord) =>
+    if cond
+        table.cell(table1, c, r, str.tostring(array.get(rsis, ord)), bgcolor = color.new(col, 10), text_color = hm ? color.white: color.black, height = h, text_size = switchsize(textsize))
+// Function to populate cells with Beta values
+f_bcell(cond, c, r, txt, col, ord) =>
+    if cond
+        table.cell(table1, c, r, str.tostring(array.get(betas, ord)), bgcolor = color.new(col, 10), text_color = hm ? color.white: color.black, height = h, text_size = switchsize(textsize))
+
+// Setting up the gradient coloring
+f_gcol(x) =>
+    midv = array.avg(database)
+    array.max(database, x) >= midv ? color.from_gradient(array.max(database, x), midv, array.max(database), mid, tp) : color.from_gradient(array.max(database, x), array.min(database), midv, bt, mid)
+
+// Filter database based on conditions
+filtered_database = array.new_float(0)
+for i = 0 to array.size(database) - 1
+    if array.get(conds, i)
+        array.push(filtered_database, array.get(database, i))
+
+// Sort the filtered_database in descending order
+array.sort(filtered_database, order.descending)
+sorted_database = filtered_database
+
+// Populating the table cells
+if showtable and barstate.islast
+    // Ticker names
+    if show_tick
+        table.cell(table1, 0, 0, 'Ticker', text_color = color.white, bgcolor = color.rgb(41, 42, 42))
+        for i = 0 to array.size(sorted_database) - 1
+            highValue = array.get(sorted_database, i)
+            highIndex = array.indexof(database, highValue)
+            if not na(highIndex)
+                f_ncell(array.get(conds, highIndex), 0, i + 2, i, hm ? f_gcol(i) : array.get(cols, highIndex), highIndex)
+    // Percent change
+    if show_chg
+        table.cell(table1, 1, 0, 'Δ', text_color = color.white, bgcolor = color.rgb(41, 42, 42))
+        for i = 0 to array.size(sorted_database) - 1
+            highValue = array.get(sorted_database, i)
+            highIndex = array.indexof(database, highValue)
+            if not na(highIndex)
+                f_vcell(array.get(conds, highIndex), 1, i + 2, i, hm ? color.new(f_gcol(i), 30) : array.get(cols, highIndex), highIndex)
+    // Correlation to mean
+    if show_corr
+        table.cell(table1, 2, 0, '𝓻', text_color = color.white, bgcolor = color.rgb(41, 42, 42))
+        for i = 0 to array.size(sorted_database) - 1
+            highValue = array.get(sorted_database, i)
+            highIndex = array.indexof(database, highValue)
+            if not na(highIndex)
+                f_ccell(array.get(conds, highIndex), 2, i + 2, i, hm ? color.new(f_gcol(i), 30) : array.get(cols, highIndex), highIndex)
+    // RSI
+    if show_rsi
+        table.cell(table1, 3, 0, 'RSI', text_color = color.white, bgcolor = color.rgb(41, 42, 42))
+        for i = 0 to array.size(sorted_database) - 1
+            highValue = array.get(sorted_database, i)
+            highIndex = array.indexof(database, highValue)
+            if not na(highIndex)
+                f_rcell(array.get(conds, highIndex), 3, i + 2, i, hm ? color.new(f_gcol(i), 30) : array.get(cols, highIndex), highIndex)
+    // Beta
+    if show_beta
+        table.cell(table1, 4, 0, 'β', text_color = color.white, bgcolor = color.rgb(41, 42, 42))
+        for i = 0 to array.size(sorted_database) - 1
+            highValue = array.get(sorted_database, i)
+            highIndex = array.indexof(database, highValue)
+            if not na(highIndex)
+                f_bcell(array.get(conds, highIndex), 4, i + 2, i, hm ? color.new(f_gcol(i), 30) : array.get(cols, highIndex), highIndex)
+
+// Coloring background as separators
+bgcolor(showsep and tf2 != 'Visible Range' and tf2 != 'Timestamp' and new_period ? bgcol : na)
+
+// Title
+if showtitle
+    title = table.new(position.top_center, 2, 2)
+    tfs = (tf=='' ? timeframe.period : str.tostring(tf)) + (timeframe.isminutes ? 'm' : na)
+    table.cell(title, 0,0, '• ' + (str.tostring(data_type)) + ' change (%) •', text_color = titcol, text_size = size.normal, text_font_family = font.family_monospace)
+    table.cell(title, 0,1, (str.tostring(tf2) + ' - ' + str.tostring(tfs)), text_color = titcol, text_size = size.small, text_font_family = font.family_monospace)
+
+// Generating a profile
+if showprof and barstate.islast
+    var int[] zoneCounts = array.new_int(10, 0)
+    float maxVal         = array.max(database)
+    float minVal         = array.min(database)
+    float distToMax      = maxVal - mean
+    float distToMin      = mean - minVal
+    float maxDist        = math.max(distToMax, distToMin)
+    float zoneSize       = maxDist / 5
+    var int aboveMean    = 0
+    var int belowMean    = 0
+
+    array.fill(zoneCounts, 0)
+
+    left = bar_index + profoffs
+    k    = line.new(left, mean, na, mean, color = color.gray, style = line.style_dashed)
+    pl   = label.new(line.get_x2(k), mean + zoneSize, text = na, color = na, textcolor = color.gray, style = label.style_label_left)
+    ml   = label.new(line.get_x2(k), mean - zoneSize, text = na, color = na, textcolor = color.gray, style = label.style_label_left)
+    ul   = label.new(line.get_x2(k), mean, text = 'μ', color = na, textcolor = color.gray, style = label.style_label_left)
+
+    for i = 0 to array.size(database)-1
+        val = array.get(database, i)
+        if (val > mean)
+            aboveMean := aboveMean + 1
+        else if (val < mean)
+            belowMean := belowMean + 1
+        zoneIndex = int((val - mean + maxDist) / zoneSize)
+        if (zoneIndex == 10)
+            zoneIndex := 9
+        oldCount = array.get(zoneCounts, zoneIndex)
+        array.set(zoneCounts, zoneIndex, oldCount + 1)
+
+    for i = 0 to array.size(zoneCounts)-1
+        zoneCount = array.get(zoneCounts, i)
+        bottom = mean - maxDist + i * zoneSize
+        top = bottom + zoneSize
+        right = (left + zoneCount * profsize)
+        bcol  = color.from_gradient(zoneCount, -10, array.max(zoneCounts), #ffffff00, profcol)
+        b = box.new(left, bottom, right, top, border_color = chart.bg_color, bgcolor = bcol, text = ' ' + (zoneCount>0 and zoneCount<=30 ? str.tostring(zoneCount) : ''), text_halign = text.align_left, text_size = size.tiny, border_width = 2, text_color = color.white)
+        line.set_x2(k, left + array.max(zoneCounts)*(profsize+1) + 15)
+        label.set_text(pl, str.tostring(aboveMean) + ' > μ (' + str.tostring(aboveMean/30*100, format.percent) + ')')
+        label.set_text(ml, str.tostring(belowMean) + ' < μ (' + str.tostring(belowMean/30*100, format.percent) + ')')
+        label.set_x(pl, line.get_x2(k))
+        label.set_x(ml, line.get_x2(k))
+        label.set_x(ul, line.get_x2(k)+5)
+
+
+        box.delete(b[1])
+    line.delete(k[1])
+    label.delete(pl[1])
+    label.delete(ml[1])
+
+

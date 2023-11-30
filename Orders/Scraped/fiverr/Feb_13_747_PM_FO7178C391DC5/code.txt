@@ -1,0 +1,15 @@
+declare lower; 
+input color = yes;
+input Pct_Filter = 50;
+
+plot real_body_strength = close - open;
+real_body_strength.setpaintingStrategy(paintingStrategy.HISTOGRAM);
+real_body_strength.assignValueColor(if color and real_body_strength > 0 then color.uptick else if color and real_body_strength < 0 then color.downtick else color.current);
+plot zero = 0;
+zero.setdefaultColor(color.white);
+
+def pct_change = (volume - volume[1]) / volume[1] * 100;
+def filter = absValue(pct_change) >= Pct_Filter;
+
+addchartbubble(real_body_strength > 0 and filter ,real_body_strength, round(pct_change,2) + "%", color.white);
+addchartbubble(real_body_strength < 0 and filter,real_body_strength, round(pct_change,2) + "%", color.white);

@@ -1,0 +1,391 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_marketmakerssl_v2", overlay = true, max_lines_count = 500)
+
+
+// session 1 inputs
+sess1_use =             input.bool(true, title = 'Use Session 1', group = 'Session 1', inline = '1')
+sess1_css_bg =          input.color(color.new(color.yellow, 85), title = ' ', group = 'Session 1', inline = '1')
+sess1_calc =            input.session("0300-0400", title = 'Session 1 Time', group = 'Session 1', inline = '2')
+sess1_draw =            input.session("0300-0830", title = 'Session 1 Draw', group = 'Session 1', inline = '3')
+
+sess1_css_highestbody =   input.color(color.new(#ffb522, 20), title = 'Highest Body ', group = 'Session 1', inline = '4')
+sess1_style_highestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 1', inline = '4')
+sess1_width_highestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 1', inline = '4')
+
+sess1_css_lowestbody =   input.color(color.new(#ffb522, 20), title = 'Lowest Body ', group = 'Session 1', inline = '5')
+sess1_style_lowestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 1', inline = '5')
+sess1_width_lowestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 1', inline = '5')
+
+sess1_css_highest =     input.color(color.new(color.yellow,10), title = 'Highest High ', group = 'Session 1', inline = '6')
+sess1_style_highest =   input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 1', inline = '6')
+sess1_width_highest =   input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 1', inline = '6')
+
+sess1_css_lowest =      input.color(color.new(color.yellow,10), title = 'Lowest Low  ', group = 'Session 1', inline = '7')
+sess1_style_lowest =    input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 1', inline = '7')
+sess1_width_lowest =    input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 1', inline = '7')
+
+sess1_css_mid =         input.color(color.new(color.yellow,10), title = 'Middle     ', group = 'Session 1', inline = '8')
+sess1_style_mid =       input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 1', inline = '8')
+sess1_width_mid =       input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 1', inline = '8')
+
+
+// session 2 inputs
+sess2_use =             input.bool(true, title = 'Use Session 2', group = 'Session 2', inline = '1')
+sess2_css_bg =          input.color(color.new(color.aqua, 85), title = ' ', group = 'Session 2', inline = '1')
+sess2_calc =            input.session("0930-1030", title = 'Session 2 Time', group = 'Session 2', inline = '2')
+sess2_draw =            input.session("0930-1600", title = 'Session 2 Draw', group = 'Session 2', inline = '3')
+
+sess2_css_highestbody =   input.color(color.new(#92dbe5, 20), title = 'Highest Body ', group = 'Session 2', inline = '4')
+sess2_style_highestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 2', inline = '4')
+sess2_width_highestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 2', inline = '4')
+
+sess2_css_lowestbody =   input.color(color.new(#92dbe5, 20), title = 'Lowest Body ', group = 'Session 2', inline = '5')
+sess2_style_lowestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 2', inline = '5')
+sess2_width_lowestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 2', inline = '5')
+
+sess2_css_highest =     input.color(color.new(color.aqua,10), title = 'Highest High ', group = 'Session 2', inline = '6')
+sess2_style_highest =   input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 2', inline = '6')
+sess2_width_highest =   input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 2', inline = '6')
+
+sess2_css_lowest =      input.color(color.new(color.aqua,10), title = 'Lowest Low  ', group = 'Session 2', inline = '7')
+sess2_style_lowest =    input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 2', inline = '7')
+sess2_width_lowest =    input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 2', inline = '7')
+
+sess2_css_mid =         input.color(color.new(color.aqua,10), title = 'Middle     ', group = 'Session 2', inline = '8')
+sess2_style_mid =       input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 2', inline = '8')
+sess2_width_mid =       input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 2', inline = '8')
+
+
+// Session 3 inputs
+sess3_use =             input.bool(true, title = 'Use Session 3', group = 'Session 3', inline = '1')
+sess3_css_bg =          input.color(color.new(color.fuchsia, 85), title = ' ', group = 'Session 3', inline = '1')
+sess3_calc =            input.session("1930-2030", title = 'Session 3 Time', group = 'Session 3', inline = '2')
+sess3_draw =            input.session("1930-0200", title = 'Session 3 Draw', group = 'Session 3', inline = '3')
+
+sess3_css_highestbody =   input.color(color.new(#ddb0e4, 20), title = 'Highest Body ', group = 'Session 3', inline = '4')
+sess3_style_highestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 3', inline = '4')
+sess3_width_highestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 3', inline = '4')
+
+sess3_css_lowestbody =   input.color(color.new(#ddb0e4, 20), title = 'Lowest Body ', group = 'Session 3', inline = '5')
+sess3_style_lowestbody = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 3', inline = '5')
+sess3_width_lowestbody = input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 3', inline = '5')
+
+sess3_css_highest =     input.color(color.new(color.fuchsia,10), title = 'Highest High ', group = 'Session 3', inline = '6')
+sess3_style_highest =   input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 3', inline = '6')
+sess3_width_highest =   input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 3', inline = '6')
+
+sess3_css_lowest =      input.color(color.new(color.fuchsia,10), title = 'Lowest Low  ', group = 'Session 3', inline = '7')
+sess3_style_lowest =    input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 3', inline = '7')
+sess3_width_lowest =    input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 3', inline = '7')
+
+sess3_css_mid =         input.color(color.new(color.fuchsia,10), title = 'Middle     ', group = 'Session 3', inline = '8')
+sess3_style_mid =       input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Session 3', inline = '8')
+sess3_width_mid =       input.int(1, title = '', minval = 1, maxval = 5, group = 'Session 3', inline = '8')
+// FUNCTIONS
+
+
+// array management
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+// manage all lines but mid
+f_manage_lines(sess_calc, sess_draw, line_array, line_color, line_style, line_width, condition, update_value) =>
+
+    newest_line = array.get(line_array,0)
+
+    // during session 1 calculation time
+    if sess_calc
+        // new lines
+        if not sess_calc[1]
+            line.delete(array.get(line_array, array.size(line_array) - 1))
+            f_array_add_pop(line_array, line.new(x1 = time, y1 = update_value, x2 = time+2, y2 = update_value,
+             xloc = xloc.bar_time, extend = extend.right, color = line_color, width = line_width,
+             style = (line_style == 'Solid' ? line.style_solid : line_style == 'Dashed' ? line.style_dashed : line_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+        // update line values
+        if sess_calc[1]
+            line.set_x2(newest_line, time)
+            if condition
+                line.set_y1(newest_line, update_value)
+                line.set_y2(newest_line, update_value)
+    
+    else if sess_draw
+        // extend x2
+        line.set_x2(newest_line, time)
+
+    else
+        // end lines and end extension
+        if sess_draw[1]
+            // highest body
+            line.set_x2(newest_line, time)
+            line.set_extend(newest_line, extend.none)
+
+
+
+// manage mid lines
+f_manage_mid(sess_calc, sess_draw, high_lines, low_lines, line_array, line_color, line_style, line_width) =>
+
+    highs = line.get_y1(array.get(high_lines,0))
+    lows = line.get_y1(array.get(low_lines,0))
+    newest_line = array.get(line_array,0)  
+    mid = (highs + lows) / 2 
+
+    // during session 1 calculation time
+    if sess_calc
+        if not sess_calc[1]
+            line.delete(array.get(line_array, array.size(line_array) - 1))
+            f_array_add_pop(line_array, line.new(x1 = time, y1 = mid, x2 = time+2, y2 = mid,
+             xloc = xloc.bar_time, extend = extend.right, color = line_color, width = line_width,
+             style = (line_style == 'Solid' ? line.style_solid : line_style == 'Dashed' ? line.style_dashed : line_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+        // update line values
+        if sess_calc[1]
+            line.set_x2(newest_line, time)
+            line.set_y1(newest_line,mid)
+            line.set_y2(newest_line,mid)
+
+    else if sess_draw
+        // extend x2
+        line.set_x2(newest_line, time)
+
+    else
+        // end lines and end extension
+        if sess_draw[1]
+            // highest body
+            line.set_x2(newest_line, time)
+            line.set_extend(newest_line, extend.none)
+
+
+// CALCULATE
+
+
+// session 1
+is_sess1 = time(timeframe.period, str.format('{0}:1234567', sess1_calc), 'America/New_York') and sess1_use
+is_sess1_draw = time(timeframe.period, str.format('{0}:1234567', sess1_draw), 'America/New_York') and sess1_use
+
+var sess1_highestbody_line = array.new_line(100, na)
+var sess1_lowestbody_line = array.new_line(100, na)
+f_manage_lines(is_sess1, is_sess1_draw, sess1_highestbody_line, sess1_css_highestbody, sess1_style_highestbody, sess1_width_highestbody, close > line.get_y1(array.get(sess1_highestbody_line,0)), math.max(close,open))
+f_manage_lines(is_sess1, is_sess1_draw, sess1_lowestbody_line, sess1_css_lowestbody, sess1_style_lowestbody, sess1_width_lowestbody, close < line.get_y1(array.get(sess1_lowestbody_line,0)), math.min(close,open))
+        
+var sess1_highesthigh_line = array.new_line(100, na)
+var sess1_lowestlow_line = array.new_line(100, na)
+f_manage_lines(is_sess1, is_sess1_draw, sess1_highesthigh_line, sess1_css_highest, sess1_style_highest, sess1_width_highest, high > line.get_y1(array.get(sess1_highesthigh_line,0)), high)
+f_manage_lines(is_sess1, is_sess1_draw, sess1_lowestlow_line, sess1_css_lowest, sess1_style_lowest, sess1_width_lowest, low < line.get_y1(array.get(sess1_lowestlow_line,0)), low)
+
+var sess1_mid_line = array.new_line(100, na)
+f_manage_mid(is_sess1, is_sess1_draw, sess1_highestbody_line, sess1_lowestbody_line, sess1_mid_line, sess1_css_mid, sess1_style_mid, sess1_width_mid)
+
+
+
+// session 2
+is_sess2 = time(timeframe.period, str.format('{0}:1234567', sess2_calc), 'America/New_York') and sess2_use
+is_sess2_draw = time(timeframe.period, str.format('{0}:1234567', sess2_draw), 'America/New_York') and sess2_use
+
+var sess2_highestbody_line = array.new_line(100, na)
+var sess2_lowestbody_line = array.new_line(100, na)
+f_manage_lines(is_sess2, is_sess2_draw, sess2_highestbody_line, sess2_css_highestbody, sess2_style_highestbody, sess2_width_highestbody, close > line.get_y1(array.get(sess2_highestbody_line,0)), math.max(close,open))
+f_manage_lines(is_sess2, is_sess2_draw, sess2_lowestbody_line, sess2_css_lowestbody, sess2_style_lowestbody, sess2_width_lowestbody, close < line.get_y1(array.get(sess2_lowestbody_line,0)), math.min(close,open))
+        
+var sess2_highesthigh_line = array.new_line(100, na)
+var sess2_lowestlow_line = array.new_line(100, na)
+f_manage_lines(is_sess2, is_sess2_draw, sess2_highesthigh_line, sess2_css_highest, sess2_style_highest, sess2_width_highest, high > line.get_y1(array.get(sess2_highesthigh_line,0)), high)
+f_manage_lines(is_sess2, is_sess2_draw, sess2_lowestlow_line, sess2_css_lowest, sess2_style_lowest, sess2_width_lowest, low < line.get_y1(array.get(sess2_lowestlow_line,0)), low)
+
+var sess2_mid_line = array.new_line(100, na)
+f_manage_mid(is_sess2, is_sess2_draw, sess2_highestbody_line, sess2_lowestbody_line, sess2_mid_line, sess2_css_mid, sess2_style_mid, sess2_width_mid)
+
+
+
+// session 3
+is_sess3 = time(timeframe.period, str.format('{0}:1234567', sess3_calc), 'America/New_York') and sess3_use
+is_sess3_draw = time(timeframe.period, str.format('{0}:1234567', sess3_draw), 'America/New_York') and sess3_use
+
+var sess3_highestbody_line = array.new_line(100, na)
+var sess3_lowestbody_line = array.new_line(100, na)
+f_manage_lines(is_sess3, is_sess3_draw, sess3_highestbody_line, sess3_css_highestbody, sess3_style_highestbody, sess3_width_highestbody, close > line.get_y1(array.get(sess3_highestbody_line,0)), math.max(close,open))
+f_manage_lines(is_sess3, is_sess3_draw, sess3_lowestbody_line, sess3_css_lowestbody, sess3_style_lowestbody, sess3_width_lowestbody, close < line.get_y1(array.get(sess3_lowestbody_line,0)), math.min(close,open))
+        
+var sess3_highesthigh_line = array.new_line(100, na)
+var sess3_lowestlow_line = array.new_line(100, na)
+f_manage_lines(is_sess3, is_sess3_draw, sess3_highesthigh_line, sess3_css_highest, sess3_style_highest, sess3_width_highest, high > line.get_y1(array.get(sess3_highesthigh_line,0)), high)
+f_manage_lines(is_sess3, is_sess3_draw, sess3_lowestlow_line, sess3_css_lowest, sess3_style_lowest, sess3_width_lowest, low < line.get_y1(array.get(sess3_lowestlow_line,0)), low)
+
+var sess3_mid_line = array.new_line(100, na)
+f_manage_mid(is_sess3, is_sess3_draw, sess3_highestbody_line, sess3_lowestbody_line, sess3_mid_line, sess3_css_mid, sess3_style_mid, sess3_width_mid)
+
+
+// bg color
+bgcolor(is_sess1 ? sess1_css_bg : is_sess2 ? sess2_css_bg : is_sess3 ? sess3_css_bg : na)
+
+
+
+// alerts
+var float sess1_highestclose = na
+var float sess1_lowestclose = na
+var float sess1_highest = na
+var float sess1_lowest = na
+var float sess1_mid = na
+
+var float sess2_highestclose = na
+var float sess2_lowestclose = na
+var float sess2_highest = na
+var float sess2_lowest = na
+var float sess2_mid = na
+
+var float sess3_highestclose = na
+var float sess3_lowestclose = na
+var float sess3_highest = na
+var float sess3_lowest = na
+var float sess3_mid = na
+
+var bool alert_sess1_highestclose = na
+var bool alert_sess1_lowestclose = na
+var bool alert_sess1_highest = na
+var bool alert_sess1_lowest = na
+var bool alert_sess1_mid = na
+var bool alert_sess1_closeabovehh = na
+var bool alert_sess1_closebelowll = na
+
+var bool alert_sess2_highestclose = na
+var bool alert_sess2_lowestclose = na
+var bool alert_sess2_highest = na
+var bool alert_sess2_lowest = na
+var bool alert_sess2_mid = na
+var bool alert_sess2_closeabovehh = na
+var bool alert_sess2_closebelowll = na
+
+var bool alert_sess3_highestclose = na
+var bool alert_sess3_lowestclose = na
+var bool alert_sess3_highest = na
+var bool alert_sess3_lowest = na
+var bool alert_sess3_mid = na
+var bool alert_sess3_closeabovehh = na
+var bool alert_sess3_closebelowll = na
+
+
+var bool sess1_can_alert = false
+if sess1_use
+    sess1_can_alert := is_sess1_draw and not is_sess1
+
+    sess1_highestclose := line.get_y2(array.get(sess1_highestbody_line,0))
+    sess1_lowestclose := line.get_y2(array.get(sess1_lowestbody_line,0))
+    sess1_highest := line.get_y2(array.get(sess1_highesthigh_line,0))
+    sess1_lowest := line.get_y2(array.get(sess1_lowestlow_line,0))
+    sess1_mid := line.get_y2(array.get(sess1_mid_line,0))
+
+    alert_sess1_highestclose := high >= sess1_highestclose and low <= sess1_highestclose and sess1_can_alert ? true : false
+    alert_sess1_lowestclose := high >= sess1_lowestclose and low <= sess1_lowestclose and sess1_can_alert ? true : false
+    alert_sess1_highest := high >= sess1_highest and low <= sess1_highest and sess1_can_alert ? true : false
+    alert_sess1_lowest := high >= sess1_lowest and low <= sess1_lowest and sess1_can_alert ? true : false
+    alert_sess1_mid := high >= sess1_mid and low <= sess1_mid and sess1_can_alert ? true : false
+    alert_sess1_closeabovehh := close >= sess1_highest and sess1_can_alert ? true : false
+    alert_sess1_closebelowll := close <= sess1_lowest and sess1_can_alert ? true : false
+
+    if alert_sess1_highestclose
+        alert('Session 1 Highest Close Cross', alert.freq_once_per_bar)
+    if alert_sess1_lowestclose
+        alert('Session 1 Lowest Close Cross', alert.freq_once_per_bar)
+    if alert_sess1_highest
+        alert('Session 1 Highest High Cross', alert.freq_once_per_bar)
+    if alert_sess1_lowest
+        alert('Session 1 Lowest Low Cross', alert.freq_once_per_bar)
+    if alert_sess1_mid
+        alert('Session 1 Mid Cross', alert.freq_once_per_bar)
+    if alert_sess1_closeabovehh
+        alert('Session 1 Close Above Highest High', alert.freq_once_per_bar)
+    if alert_sess1_closebelowll
+        alert('Session 1 Close Below Lowest Low', alert.freq_once_per_bar)
+    
+
+var bool sess2_can_alert = false
+if sess2_use
+    sess2_can_alert := is_sess2_draw and not is_sess2
+
+    sess2_highestclose := line.get_y2(array.get(sess2_highestbody_line,0))
+    sess2_lowestclose := line.get_y2(array.get(sess2_lowestbody_line,0))
+    sess2_highest := line.get_y2(array.get(sess2_highesthigh_line,0))
+    sess2_lowest := line.get_y2(array.get(sess2_lowestlow_line,0))
+    sess2_mid := line.get_y2(array.get(sess2_mid_line,0))
+
+    alert_sess2_highestclose := high >= sess2_highestclose and low <= sess2_highestclose and sess2_can_alert ? true : false
+    alert_sess2_lowestclose := high >= sess2_lowestclose and low <= sess2_lowestclose and sess2_can_alert ? true : false
+    alert_sess2_highest := high >= sess2_highest and low <= sess2_highest and sess2_can_alert ? true : false
+    alert_sess2_lowest := high >= sess2_lowest and low <= sess2_lowest and sess2_can_alert ? true : false
+    alert_sess2_mid := high >= sess2_mid and low <= sess2_mid and sess2_can_alert ? true : false
+    alert_sess2_closeabovehh := close >= sess2_highest and sess2_can_alert ? true : false
+    alert_sess2_closebelowll := close <= sess2_lowest and sess2_can_alert ? true : false
+
+    if alert_sess2_highestclose
+        alert('Session 2 Highest Close Cross', alert.freq_once_per_bar)
+    if alert_sess2_lowestclose
+        alert('Session 2 Lowest Close Cross', alert.freq_once_per_bar)
+    if alert_sess2_highest
+        alert('Session 2 Highest High Cross', alert.freq_once_per_bar)
+    if alert_sess2_lowest
+        alert('Session 2 Lowest Low Cross', alert.freq_once_per_bar)
+    if alert_sess2_mid
+        alert('Session 2 Mid Cross', alert.freq_once_per_bar)
+    if alert_sess2_closeabovehh
+        alert('Session 2 Close Above Highest High', alert.freq_once_per_bar)
+    if alert_sess2_closebelowll
+        alert('Session 2 Close Below Lowest Low', alert.freq_once_per_bar)
+
+
+var bool sess3_can_alert = false
+if sess3_use
+    sess3_can_alert := is_sess3_draw and not is_sess3
+    
+    sess3_highestclose := line.get_y2(array.get(sess3_highestbody_line,0))
+    sess3_lowestclose := line.get_y2(array.get(sess3_lowestbody_line,0))
+    sess3_highest := line.get_y2(array.get(sess3_highesthigh_line,0))
+    sess3_lowest := line.get_y2(array.get(sess3_lowestlow_line,0))
+    sess3_mid := line.get_y2(array.get(sess3_mid_line,0))
+
+    alert_sess3_highestclose := high >= sess3_highestclose and low <= sess3_highestclose and sess3_can_alert ? true : false
+    alert_sess3_lowestclose := high >= sess3_lowestclose and low <= sess3_lowestclose and sess3_can_alert ? true : false
+    alert_sess3_highest := high >= sess3_highest and low <= sess3_highest and sess3_can_alert ? true : false
+    alert_sess3_lowest := high >= sess3_lowest and low <= sess3_lowest and sess3_can_alert ? true : false
+    alert_sess3_mid := high >= sess3_mid and low <= sess3_mid and sess3_can_alert ? true : false
+    alert_sess3_closeabovehh := close >= sess3_highest and sess3_can_alert ? true : false
+    alert_sess3_closebelowll := close <= sess3_lowest and sess3_can_alert ? true : false
+
+    if alert_sess3_highestclose
+        alert('Session 3 Highest Close Cross', alert.freq_once_per_bar)
+    if alert_sess3_lowestclose
+        alert('Session 3 Lowest Close Cross', alert.freq_once_per_bar)
+    if alert_sess3_highest
+        alert('Session 3 Highest High Cross', alert.freq_once_per_bar)
+    if alert_sess3_lowest
+        alert('Session 3 Lowest Low Cross', alert.freq_once_per_bar)
+    if alert_sess3_mid
+        alert('Session 3 Mid Cross', alert.freq_once_per_bar)
+    if alert_sess3_closeabovehh
+        alert('Session 3 Close Above Highest High', alert.freq_once_per_bar)
+    if alert_sess3_closebelowll
+        alert('Session 3 Close Below Lowest Low', alert.freq_once_per_bar)
+
+
+anyline_alert = (alert_sess1_highestclose or alert_sess1_lowestclose or alert_sess1_highest or alert_sess1_lowest or alert_sess1_mid)
+ or (alert_sess2_highestclose or alert_sess2_lowestclose or alert_sess2_highest or alert_sess2_lowest or alert_sess2_mid)
+ or (alert_sess3_highestclose or alert_sess3_lowestclose or alert_sess3_highest or alert_sess3_lowest or alert_sess3_mid)
+
+// bar color / trend
+var int trend = na
+trend := (not is_sess1_draw and not is_sess2_draw and not is_sess3_draw) ? 0 : (alert_sess1_closeabovehh or alert_sess2_closeabovehh or alert_sess3_closeabovehh) ? 1
+ : (alert_sess1_closebelowll or alert_sess2_closebelowll or alert_sess3_closebelowll) ? -1 : trend[1]
+
+use_bar_coloring = input.bool(true, title = 'Bar Coloring', group = 'Bar Coloring', inline = '1')
+css_bulltrend = input.color(color.teal, title = 'Bullish Bias ⠀', group = 'Bar Coloring', inline = '2')
+css_beartrend = input.color(color.red, title = 'Bearish Bias⠀', group = 'Bar Coloring', inline = '3')
+css_neutral = input.color(color.new(color.white, 90), title = 'No Bias⠀⠀⠀⠀', group = 'Bar Coloring', inline = '4')
+barcolor(not use_bar_coloring ? na : trend == 1 ? css_bulltrend : trend == -1 ? css_beartrend : css_neutral, editable = false)
+
+// shapes
+plotshape(trend == 1 and trend[1] == 1 and anyline_alert, title = 'Up Arrow', location = location.belowbar, color = color.teal, style = shape.triangleup, size = size.small)
+plotshape(trend == -1 and trend[1] == -1 and anyline_alert, title = 'Down Arrow', location = location.abovebar, color = color.red, style = shape.triangledown, size = size.small)

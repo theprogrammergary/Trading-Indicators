@@ -1,0 +1,170 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_jlirano_71723", overlay=true, margin_long=100, margin_short=100)
+
+
+
+
+
+
+
+// MTF HA
+ha_tf   = input.timeframe('30', title = 'HA Timeframe', group = 'HA Settings', inline = '0')
+len     = input(10, title="Length 1", group = 'HA Settings', inline = '1')
+len2    = input(10, title="Length 2", group = 'HA Settings', inline = '2')
+
+
+f_mtf_ha() =>
+    o=ta.ema(open,len)
+    c=ta.ema(close,len)
+    h=ta.ema(high,len)
+    l=ta.ema(low,len)
+
+    haclose = (o+h+l+c)/4
+    float haopen = na
+    haopen := na(haopen[1]) ? (o + c)/2 : (nz(haopen[1]) + nz(haclose[1])) / 2
+    hahigh = math.max (h, math.max(haopen,haclose))
+    halow = math.min (l, math.min(haopen,haclose))
+
+    o2=ta.ema(haopen, len2)
+    c2=ta.ema(haclose, len2)
+    h2=ta.ema(hahigh, len2)
+    l2=ta.ema(halow, len2)
+
+    col=o2>c2 ? color.red : color.lime
+
+    trend = o2 > c2 ? -1 : 1
+
+    trend[1]
+
+ha_trend = request.security(syminfo.ticker, ha_tf, f_mtf_ha(), lookahead = barmerge.lookahead_on)
+
+
+
+
+
+// MTF HULL
+hull_src = input(close, title='Source', group = 'Hull Settings', inline = '0')
+modeSwitch = input.string('Hma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'], group = 'Hull Settings', inline = '1')
+hull_length = input(55, title='Length(180-200 for floating S/R , 55 for swing entry)', group = 'Hull Settings', inline = '2')
+hull_tf = input.timeframe('15', title='Higher timeframe', group = 'Hull Settings', inline = '4')
+
+f_mtf_hull() =>
+    float ma_value = switch modeSwitch
+        "Hma" => ta.wma(2 * ta.wma(hull_src, hull_length / 2) - ta.wma(hull_src, hull_length), math.round(math.sqrt(hull_length)))
+        "Ehma" => ta.ema(2 * ta.ema(hull_src, hull_length / 2) - ta.ema(hull_src, hull_length), math.round(math.sqrt(hull_length)))
+        "THMA" => ta.wma(ta.wma(hull_src, hull_length / 3) * 3 - ta.wma(hull_src, hull_length / 2) - ta.wma(hull_src, hull_length), hull_length)
+        => ta.wma(2 * ta.wma(hull_src, hull_length / 2) - ta.wma(hull_src, hull_length), math.round(math.sqrt(hull_length)))
+
+    hull_color = ma_value > ma_value[2] ? 1 : -1
+
+    hull_color[1]
+
+
+hull_trend = request.security(syminfo.ticker, hull_tf, f_mtf_hull(), lookahead = barmerge.lookahead_on)
+
+
+
+
+// chart signals
+src = close
+
+keyvalue = input.float(3, title='Key Vaule. \'This changes the sensitivity\'', step=.5, group = 'ST Settings', inline = '1')
+atrperiod = input(10, title='ATR Period')
+xATR = ta.atr(atrperiod)
+nLoss = keyvalue * xATR
+
+xATRTrailingStop = 0.0
+iff_1 = src > nz(xATRTrailingStop[1], 0) ? src - nLoss : src + nLoss
+iff_2 = src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0) ? math.min(nz(xATRTrailingStop[1]), src + nLoss) : iff_1
+xATRTrailingStop := src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0) ? math.max(nz(xATRTrailingStop[1]), src - nLoss) : iff_2
+
+pos = 0
+iff_3 = src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+pos := src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0) ? 1 : iff_3
+
+xcolor = pos == -1 ? color.red : pos == 1 ? color.green : color.blue
+signal_buy = ta.crossover(src, xATRTrailingStop)
+signal_sell = ta.crossunder(src, xATRTrailingStop)
+barcolor = src > xATRTrailingStop ? color.green : color.red
+barcolor(barcolor)
+
+
+
+// --STRATEGY INPUTS-- //
+strategy_start = input.time(timestamp("01 January 2020 00:00:00 UTC-5"), "Strategy Start Date", group = "StrategySettings", inline = '1')
+use_trading_hours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "StrategySettings", inline = '2')
+trading_time = input.session("0930-1600", title = " ", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "StrategySettings", inline = '2')
+trading_hours_cond = not use_trading_hours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "StrategySettings", inline = '3')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "StrategySettings", inline = '4')
+
+use_tp      = input.bool(true, title = 'TP', group = "StrategySettings", inline = '5')
+tp_amount   = input.float(5.00, title = '', group = "StrategySettings", inline = '5')
+use_sl      = input.bool(true, title = 'SL', group = "StrategySettings", inline = '6')
+sl_amount   = input.float(5.00, title = '', group = "StrategySettings", inline = '6')
+
+var int trend = 0
+var bool buy_signal = false
+var bool sell_signal = false
+
+trend := hull_trend == 1 and ha_trend == 1 ? 1 : hull_trend == -1 and ha_trend == -1 ? -1 : 0
+bgcolor(trend == 1 ? color.new(color.green, 80) : trend == -1 ? color.new(color.red, 80) : na)
+buy_signal := trend == 1 and signal_buy
+sell_signal := trend == -1 and signal_sell
+
+long_entry = long_trades and trading_hours_cond and buy_signal
+long_exit = (not short_trades and sell_signal)
+
+short_entry = short_trades and trading_hours_cond and sell_signal
+short_exit = (not long_trades and buy_signal)
+
+var float tp = na
+var float sl = na
+
+tp := not use_tp ? na
+ : strategy.position_size > 0 ? strategy.position_avg_price + tp_amount 
+ : strategy.position_size < 0 ? strategy.position_avg_price - tp_amount 
+ : na
+
+sl := not use_sl ? na
+ : strategy.position_size > 0 ? strategy.position_avg_price - sl_amount 
+ : strategy.position_size < 0 ? strategy.position_avg_price + sl_amount 
+ : na
+
+past_strategy_start_date = time >= strategy_start ? true : false
+// --STRATEGY INPUTS-- //
+
+
+
+// --ORDERS-- //
+if past_strategy_start_date
+    if long_exit
+        strategy.close("LE", comment = 'LX')
+
+    if short_exit
+        strategy.close("SS_E", comment = 'SS_X')
+
+    if long_entry
+        strategy.entry("LE", strategy.long)
+
+    if short_entry
+        strategy.entry("SS_E", strategy.short)
+
+    if not trading_hours_cond
+        strategy.close_all('TX', immediately = true)
+
+    if strategy.position_size > 0
+        strategy.exit('L_TPSL', 'LE', limit = tp, stop = sl, comment_profit = 'L_TP', comment_loss = 'L_SL')
+
+    if strategy.position_size < 0
+        strategy.exit('SS_TPSL', 'SS_E', limit = tp, stop = sl, comment_profit = 'SS_TP', comment_loss = 'SS_SL')
+// --ORDERS-- //
+
+
+plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+plot(tp, title = 'TP', color = color.green, style = plot.style_circles)
+plot(sl, title = 'SL', color = color.red, style = plot.style_circles)

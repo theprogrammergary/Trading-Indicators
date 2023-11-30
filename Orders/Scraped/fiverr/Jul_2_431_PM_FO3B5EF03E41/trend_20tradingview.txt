@@ -1,0 +1,45 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("MicroQuant Trend", overlay = true, max_labels_count = 500)
+
+price = input.source(close, title = 'Price')
+length = input.int(21, title = 'Length')
+atrPeriod = input.int(21, "ATR Length")
+factor = input.float(4.0, "Factor", step = 0.1)
+
+// The same on Pine Script™
+pine_supertrend() =>
+    atr = ta.sma(ta.tr, atrPeriod)
+    lowerBand = ta.highest(ta.ema(high, length), length) - atr * factor
+    upperBand = ta.lowest(ta.ema(low, length), length) + atr * factor
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or price[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or price[1] > prevUpperBand ? upperBand : prevUpperBand
+    int direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        direction := 1
+    else if prevSuperTrend == prevUpperBand
+        direction := price > upperBand ? -1 : 1
+    else
+        direction := price < lowerBand ? 1 : -1
+    superTrend := direction == -1 ? lowerBand : upperBand
+    [superTrend, direction]
+
+[pineSupertrend, pineDirection] = pine_supertrend()
+plot(pineDirection < 0 ? pineSupertrend : na, "Up direction", color = color.green, style=plot.style_circles)
+plot(pineDirection > 0 ? pineSupertrend : na, "Down direction", color = color.red, style=plot.style_circles)
+
+
+var bool tradersPostBuy = na
+var bool tradersPostSell = na
+tradersPostBuy := pineDirection < 0 and pineDirection[1] >= 0
+tradersPostSell := pineDirection > 0 and pineDirection[1] <= 0
+
+alertcondition(tradersPostBuy, title="MicroQuant Trend Buy")
+alertcondition(tradersPostSell, title="MicroQuant Trend Sell")

@@ -1,0 +1,110 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_innerpower689", overlay = true)
+
+// Rules for the Indicator: 
+// To give a sell signal, the following all rules must be true and for buy same
+
+// Sell signal rules:
+// -If 20EMA is above 10 EMA
+// -If the price crosses the 20EMA or at least touch 20EMA
+// - if the candle close below 20EMA 
+// - the candle that touched 20EMA is a pin bar, hammer, or a bearish engulfer.
+
+// Rules for the Indicator: 
+// buy signal rules:
+// -If 20EMA is below 10 EMA
+// -If the price crosses the 20EMA or at least touch 20EMA
+// - if the candle close above 20EMA 
+// - the candle that touched 20EMA is a pin bar, hammer, or a bullish engulfer.
+
+
+//EMAs
+emalength_1 = input.int(10, title = 'EMA Length 1')
+emalength_2 = input.int(20, title = 'EMA Length 2')
+
+ema_1 = ta.ema(close, emalength_1)
+ema_2 = ta.ema(close, emalength_2)
+
+emaplot_1 = plot(ema_1, title = 'EMA 1', color = color.orange)
+emaplot_2 = plot(ema_2, title = 'EMA 2', color = color.yellow)
+
+fill(emaplot_1, emaplot_2, color = ema_1 >= ema_2 ? color.new(color.teal, 80) : color.new(color.red, 80), title = 'EMA Cloud')
+
+
+//TYPES OF CANDLES
+
+candle_size = high - low
+upper_wick_size = high - math.max(open,close)
+lower_wick_size = math.min(open,close) - low
+body_size = math.max(open,close) - math.min(open,close)
+
+upper_wick_pct = upper_wick_size / candle_size * 100
+lower_wick_pct = lower_wick_size / candle_size * 100
+body_size_pct = body_size / candle_size * 100
+
+
+
+//PIN BAR
+use_pin_bars = input.bool(true, title = 'Use Pin Bars', group = 'Pin Bar Candles')
+pin_bar_wick = input.float(40.0, title = 'Pin Bar Wick Size %', group = 'Pin Bar Candles', minval = 1.00, maxval = 99.0)
+pin_bar_body = input.float(20.0, title = 'Pin Bar Body Size %', group = 'Pin Bar Candles', minval = 1.00, maxval = 99.0)
+
+
+bullish_pin_bar = use_pin_bars and (lower_wick_pct >= pin_bar_wick) and (body_size_pct <= pin_bar_body)
+bearish_pin_bar = use_pin_bars and (upper_wick_pct >= pin_bar_wick) and (body_size_pct <= pin_bar_body)
+
+
+//HAMMER
+use_hammers = input.bool(true, title = 'Use Hammers', group = 'Hammer Candles')
+hammer_must_close = input.float(60.0, title = 'Hammer Body Area %', group = 'Hammer Candles', minval = 1.00, maxval = 99.0)
+
+bullish_hammer = use_hammers and (math.min(close,open) >= (hammer_must_close / 100 * candle_size + low))
+bearish_hammer = use_hammers and (math.max(close,open) <= (high - hammer_must_close / 100 * candle_size))
+
+
+//ENGULFING
+use_engulfing = input.bool(true, title = 'Use Engulfing', group = 'Engulfing Candles')
+
+bullishEngulfing = use_engulfing and (open <= close[1]) and (open < open[1]) and (close > open[1])
+bearishEngulfing = use_engulfing and (open >= close[1]) and (open > open[1]) and (close < open[1])
+
+
+//PLOT SPECIAL CANDLES
+plotshape(bullish_pin_bar or bullish_hammer or bullishEngulfing ? low : na, location = location.absolute, color = color.teal, style = shape.xcross)
+plotshape(bearish_pin_bar or bearish_hammer or bearishEngulfing ? high : na ,location = location.absolute, color = color.red, style = shape.xcross)
+
+
+//SIGNALS
+color_candles = input.bool(true, title = 'Color Candles Based on MAs', group = 'Strategy Settings')
+wait_between_signals = input.int(1, title = 'Bars Between Signals', group = 'Strategy Settings')
+buy_signal = (ema_2 < ema_1) and (close > ema_2) and (high >= ema_2 and low <= ema_2) and (bullish_pin_bar or bullish_hammer or bullishEngulfing) ? 1 : 0 
+sell_signal = (ema_2 > ema_1) and (close < ema_2) and (high >= ema_2 and low <= ema_2) and (bearish_pin_bar or bearish_hammer or bearishEngulfing) ? 1 : 0
+
+plotshape(math.sum(buy_signal[1],wait_between_signals ) == 0  and buy_signal ? true : false, location = location.belowbar, color = color.teal, style = shape.labelup, textcolor = color.white, text= 'BUY')
+plotshape(math.sum(sell_signal[1],wait_between_signals ) == 0  and sell_signal ? true : false, location = location.abovebar, color = color.red, style = shape.labeldown, textcolor = color.white, text= 'SELL')
+
+barcolor(color_candles and ema_1 >= ema_2 ? color.teal : color_candles ? color.red : na )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

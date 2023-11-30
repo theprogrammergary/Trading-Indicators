@@ -1,0 +1,68 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study(title="Custom Ichimoku Cloud", shorttitle="Custom Ichimoku", overlay=true)
+
+
+conversionPeriods = input(9, minval=1, title="Tenkan Length")
+basePeriods = input(26, minval=1, title="Kijun Length")
+laggingSpan2Periods = basePeriods*2
+displacement = basePeriods
+
+donchian(len) => avg(lowest(len), highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+
+c_value = close
+
+chikou_ext = line.new(x1=bar_index[basePeriods], x2=bar_index, y1=c_value, y2=c_value, xloc = xloc.bar_index, width=1, color = color.new(#ff9538,10),extend = extend.right)
+line.delete(chikou_ext[1])
+plot(conversionLine, color= color.new(#2fd5ee, 10), title="Tenkan")
+plot(baseLine, color= color.new(#f7a1af,10), title="Kijun")
+plot(close, offset = -displacement, color= color.new(#ff9538,10), title="Chikou")
+p1 = plot(leadLine1, offset = displacement - 1, color=color.new(#969696,10),
+	 title="Span A")
+p2 = plot(leadLine2, offset = displacement - 1, color= color.new(#d5bc58,10),
+	 title="Span B")
+fill(p1, p2, color = leadLine1 > leadLine2 ? color.new(#429b27, 85): color.new(#eb0000,85))
+
+b1 = conversionLine > baseLine
+b2 = true
+b3 = close > max(leadLine1[displacement], leadLine2[displacement])
+b4 = leadLine1 > leadLine2
+
+buy = b1 and b2 and b3 and b4 ? true : false
+
+s1 = conversionLine < baseLine
+s2 = true
+s3 = close < min(leadLine1[displacement], leadLine2[displacement])
+s4 = leadLine1 < leadLine2
+
+sell = s1 and s2 and s3 and s4 ? true : false
+
+last = 0
+last := buy ? 1 : sell ? -1 : last[1]
+
+color_candles = input(true, title = "Color Candles")
+candle_color = color_candles and last != last[1] ? color.new(#fe01ff,0) : color_candles and buy ? color.new(#01ff01,0) : color_candles and sell ? color.new(#fe0001,0) : color_candles ? color.new(#818180,0) : na
+//barcolor(color_candles and last != last[1] ? color.new(#fe01ff,0) : color_candles and buy ? color.new(#01ff01,0) : color_candles and sell ? color.new(#fe0001,0) : color_candles ? color.new(#818180,0) : na)
+plotcandle(open, high, low, close,color =  candle_color, wickcolor = candle_color, bordercolor = candle_color)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

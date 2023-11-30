@@ -1,0 +1,15 @@
+#IV
+input high_lookback = 52;
+input iv_trigger = 1.50;
+
+
+
+
+
+
+def iv_data = imp_volatility;
+def iv = if !isnan(iv_data) then iv_data else iv[1];
+def high_iv = highest(iv, high_lookback)[1];
+plot iv_triggered = iv >= high_iv * iv_trigger and !isnan(imp_volatility);
+
+

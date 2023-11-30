@@ -1,0 +1,104 @@
+DefineGlobalColor("Label Color 1", color.green);
+DefineGlobalColor("Label Color 2", color.yellow);
+DefineGlobalColor("Cross Background Color1", color.dark_green);
+DefineGlobalColor("Cross Background Color2", color.yellow);
+DefineGlobalColor("Default Background Color", color.black);
+input Show1 = yes;
+input Show2 = yes;
+
+input price = close;
+input maLength1 = 50;
+input maLength2 = 200;
+
+input StartTime1 = 0945;
+input endtime1 = 1200;
+
+input StartTime2 = 1200;
+input endtime2 = 1600;
+
+plot MAone = ExpAverage(price, maLength1);
+plot MAtwo = ExpAverage(price, maLength2);
+
+#Define Market time and variables for MarketHigh and MarketLow
+def na = Double.NaN;
+def Today = getlastday() == getday();
+
+#First Instance
+#check if the Market range time is now  
+def MarketActive1 = if GetLastDay() == GetDay() and   
+                               SecondsFromTime(Starttime1) >= 0 and   
+                               SecondsFromTime(endtime1) < 0   
+                           then 1 else 0;  
+def maCross = if marketactive1 and Maone crosses above matwo then 1 else 0;
+def maCrossSum = if today != today[1] then 0 else sum(maCross,500);
+
+def MarketHighone = if MarketActive1 and maCrossSum == 1 then high else na;
+def MarketLowone = if MarketActive1 and maCrossSum== 0  then low else na;
+
+
+plot MarketHione = if show1 and macrosssum > 0  then highestall(markethighone) else na;
+plot MarketLoone = if show1 and macrosssum > 0 then lowestall(marketlowone) else na;
+plot Meanone = (Markethione + marketLoone)/2;
+
+addlabel(show1 and macrosssum >0, "High 1 = " + marketHione, globalColor("Label Color 1"));
+addlabel(show1 and macrosssum >0,  "Low 1= " + marketloone , globalColor("Label Color 1"));
+addlabel(show1 and macrosssum >0,  "Mean 1= " + Meanone , globalColor("Label Color 1"));
+Addcloud(if macrosssum >0  then markethione else marketloone, if macrosssum > 0 then marketloone else markethione, globalcolor("Cross Background Color1"), globalcolor("Default Background Color"));
+
+
+
+
+
+#Second Instance
+#check if the Market range time is now  
+def MarketActive2 = if GetLastDay() == GetDay() and   
+                               SecondsFromTime(Starttime2) >= 0 and   
+                               SecondsFromTime(endtime2) < 0   
+                           then 1 else 0;  
+def maCross2 = if marketactive2 and Maone crosses above matwo then 1 else 0;
+def maCrossSum2 = if today != today[1] then 0 else sum(maCross2,500);
+
+def MarketHightwo = if MarketActive2 and maCrossSum2 == 1 then high else na;
+def MarketLowtwo = if MarketActive1 and maCrossSum2 == 0  then low else na;
+
+
+plot MarketHitwo = if show2 and macrosssum2 > 0  then highestall(markethightwo) else na;
+plot MarketLotwo = if show2 and macrosssum2 > 0 then lowestall(marketlowtwo) else na;
+plot Meantwo = (Markethitwo + marketLotwo)/2;
+
+addlabel(show2 and macrosssum2 > 0, "High 2 = " + marketHitwo, globalColor("Label Color 2"));
+addlabel(show2 and macrosssum2 > 0, "Low 2 = " + marketlotwo  , globalColor("Label Color 2"));
+addlabel(show2 and macrosssum2 > 0,  "Mean 2 = " + Meantwo, globalColor("Label Color 2"));
+Addcloud(if macrosssum2 >0  then markethitwo else marketlotwo, if macrosssum > 0 then marketlotwo else markethitwo, globalcolor("Cross Background Color2"), globalcolor("Default Background Color"));
+
+
+markethione.assignValueColor(globalColor("Label Color 1"));
+marketloone.assignvaluecolor(globalColor("Label Color 1"));
+meanone.assignvaluecolor(globalColor("Label Color 1"));
+markethitwo.assignvaluecolor(globalColor("Label Color 2"));
+marketlotwo.assignvaluecolor(globalColor("Label Color 2"));
+meantwo.assignvaluecolor(globalColor("Label Color 2"));
+
+#VERTICAL TIMELINES
+#show vertical lines
+def show_verticalLine = yes;
+def show_verticalLabels = yes;
+#time inputs
+def Time1Start = starttime1;
+def Time2Start = starttime2;
+
+#def if times from input
+def T1 = SecondsFromTime(Time1Start) >= 0;
+def T2 = SecondsFromTime(Time2Start) >= 0;
+
+#def show time
+def isTime1 = show_verticalLine and T1 > 0 and T1[1] <=0;
+def isTime2 = show_verticalLine and T2 > 0 and T2[1] <=0;
+
+#Plot the vertical line
+AddVerticalLine(isTime1 and today, if isTime1 and show_verticalLabels then "Time 1 Start" else "", color.gray, curve.FIRM);
+AddVerticalLine(isTime2 and today, if isTime2 and show_verticalLabels then "Time 2 Start" else "",color.gray, curve.FIRM);
+
+
+
+

@@ -1,0 +1,128 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_azanomajor", overlay = true)
+
+//
+//INPUTS
+//
+//bullish candles
+alert_bull_low_open = input.bool(true, title = 'Alert Bullish Low/Open Same', group = 'Alert Types')
+alert_bull_high_close = input.bool(true, title = 'Alert Bullish High/Close Same', group = 'Alert Types')
+
+//bearish candles
+alert_bear_low_open = input.bool(true, title = 'Alert Bearish Low/Open Same', group = 'Alert Types')
+alert_bear_high_close = input.bool(true, title = 'Alert Bearish High/Close Same', group = 'Alert Types')
+
+allowed_difference = input.float(0.02, title = 'Allowed Difference', group = 'Settings')
+
+color_candles = input.string('Both', title = 'Color Candles',options = ['Both', 'Bull', 'Bear', 'None'], group = 'Visual Settings', inline = '1')
+show_lines = input.bool(true, "Show Lines", group = 'Visual Settings', inline = '2')
+number_of_lines = input.int(10, minval = 1, maxval = 50, title = '   |   Number of Lines', group = 'Visual Settings', inline = '2')
+bull_alert_color = input.color(color.new(#00ff0b,0), title = "Bull Candle Color", group = 'Visual Settings', inline = '3')
+bear_alert_color = input.color(color.new(#ff00e8,0), title = "Bear Candle Color", group = 'Visual Settings', inline = '3')
+
+//
+//LOGIC
+//
+bull_low_open = alert_bull_low_open and math.abs(low - open) <= allowed_difference and close > open 
+bull_high_close = alert_bull_high_close and math.abs(high - close) <= allowed_difference and close > open
+
+bear_high_open = alert_bear_low_open and math.abs(high - open) <= allowed_difference and close < open
+bear_low_close = alert_bear_high_close and math.abs(low - close) <= allowed_difference and close < open
+
+//
+//CANDLE COLORS
+//
+var color candle_color = na
+if color_candles == 'Both'
+    if bull_low_open or bull_high_close 
+        candle_color := bull_alert_color
+    else if bear_high_open or bear_low_close 
+        candle_color := bear_alert_color
+    else
+        candle_color := na
+else if color_candles == 'Bull'
+    if bull_low_open or bull_high_close 
+        candle_color := bull_alert_color
+    else
+        candle_color := na
+else if color_candles == 'Bear'
+    if bear_high_open or bear_low_close
+        candle_color := bear_alert_color
+    else
+        candle_color := na
+else
+    candle_color := na
+barcolor(color = candle_color, title = 'Candle Color', editable = false)
+
+
+bull_line_color = input.color(color.new(#00ff0b,0), title = "Bull Line Color", group = 'Visual Settings', inline = '4')
+bear_line_color = input.color(color.new(#ff00e8,0), title = "Bear Line Color", group = 'Visual Settings', inline = '4')
+line_width_input = input.int(1, minval = 1, maxval = 5, title = "Line Width", group = 'Visual Settings', inline = '5')
+line_style_input = input.string('Solid', title = 'Line Style', options = ['Solid', 'Dotted', 'Dashed'], group = 'Visual Settings', inline = '5')
+line_style_var = line_style_input == 'Solid' ? line.style_solid : line_style_input == 'Dotted' ? line.style_dotted : line_style_input == 'Dashed' ? line.style_dashed : na
+
+var line[] bull_lines = array.new_line()
+var line[] bear_lines = array.new_line()
+
+//
+//ALERTS & UPDATE VALUES
+//
+if bull_low_open and barstate.isconfirmed //line is at low
+    alert("Bullish, Low = Open", alert.freq_once_per_bar)
+    if show_lines
+        array.push(bull_lines, line.new(x1=bar_index, x2=bar_index + 1, y1=low, y2=low, xloc=xloc.bar_index, width=line_width_input, color=bull_line_color, extend=extend.right, style = line_style_var))
+
+if bull_high_close and barstate.isconfirmed //line is at high
+    alert("Bullish, High = Close", alert.freq_once_per_bar)
+    if show_lines
+        array.push(bull_lines, line.new(x1=bar_index, x2=bar_index + 1, y1=high, y2=high, xloc=xloc.bar_index, width=line_width_input, color=bull_line_color, extend=extend.right, style = line_style_var))
+
+if bear_high_open and barstate.isconfirmed //line it at high
+    alert("Bearish, High = Open", alert.freq_once_per_bar)
+    if show_lines
+        array.push(bear_lines, line.new(x1=bar_index, x2=bar_index + 1, y1=high, y2=high, xloc=xloc.bar_index, width=line_width_input, color=bear_line_color, extend=extend.right, style = line_style_var))
+
+if bear_low_close and barstate.isconfirmed //line is at low
+    alert("Bearish, Low = Close", alert.freq_once_per_bar)
+    if show_lines
+        array.push(bear_lines, line.new(x1=bar_index, x2=bar_index + 1, y1=low, y2=low, xloc=xloc.bar_index, width=line_width_input, color=bear_line_color, extend=extend.right, style = line_style_var))
+
+//
+//Delete Lines
+//
+delete_lines(array_var) =>
+    if array.size(array_var) > number_of_lines
+    	ln = array.shift(array_var)
+    	line.delete(ln)
+
+delete_lines(bull_lines)
+delete_lines(bear_lines)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

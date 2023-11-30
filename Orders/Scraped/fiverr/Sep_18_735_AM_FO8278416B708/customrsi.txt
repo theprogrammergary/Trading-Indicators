@@ -1,0 +1,50 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_jlirano_customrsi", overlay = false, format=format.price, precision=2, timeframe="", timeframe_gaps=true)
+
+
+//RSI
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+rsiLengthInput = input.int(14, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput = input.source(close, "Source", group="RSI Settings")
+maTypeInput = input.string("SMA", title="MA Type", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="RSI Settings")
+maLengthInput = input.int(14, title="MA Length", group="RSI Settings")
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+rsiMA = ma(rsi, maLengthInput, maTypeInput)
+
+plot(rsi, "RSI", color=color.blue, style = plot.style_circles, join = true, linewidth = 2)
+plot(rsiMA, "RSI-based MA", color=color.new(color.yellow,50))
+rsiUpperBand = hline(70, "RSI Upper Band", color=#787B86)
+hline(50, "RSI Middle Band", color=color.new(#787B86, 50))
+rsiLowerBand = hline(30, "RSI Lower Band", color=#787B86)
+fill(rsiUpperBand, rsiLowerBand, color=color.rgb(126, 87, 194, 90), title="RSI Background Fill")
+
+// HA
+
+len = input.int(25, minval=1, maxval=500, title="Length", group="Heikin Ashi Moving Average", tooltip="Set moving average length.")
+
+haClose = (open + high + low + close) / 4
+haOpen = float(na)
+haOpen := na(haOpen[1]) ? (open + close) / 2 : (nz(haOpen[1]) + nz(haClose[1])) / 2
+haHigh = math.max(high, math.max(haOpen, haClose))
+haLow = math.min(low, math.min(haOpen, haClose))
+
+col_ = haClose>haOpen?color.green:color.red
+
+///////////////////////////////////////////////////////////////////////////////// Heikin Ashi Moving Average
+avg = math.avg(haOpen,haHigh,haLow,haClose)
+HA_movingAverage = ta.wma(avg, len)
+col = HA_movingAverage>HA_movingAverage[1]? color.new(color.green,80) : color.new(color.red,80)
+bgcolor(col)

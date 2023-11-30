@@ -1,0 +1,1 @@
+Let me know if you need video help installing the script. Also the market is closed right now so I couldnt fully test it, but let me know if you find any that dont match. If you do use other symbols you can change the RTH hours which is what TOS is using in the calculations for HOD & LOD.

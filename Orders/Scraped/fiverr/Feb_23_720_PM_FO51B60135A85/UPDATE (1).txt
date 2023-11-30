@@ -1,0 +1,190 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_oluwoleajiboso_UPDATE", overlay = true)
+
+
+// diretional sentiment line
+dsl_length = input.int(150, title = 'Length', minval = 2, group = 'Directional Sentiment Line', inline = '1')
+
+hi = ta.sma(high, dsl_length)
+lo = ta.sma(low, dsl_length)
+cl = ta.sma(close, dsl_length) 
+op = ta.sma(open, dsl_length) 
+
+lowest = ta.lowest(lo, dsl_length)
+highest = ta.highest(hi, dsl_length)
+
+// bools for ribbon 
+bool closeabove = close >= cl 
+bool closebelow = close <= cl 
+bool highabove = high >= hi 
+bool lowabove = low >= lo 
+bool openabove = open >= op 
+
+// bools for highest/lowest 
+bool paabovehigh = close > highest 
+bool pabelowlow = close < lowest 
+bool middle = close >= lo and close <= hi
+
+
+// colors
+color bull = color.green 
+color bear = color.red 
+color neutral = color.orange
+color standard = color.blue
+color fillcolorbull = color.new(color.green, 50)
+color fillcolorbear = color.new(color.red, 50)
+color fillcolorneutral = color.new(color.gray, 50)
+color hicolor = highabove ? bull : bear 
+color locolor = lowabove ? bull : bear 
+color opcolor = openabove ? bull : bear 
+color clcolor = closeabove ? bull : bear 
+color lowestcolor = pabelowlow ? neutral : standard
+color highestcolor = paabovehigh ? neutral : standard 
+color fillfinal = closeabove ? fillcolorbull : closebelow ? fillcolorbear : middle ? fillcolorneutral : na 
+
+// plots
+hir = plot(hi, color = hicolor)
+lor = plot(lo, color = locolor)
+plot(cl, color = clcolor)
+plot(op, color = opcolor)
+
+fill(hir, lor, color = fillfinal, editable=false)
+
+plot(lowest, "Lowest Target", color = lowestcolor, linewidth=3, display = display.none)
+plot(highest, "Highest Target", color = highestcolor, linewidth=3, display = display.none)
+
+dsl_side = closeabove ? 1 : closebelow ? -1 : middle ? 0 : na 
+
+
+
+// macd 
+macd_source = input.source(close, title = 'MACD Source', group = 'MACD', inline = '1')
+macd_fast = input.int(12, title = 'MACD Fast', group = 'MACD', inline = '2')
+macd_slow = input.int(26, title = 'MACD Slow', group = 'MACD', inline = '3')
+macd_length = input.int(9, title = 'MACD Length', group = 'MACD', inline = '4')
+macd_tf = input.timeframe('15', title = 'MACD Timeframe', group = 'MACD', inline = '5')
+if timeframe.in_seconds(timeframe.period) > timeframe.in_seconds(macd_tf)
+    runtime.error("Your MACD timeframe is lower than the main chart timeframe.")
+
+macd_source_lookback = timeframe.in_seconds(timeframe.period) == timeframe.in_seconds(macd_tf) ? 0 : 1
+[macdLine, signalLine, histLine] = request.security(syminfo.tickerid, macd_tf, ta.macd(macd_source[macd_source_lookback], macd_fast, macd_slow, macd_length), lookahead = barmerge.lookahead_on)
+macd_side = histLine >= 0 ? 1 : -1
+
+
+// rsi
+rsi_source = input.source(close, title = 'RSI Source', group = 'RSI', inline = '1')
+rsi_length = input.int(14, title = 'RSI Length', group = 'RSI', inline = '2')
+rsi_above_trigger = input.int(50, title = 'Above Trigger', group = 'RSI', inline = '3')
+rsi_below_trigger = input.int(50, title = 'Below Trigger', group = 'RSI', inline = '4')
+rsi_tf = input.timeframe('15', title = 'RSI Timeframe', group = 'RSI', inline = '5')
+if timeframe.in_seconds(timeframe.period) > timeframe.in_seconds(rsi_tf)
+    runtime.error("Your RSI timeframe is lower than the main chart timeframe.")
+
+rsi_source_lookback = timeframe.in_seconds(timeframe.period) == timeframe.in_seconds(rsi_tf) ? 0 : 1
+rsi_value = request.security(syminfo.tickerid, rsi_tf, ta.rsi(rsi_source, rsi_length)[rsi_source_lookback], lookahead = barmerge.lookahead_on)
+rsi_side = rsi_value > rsi_above_trigger ? 1 : rsi_value < rsi_below_trigger ? -1 : 0
+
+
+// heatmap volume
+hm_length = input.int(610, title="MA Length", minval=2, group = 'Heatmap', inline = '1')
+hm_slength = input.int(610, title='Std Length', minval=2, group = 'Heatmap', inline = '2')
+
+thresholdExtraHigh  = input.float(4, title="Extra High Volume Threshold", group = 'Heatmap', inline = '3')
+thresholdHigh       = input.float(2.5, title="High Volume Threshold", group = 'Heatmap', inline = '4')
+thresholdMedium     = input.float(1, title="Medium Volume Threshold", group = 'Heatmap', inline = '5')
+thresholdNormal     = input.float(-0.5, title="Normal Volume Threshold", group = 'Heatmap', inline = '6')
+
+
+// color
+// up colors
+cupthresholdExtraHigh = input(#00FF00, 'Up Extra High')
+cupthresholdHigh      = input(#30FF30, 'Up High')
+cupthresholdMedium    = input(#60FF60, 'Up Medium')
+cupthresholdNormal    = input(#8FFF8F, 'Up Normal')
+cupthresholdLow       = input(#BFFFBF, 'Up Low')
+
+
+// down colors
+cdnthresholdExtraHigh = input(#FF0000, 'Down Extra High')
+cdnthresholdHigh      = input(#FF3030, 'Down High')
+cdnthresholdMedium    = input(#FF6060, 'Down Medium')
+cdnthresholdNormal    = input(#FF8F8F, 'Down Normal')
+cdnthresholdLow       = input(#FFBFBF, 'Down Low')
+
+
+// threshold colors
+chm1 = #ff0000 // extra high red
+chm2 = #ff7800 // high orange
+chm3 = #ffcf03 // medium yellow
+chm4 = #a0d6dc // normal
+chm5 = #1f9cac // low
+
+chmthresholdExtraHigh = input.color(chm1, 'Heatmap Extra High')
+chmthresholdHigh      = input.color(chm2, 'Heatmap High')
+chmthresholdMedium    = input.color(chm3, 'Heatmap Medium')
+chmthresholdNormal    = input.color(chm4, 'Heatmap Normal')
+chmthresholdLow       = input.color(chm5, 'Heatmap Low')
+
+cthresholdExtraHighUp = chmthresholdExtraHigh 
+cthresholdHighUp      = chmthresholdHigh 
+cthresholdMediumUp    = chmthresholdMedium 
+cthresholdNormalUp    = chmthresholdNormal
+cthresholdLowUp       = chmthresholdLow
+
+cthresholdExtraHighDn = chmthresholdExtraHigh
+cthresholdHighDn      = chmthresholdHigh
+cthresholdMediumDn    = chmthresholdMedium
+cthresholdNormalDn    = chmthresholdNormal
+cthresholdLowDn       = chmthresholdLow
+
+
+hm_length := hm_length > bar_index + 1 ? bar_index + 1 : hm_length
+hm_slength := hm_slength > bar_index + 1 ? bar_index + 1 : hm_slength
+
+
+pstdev(Series, Period) =>
+    mean = math.sum(Series, Period) / Period
+    summation = 0.0
+    for i=0 to Period-1
+        sampleMinusMean = nz(Series[i]) - mean
+        summation := summation + sampleMinusMean * sampleMinusMean
+    math.sqrt(summation / Period)
+
+
+mean    = ta.sma(volume, hm_length)
+std     = pstdev(volume, hm_slength)
+stdbar  = (volume - mean) / std
+dir     = close > open
+v       = volume
+mosc    = mean
+
+bcolor = stdbar > thresholdExtraHigh ? dir ? cthresholdExtraHighUp : cthresholdExtraHighDn :
+  stdbar > thresholdHigh  ? dir ? cthresholdHighUp : cthresholdHighDn :
+  stdbar > thresholdMedium ? dir ? cthresholdMediumUp : cthresholdMediumDn :
+  stdbar > thresholdNormal ? dir ? cthresholdNormalUp : cthresholdNormalDn :
+  dir ? cthresholdLowUp : cthresholdLowDn
+
+hm_volume_cond = stdbar >= thresholdMedium
+
+// conditions
+buy_cond = dsl_side == 1 and macd_side == 1 and rsi_side == 1 and hm_volume_cond
+sell_cond =  dsl_side == -1 and macd_side == -1 and rsi_side == -1 and hm_volume_cond
+
+barcolor(buy_cond ? color.green : sell_cond ? color.red : color.gray)
+
+
+// alerts
+alertcondition(buy_cond and not buy_cond[1], title = 'Buy Alert', message = 'Buy Alert')
+alertcondition(sell_cond and not sell_cond[1], title = 'Sell Alert', message = 'Sell Alert')
+
+
+
+
+
+
+
+// if timeframe.in_seconds(timeframe.period) >= timeframe.in_seconds(rsi_tf)
+//   runtime.error('RSI Timeframe cannot be less than the main chart')

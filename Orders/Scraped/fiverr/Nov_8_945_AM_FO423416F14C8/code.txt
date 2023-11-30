@@ -1,0 +1,190 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_immobilienseege", overlay=true, margin_long=100, margin_short=100, pyramiding = 3)
+
+
+
+// trade Settings
+tradeType = input.string('BOTH', title='What trades should be taken ?   ', options=['LONG', 'SHORT', 'BOTH'], group = 'Trade Settings', inline = '3')
+trading_session = input.session("0000-2359", title = 'Trading Session', group = 'Trade Settings', inline = '4')
+inverse_settings = input.bool(false, title = 'Inverse Signals', group = 'Trade Settings', inline = '1')
+
+is_trade_sess = time == time(timeframe.period, str.format('{0}:1234567', trading_session), 'America/New_York')
+
+
+// risk management settings
+use_tp = input.bool(false, title = 'TP', group = 'Trade Settings', inline = 'TP')
+tp_amount = input.float(0.25, title = '', group = 'Trade Settings', inline = 'TP')
+tp_type = input.string('Percent', title = '', options = ['Percent', 'Price'], group = 'Trade Settings', inline = 'TP')
+
+use_sl = input.bool(false, title = 'SL', group = 'Trade Settings', inline = 'SL')
+sl_amount = input.float(1.00, title = '', group = 'Trade Settings', inline = 'SL')
+sl_type = input.string('Percent', title = '', options = ['Percent', 'Price'], group = 'Trade Settings', inline = 'SL')
+
+
+
+// ma cloud
+k      = input.bool(true, "Use Kahlman?", group = 'MA Cloud')
+price  = input.source(hl2,  "Price Data", group = 'MA Cloud')
+cloud_length = input.int(24,   "Lookback Window", minval=2, group = 'MA Cloud')
+gain   = input.float(1.0,   "Gain", minval=.0001, step=.01, group = 'MA Cloud')
+
+hma(x, len) => ta.wma((2 * ta.wma(x, len / 2)) - ta.wma(x, len), math.round(math.sqrt(len)))
+hma3(x, len) => p = len/2, ta.wma(ta.wma(x, p/3)*3 - ta.wma(x, p/2) - ta.wma(x, p), p)
+kahlman(x, g) =>
+    kf = 0.0
+    dk = x - nz(kf[1], x)
+    smooth = nz(kf[1],x)+dk*math.sqrt(g*2)
+    velo = 0.0
+    velo := nz(velo[1],0) + (g*dk)
+    kf := smooth+velo
+
+a = k ? kahlman(hma(price, cloud_length), gain) : hma(price, cloud_length)
+b = k ? kahlman(hma3(close, cloud_length), gain) : hma3(close, cloud_length)
+c = b > a ? color.lime : color.red
+crossup = b > a and b[1] < a[1]
+crossdn = a > b and a[1] < b[1]
+
+var bool long_entry = false
+var bool short_entry = false
+
+long_conditions     = crossup and is_trade_sess and tradeType != "SHORT"
+short_conditions    = crossdn and is_trade_sess and tradeType != "LONG"
+
+long_entry :=  (inverse_settings ? short_conditions : long_conditions)
+short_entry := (inverse_settings ? long_conditions : short_conditions)
+
+p_shortMA = plot(a, title = 'Short MA', color = color.new(color.gray, 95))
+p_longMA = plot(b, title = 'Long MA', color = color.new(color.gray, 95))
+fill(p_shortMA, p_longMA, color = b > a ? color.new(color.green, 50) : color.new(color.red, 50), title = 'MA Cloud')
+
+plotshape(long_entry and is_trade_sess, style=shape.labelup, text= "Buy", textcolor=color.white, location= location.belowbar, color=color.new(color.green, 10), size=size.auto)
+plotshape(short_entry and is_trade_sess, style=shape.labeldown, text='Sell', textcolor=color.white, location=location.abovebar, color=color.new(color.red, 10), size=size.auto)
+
+
+
+// bollinger bands
+length = input.int(20, minval=1, group = 'BB Settings')
+maType = input.string("SMA", "Basis MA Type", options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = 'BB Settings')
+src = input(close, title="Source", group = 'BB Settings')
+mult = input.float(2.0, minval=0.001, maxval=50, title="StdDev", group = 'BB Settings')
+
+ma(source, length, _type) =>
+    switch _type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+basis = ma(src, length, maType)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+offset = input.int(0, "Offset", minval = -500, maxval = 500)
+plot(basis, "Basis", color=color.red, offset = offset)
+p1 = plot(upper, "Upper", color=#49b0eb, offset = offset)
+p2 = plot(lower, "Lower", color=#7b29ff, offset = offset)
+fill(p1, p2, title = "Background", color=color.rgb(33, 149, 243, 90))
+
+
+
+
+// vwap
+var cumVol = 0.
+cumVol += nz(volume)
+
+//FUNCTIONS 
+computeVWAP(src, isNewPeriod) =>
+	var float sumSrcVol = na
+	var float sumVol = na
+    var float sumSrcSrcVol = na
+
+	sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+	sumVol := isNewPeriod ? volume : volume + sumVol[1]
+	sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+	_vwap = sumSrcVol / sumVol
+
+	_vwap
+
+timeChange(period) =>
+	ta.change(time(period))
+
+//COMPUTE VWAP
+var anchor = input.string(defval = "Day", title="VWAP Period", options=["Day", "Week", "Month", "Quarter", "Year"], group="VWAP Settings", inline = '1')
+vwap_src = input(title = "", defval = hlc3, group="VWAP Settings", inline = '1')
+
+isNewPeriod = switch anchor
+	"Day" => timeChange("D")
+	"Week" => timeChange("W")
+	"Month" => timeChange("M")
+	"Quarter" => timeChange("3M")
+	"Year" => timeChange("12M")
+	=> false
+
+if na(vwap_src[1]) 
+	isNewPeriod := true
+
+float vwapValue = na
+_vwap = computeVWAP(vwap_src, isNewPeriod)
+vwapValue := _vwap
+
+plot(vwapValue, title="VWAP", color = color.rgb(214,56,101), linewidth = 2)
+
+
+
+
+
+// backtest
+var float long_tp   = 0.00
+var float short_tp  = 0.00
+
+var float long_sl   = 0.00
+var float short_sl  = 0.00
+
+long_tp := strategy.position_size <= 0 or not use_tp ? na
+ : tp_type == "Price" ? strategy.position_avg_price + tp_amount
+ : tp_type == "Percent" ? (strategy.position_avg_price + (strategy.position_avg_price * (tp_amount/100)))
+ : na
+
+short_tp := strategy.position_size >= 0 or not use_tp ? na
+ : tp_type == "Price" ? strategy.position_avg_price - tp_amount
+ : tp_type == "Percent" ? (strategy.position_avg_price - (strategy.position_avg_price * (tp_amount/100)))
+ : na
+
+long_sl := strategy.position_size <= 0 or not use_sl ? na
+ : sl_type == "Price" ? strategy.position_avg_price - sl_amount
+ : sl_type == "Percent" ? (strategy.position_avg_price - (strategy.position_avg_price * (sl_amount/100)))
+ : na
+
+short_sl := strategy.position_size >= 0 or not use_sl ? na
+ : sl_type == "Price" ? strategy.position_avg_price + sl_amount
+ : sl_type == "Percent" ? (strategy.position_avg_price + (strategy.position_avg_price * (sl_amount/100)))
+ : na
+
+
+
+// --ORDERS-- //
+if not is_trade_sess
+    strategy.close_all(comment = 'EOD', immediately = true)
+
+if (strategy.position_size > 0)
+    strategy.exit(id="LE", limit=long_tp, stop=long_sl, comment_profit = "TP", comment_loss = "SL")
+if (strategy.position_size < 0)
+    strategy.exit(id="SS_E", limit=short_tp, stop=short_sl, comment_profit = "TP", comment_loss = "SL")
+
+if long_entry 
+    strategy.entry("LE", strategy.long)
+else if short_entry 
+    strategy.entry("SS_E", strategy.short)
+// --ORDERS-- //
+
+
+
+p_entry = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+p_tp = plot(strategy.position_size > 0 ? long_tp : short_tp, title = 'TP', color = color.green, style = plot.style_circles)
+p_sl = plot(strategy.position_size > 0 ? long_sl : short_sl, title = 'SL', color = color.red, style = plot.style_circles)
+fill(p_entry, p_tp, color = color.new(color.green, 90))
+fill(p_entry, p_sl, color = color.new(color.red, 90))

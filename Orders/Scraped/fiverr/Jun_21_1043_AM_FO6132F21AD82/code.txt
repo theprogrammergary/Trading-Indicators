@@ -1,0 +1,303 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © epidemicmedia
+
+//@version=5
+indicator('for_epidemicmedia', overlay=true)
+//
+//VISUAL SETTINGS
+//
+outerTop_linecolor = input.color(color.new(#00ff00,0), title = 'Outer Top', group = 'Visual Settings', inline = '1')
+outerTopRisk_linecolor = input.color(color.new(#2962FF,0), title = 'Outer Top Risk', group = 'Visual Settings', inline = '1')
+outerTop__fillcolor = input.color(color.new(#00000099,0), title = 'Outer Top Fill', group = 'Visual Settings', inline = '1')
+
+innerTop_linecolor = input.color(color.new(#00ff00,0), title = 'Inner Top', group = 'Visual Settings', inline = '2')
+innerTopRisk_linecolor = input.color(color.new(#2962FF,0), title = 'Inner Top Risk', group = 'Visual Settings', inline = '2')
+innerTop_fillcolor = input.color(color.new(#00000099,0), title = 'Inner Top Fill', group = 'Visual Settings', inline = '2')
+
+innerBottom_linecolor = input.color(color.new(#00ff00,0), title = 'Inner Bottom', group = 'Visual Settings', inline = '3')
+innerBottomRisk_linecolor = input.color(color.new(#2962FF,0), title = 'Inner Bottom Risk', group = 'Visual Settings', inline = '3')
+innerBottom_fillcolor = input.color(color.new(#00000099,0), title = 'Inner Bottom Fill', group = 'Visual Settings', inline = '3')
+
+outerBottom_linecolor = input.color(color.new(#00ff00,0), title = 'Outer Bottom', group = 'Visual Settings', inline = '3')
+outerBottomRisk_linecolor = input.color(color.new(#2962FF,0), title = 'Outer Bottom Risk', group = 'Visual Settings', inline = '3')
+outerBottom_fillcolor = input.color(color.new(#00000099,0), title = 'Outer Bottom Fill', group = 'Visual Settings', inline = '3')
+
+//
+//SYMBOL 1
+//
+symbol1 = input.symbol('SPY', title = ' ', group = 'Symbol 1', inline = '1')
+symbol1_risk = input.float(1.25, title = 'Risk', group = 'Symbol 1', inline = '1')
+
+symbol1_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 1', inline = '2')
+symbol1_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 1', inline = '3')
+
+symbol1_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 1', inline = '2')
+symbol1_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 1', inline = '3')
+//
+//SYMBOL 2
+//
+symbol2 = input.symbol('AAPL', title = ' ', group = 'Symbol 2', inline = '1')
+symbol2_risk = input.float(1.25, title = 'Risk', group = 'Symbol 2', inline = '1')
+
+symbol2_outertop = input.float(160.22, title = 'Outer Top',    group = 'Symbol 2', inline = '2')
+symbol2_innertop = input.float(155.37, title = 'Inner Top',    group = 'Symbol 2', inline = '3')
+
+symbol2_outerbottom = input.float(131.51, title = 'Outer Bottom ', group = 'Symbol 2', inline = '2')
+symbol2_innerbottom = input.float(136.58, title = 'Inner Bottom', group = 'Symbol 2', inline = '3')
+//
+//SYMBOL 3
+//
+symbol3 = input.symbol('QQQ', title = ' ', group = 'Symbol 3', inline = '1')
+symbol3_risk = input.float(1.25, title = 'Risk', group = 'Symbol 3', inline = '1')
+
+symbol3_outertop = input.float(340.22, title = 'Outer Top',    group = 'Symbol 3', inline = '2')
+symbol3_innertop = input.float(330.37, title = 'Inner Top',    group = 'Symbol 3', inline = '3')
+
+symbol3_outerbottom = input.float(269.51, title = 'Outer Bottom ', group = 'Symbol 3', inline = '2')
+symbol3_innerbottom = input.float(275.58, title = 'Inner Bottom', group = 'Symbol 3', inline = '3')
+//
+//SYMBOL 4
+//
+symbol4 = input.symbol('IWM', title = ' ', group = 'Symbol 4', inline = '1')
+symbol4_risk = input.float(1.25, title = 'Risk', group = 'Symbol 4', inline = '1')
+
+symbol4_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 4', inline = '2')
+symbol4_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 4', inline = '3')
+
+symbol4_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 4', inline = '2')
+symbol4_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 4', inline = '3')
+//
+//SYMBOL 5
+//
+symbol5 = input.symbol('TSLA', title = ' ', group = 'Symbol 5', inline = '1')
+symbol5_risk = input.float(1.25, title = 'Risk', group = 'Symbol 5', inline = '1')
+
+symbol5_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 5', inline = '2')
+symbol5_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 5', inline = '3')
+
+symbol5_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 5', inline = '2')
+symbol5_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 5', inline = '3')
+//
+//SYMBOL 6
+//
+symbol6 = input.symbol('NVDA', title = ' ', group = 'Symbol 6', inline = '1')
+symbol6_risk = input.float(1.25, title = 'Risk', group = 'Symbol 6', inline = '1')
+
+symbol6_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 6', inline = '2')
+symbol6_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 6', inline = '3')
+
+symbol6_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 6', inline = '2')
+symbol6_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 6', inline = '3')
+//
+//SYMBOL 7
+//
+symbol7 = input.symbol('VIX', title = ' ', group = 'Symbol 7', inline = '1')
+symbol7_risk = input.float(1.25, title = 'Risk', group = 'Symbol 7', inline = '1')
+
+symbol7_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 7', inline = '2')
+symbol7_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 7', inline = '3')
+
+symbol7_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 7', inline = '2')
+symbol7_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 7', inline = '3')
+//
+//SYMBOL 8
+//
+symbol8 = input.symbol('AMD', title = ' ', group = 'Symbol 8', inline = '1')
+symbol8_risk = input.float(1.25, title = 'Risk', group = 'Symbol 8', inline = '1')
+
+symbol8_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 8', inline = '2')
+symbol8_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 8', inline = '3')
+
+symbol8_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 8', inline = '2')
+symbol8_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 8', inline = '3')
+//
+//SYMBOL 9
+//
+symbol9 = input.symbol('F', title = ' ', group = 'Symbol 9', inline = '1')
+symbol9_risk = input.float(1.25, title = 'Risk', group = 'Symbol 9', inline = '1')
+
+symbol9_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 9', inline = '2')
+symbol9_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 9', inline = '3')
+
+symbol9_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 9', inline = '2')
+symbol9_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 9', inline = '3')
+//
+//SYMBOL 10
+//
+symbol10 = input.symbol('GE', title = ' ', group = 'Symbol 10', inline = '1')
+symbol10_risk = input.float(1.25, title = 'Risk', group = 'Symbol 10', inline = '1')
+
+symbol10_outertop = input.float(410.22, title = 'Outer Top',    group = 'Symbol 10', inline = '2')
+symbol10_innertop = input.float(405.37, title = 'Inner Top',    group = 'Symbol 10', inline = '3')
+
+symbol10_outerbottom = input.float(397.51, title = 'Outer Bottom ', group = 'Symbol 10', inline = '2')
+symbol10_innerbottom = input.float(400.58, title = 'Inner Bottom', group = 'Symbol 10', inline = '3')
+
+
+if barstate.islast
+    //Declare Values
+    var float outerTop = 0.00
+    var float outerTopRisk = 0.00
+    
+    var float innerTop = 0.00
+    var float innerTopRisk = 0.00
+    
+    var float innerBottom = 0.00
+    var float innerBottomRisk = 0.00
+    
+    var float outerBottom = 0.00
+    var float outerBottomRisk = 0.00
+    
+    if syminfo.tickerid == symbol1
+        outerTop := symbol1_outertop
+        outerTopRisk := outerTop + symbol1_risk
+        innerTop := symbol1_innertop
+        innerTopRisk := innerTop + symbol1_risk
+        innerBottom := symbol1_innerbottom
+        innerBottomRisk := innerBottom - symbol1_risk
+        outerBottom := symbol1_outerbottom
+        outerBottomRisk := outerBottom - symbol1_risk
+    else if syminfo.tickerid == symbol2
+        outerTop := symbol2_outertop
+        outerTopRisk := outerTop + symbol2_risk
+        innerTop := symbol2_innertop
+        innerTopRisk := innerTop + symbol2_risk
+        innerBottom := symbol2_innerbottom
+        innerBottomRisk := innerBottom - symbol2_risk
+        outerBottom := symbol2_outerbottom
+        outerBottomRisk := outerBottom - symbol2_risk
+    else if syminfo.tickerid == symbol3
+        outerTop := symbol3_outertop
+        outerTopRisk := outerTop + symbol3_risk
+        innerTop := symbol3_innertop
+        innerTopRisk := innerTop + symbol3_risk
+        innerBottom := symbol3_innerbottom
+        innerBottomRisk := innerBottom - symbol3_risk
+        outerBottom := symbol3_outerbottom
+        outerBottomRisk := outerBottom - symbol3_risk
+    else if syminfo.tickerid == symbol4
+        outerTop := symbol4_outertop
+        outerTopRisk := outerTop + symbol4_risk
+        innerTop := symbol4_innertop
+        innerTopRisk := innerTop + symbol4_risk
+        innerBottom := symbol4_innerbottom
+        innerBottomRisk := innerBottom - symbol4_risk
+        outerBottom := symbol4_outerbottom
+        outerBottomRisk := outerBottom - symbol4_risk
+    else if syminfo.tickerid == symbol5
+        outerTop := symbol5_outertop
+        outerTopRisk := outerTop + symbol5_risk
+        innerTop := symbol5_innertop
+        innerTopRisk := innerTop + symbol5_risk
+        innerBottom := symbol5_innerbottom
+        innerBottomRisk := innerBottom - symbol5_risk
+        outerBottom := symbol5_outerbottom
+        outerBottomRisk := outerBottom - symbol5_risk
+    else if syminfo.tickerid == symbol6
+        outerTop := symbol6_outertop
+        outerTopRisk := outerTop + symbol6_risk
+        innerTop := symbol6_innertop
+        innerTopRisk := innerTop + symbol6_risk
+        innerBottom := symbol6_innerbottom
+        innerBottomRisk := innerBottom - symbol6_risk
+        outerBottom := symbol6_outerbottom
+        outerBottomRisk := outerBottom - symbol6_risk
+    else if syminfo.tickerid == symbol7
+        outerTop := symbol7_outertop
+        outerTopRisk := outerTop + symbol7_risk
+        innerTop := symbol7_innertop
+        innerTopRisk := innerTop + symbol7_risk
+        innerBottom := symbol7_innerbottom
+        innerBottomRisk := innerBottom - symbol7_risk
+        outerBottom := symbol7_outerbottom
+        outerBottomRisk := outerBottom - symbol7_risk
+    else if syminfo.tickerid == symbol8
+        outerTop := symbol8_outertop
+        outerTopRisk := outerTop + symbol8_risk
+        innerTop := symbol8_innertop
+        innerTopRisk := innerTop + symbol8_risk
+        innerBottom := symbol8_innerbottom
+        innerBottomRisk := innerBottom - symbol8_risk
+        outerBottom := symbol8_outerbottom
+        outerBottomRisk := outerBottom - symbol8_risk
+    else if syminfo.tickerid == symbol9
+        outerTop := symbol9_outertop
+        outerTopRisk := outerTop + symbol9_risk
+        innerTop := symbol9_innertop
+        innerTopRisk := innerTop + symbol9_risk
+        innerBottom := symbol9_innerbottom
+        innerBottomRisk := innerBottom - symbol9_risk
+        outerBottom := symbol9_outerbottom
+        outerBottomRisk := outerBottom - symbol9_risk
+    else if syminfo.tickerid == symbol10
+        outerTop := symbol10_outertop
+        outerTopRisk := outerTop + symbol10_risk
+        innerTop := symbol10_innertop
+        innerTopRisk := innerTop + symbol10_risk
+        innerBottom := symbol10_innerbottom
+        innerBottomRisk := innerBottom - symbol10_risk
+        outerBottom := symbol10_outerbottom
+        outerBottomRisk := outerBottom - symbol10_risk
+    else
+        outerTop := na
+        outerTopRisk := na
+        innerTop := na
+        innerTopRisk := na
+        innerBottom := na
+        innerBottomRisk := na
+        outerBottom := na
+        outerBottomRisk := na
+    
+    //Declare Lines & Fills
+    var line outerTop_line = na
+    var line outerTopRisk_line = na   
+    var linefill outerTop_fill = na
+    
+    var line innerTop_line = na
+    var line innerTopRisk_line = na   
+    var linefill innerTop_fill = na
+    
+    var line innerBottom_line = na  
+    var line innerBottomRisk_line = na 
+    var linefill innerBottom_fill = na
+    
+    var line outerBottom_line = na
+    var line outerBottomRisk_line = na
+    var linefill outerBottom_fill = na
+    
+    //Delete Previous Lines & Fills
+    if not na(outerTop_line)
+        line.delete(outerTop_line[1])
+        line.delete(outerTopRisk_line[1])
+        linefill.delete(outerTop_fill[1])
+        
+        line.delete(innerTop_line[1])
+        line.delete(innerTopRisk_line[1])
+        linefill.delete(innerTop_fill[1])
+        
+        line.delete(innerBottom_line[1])
+        line.delete(innerBottomRisk_line[1])
+        linefill.delete(innerBottom_fill[1])
+        
+        line.delete(outerBottom_line[1])
+        line.delete(outerBottomRisk_line[1])
+        linefill.delete(outerBottom_fill[1])
+    
+    //Draw Lines
+    outerTop_line := line.new(bar_index, outerTop, bar_index + 1, outerTop, extend = extend.both, style = line.style_solid, width = 1, color = outerTop_linecolor)
+    outerTopRisk_line := line.new(bar_index, outerTopRisk, bar_index + 1, outerTopRisk, extend = extend.both, style = line.style_solid, width = 1 ,  color = outerTopRisk_linecolor)
+    
+    innerTop_line := line.new(bar_index, innerTop, bar_index + 1, innerTop, extend = extend.both, style = line.style_solid, width = 1 ,  color = innerTop_linecolor)
+    innerTopRisk_line := line.new(bar_index, innerTopRisk, bar_index + 1, innerTopRisk, extend = extend.both, style = line.style_solid, width = 1 ,  color = innerTopRisk_linecolor)
+    
+    innerBottom_line := line.new(bar_index, innerBottom, bar_index + 1, innerBottom, extend = extend.both, style = line.style_solid, width = 1 ,  color = innerBottom_linecolor)
+    innerBottomRisk_line := line.new(bar_index, innerBottomRisk, bar_index + 1, innerBottomRisk, extend = extend.both, style = line.style_solid, width = 1 ,  color = innerBottomRisk_linecolor)
+    
+    outerBottom_line := line.new(bar_index, outerBottom, bar_index + 1, outerBottom, extend = extend.both, style = line.style_solid, width = 1 ,  color = outerBottom_linecolor)
+    outerBottomRisk_line := line.new(bar_index, outerBottomRisk, bar_index + 1, outerBottomRisk, extend = extend.both, style = line.style_solid, width = 1 ,  color = outerBottomRisk_linecolor)
+    
+    //Draw Fills
+    outerTop_fill := linefill.new(outerTop_line, outerTopRisk_line, color = outerTop__fillcolor)
+    innerTop_fill := linefill.new(innerTop_line, innerTopRisk_line, color = innerTop_fillcolor)
+    innerBottom_fill := linefill.new(innerBottom_line, innerBottomRisk_line, color = innerBottom_fillcolor)
+    outerBottom_fill := linefill.new(outerBottom_line, outerBottomRisk_line, color = outerBottom_fillcolor)

@@ -1,0 +1,135 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Squeeze Momentum", overlay = true, max_lines_count = 500)
+
+// ma settings
+ma_timeframe    = input.timeframe("", title = 'MA Timeframe ', group = 'MA Settings', inline = '1')
+ma_length       = input.int(200, title = 'MA Length   ', group = 'MA Settings', inline = '2')
+ma_source       = input.source(close, title = 'MA Source   ', group = 'MA Settings', inline = '3')
+
+
+// squeeze settings
+squeeze_timeframe   = input.timeframe("", title = 'Squeeze Timeframe', group = 'Squeeze Settings', inline = '1')
+length              = input.int(20, title="BB Length    ", group = 'Squeeze Settings', inline = '2')
+mult                = input.float(2.0,title="BB MultFactor  ", group = 'Squeeze Settings', inline = '3')
+lengthKC            = input.int(20, title="KC Length    ", group = 'Squeeze Settings', inline = '4')
+multKC              = input.float(1.5, title="KC MultFactor  ", group = 'Squeeze Settings', inline = '5')
+useTrueRange        = input.bool(true, title="Use TrueRange (KC)", group = 'Squeeze Settings', inline = '6')
+
+
+// s/r lines
+left_bars           = input.int(15, title = "S/R Left Bars", group = 'S/R Settings', inline = '1')
+right_bars          = input.int(15, title = "S/R Right Bars", group = 'S/R Settings', inline = '1')
+resistance_color    = input.color(color.new(#2a9037, 0), title = 'Resistance', group = 'S/R Settings', inline = '2')
+support_color       = input.color(color.new(#FF0000, 0), title = 'Support', group = 'S/R Settings', inline = '2')
+
+
+// error catching
+if timeframe.in_seconds(timeframe.period) > timeframe.in_seconds(ma_timeframe)
+    runtime.error('MA Timeframe cannot be less than the main chart timeframe')
+if timeframe.in_seconds(timeframe.period) > timeframe.in_seconds(squeeze_timeframe)
+    runtime.error('Squeeze Timeframe cannot be less than the main chart timeframe')
+
+
+// ma
+ma_src = timeframe.in_seconds(timeframe.period) == timeframe.in_seconds(ma_timeframe) ? 0 : 1 
+ma_value = request.security(syminfo.ticker, ma_timeframe, ta.sma(ma_source, ma_length)[ma_src], lookahead = barmerge.lookahead_on)
+plot(ma_value, title = 'MA', color=color.new(#F3ACF1,0))
+
+ma_buy = close > ma_value
+ma_sell = close < ma_value
+
+
+// squeeze momentum
+f_squeeze(ref_back) =>
+
+    var int bg_color = 0
+    var int sqz_count = 0
+    var int nosqz_count = 0
+    var int sqz_type = 0
+
+    // Calculate BB
+    source = close
+    basis = ta.sma(source, length)
+    dev = multKC * ta.stdev(source, length)
+    upperBB = basis + dev
+    lowerBB = basis - dev
+
+    // Calculate KC
+    ma = ta.sma(source, lengthKC)
+    range_src = useTrueRange ? ta.tr : (high - low)
+    rangema = ta.sma(range_src, lengthKC)
+    upperKC = ma + rangema * multKC
+    lowerKC = ma - rangema * multKC
+
+    sqzOn  = (lowerBB > lowerKC) and (upperBB < upperKC)
+    sqzOff = (lowerBB < lowerKC) and (upperBB > upperKC)
+    noSqz  = (sqzOn == false) and (sqzOff == false)
+
+    val = ta.linreg(source  -  math.avg(math.avg(ta.highest(high, lengthKC), ta.lowest(low, lengthKC)), ta.sma(close,lengthKC)), lengthKC,0)
+
+    // lime=1 green=2 red=-1 maroon=-2
+    bg_color := val > 0 and val > val[1] ? 1 : val > 0 and val < val[1] ? 2 : val < 0 and val < val[1] ? -1 : -2
+
+    sqz_type := sqzOn ? 1 : sqzOff ? -1 : sqz_type[1]
+    sqz_count := sqzOn and not sqzOn[1] ? 1 : sqzOn ? sqz_count[1] + 1 : sqz_count[1]
+    nosqz_count := sqzOff and not sqzOff[1] ? 1 : sqzOff ? nosqz_count[1] + 1 : nosqz_count[1]
+    [val[ref_back], sqz_type[ref_back], sqz_count[ref_back], nosqz_count[ref_back], bg_color[ref_back]]
+
+sqz_src = timeframe.in_seconds(timeframe.period) == timeframe.in_seconds(ma_timeframe) ? 0 : 1 
+[val, sqztype, sqzcount, nosqzcount, bg_color] = request.security(syminfo.ticker, squeeze_timeframe, f_squeeze(sqz_src), lookahead = barmerge.lookahead_on)
+// barcolor(bg_color == 1 ? color.lime : bg_color == 2 ? color.green : bg_color == -1 ? color.red : color.maroon)
+
+
+// s/r
+resistance_value = ta.valuewhen(ta.pivothigh(high,left_bars,right_bars), high[right_bars], 0)
+support_value = ta.valuewhen(ta.pivotlow(low,left_bars,right_bars), low[right_bars], 0)
+var line resistance = na
+var line support = na
+var int bars_since_rcross = na
+var int bars_since_scross = na
+
+if resistance_value != resistance_value[1]
+    line.set_extend(resistance, extend.none)
+    resistance := line.new(x1 = time[right_bars], y1 = resistance_value, x2 = time[right_bars + 1], y2 = resistance_value,
+     color = resistance_color, extend = extend.right, xloc = xloc.bar_time)
+else
+    line.set_x2(resistance, time)
+if support_value != support_value[1]
+    line.set_extend(support, extend.none)
+    support := line.new(x1 = time[right_bars], y1 = support_value, x2 = time[right_bars + 1], y2 = support_value,
+     color = support_color, extend = extend.right, xloc = xloc.bar_time)
+else
+    line.set_x2(support, time)
+
+sr_buy = (close >= line.get_y1(resistance))
+sr_sell = (close <= line.get_y1(support))
+
+bars_since_rcross := ta.crossover(close,resistance_value) ? 1 : bars_since_rcross[1] + 1
+bars_since_scross := ta.crossunder(close,support_value) ? 1 : bars_since_scross[1] + 1
+
+
+// create signals
+case1a = input.bool(true, title = 'Case 1A', group = 'Trading Settings', inline = '1')
+case1b = input.bool(true, title = 'Case 1B', group = 'Trading Settings', inline = '2')
+squeeze_bars_required = input.int(6, title = 'Squeeze Bars Required', group = 'Trading Settings', inline = '4')
+
+case1_buya = case1a and (close > ma_value) and (bars_since_rcross==1) and (bg_color == 1 and sqztype == -1 and nosqzcount == 1 and sqzcount >= squeeze_bars_required) 
+case1_buyb = case1b and (close > ma_value) and (bars_since_rcross<=4) and (bg_color == 1 and sqztype == -1 and nosqzcount == 1 and sqzcount >= squeeze_bars_required) 
+
+case1_sella = case1a and (close < ma_value) and (bars_since_scross==1) and (bg_color == -1 and sqztype == -1 and nosqzcount == 1 and sqzcount >= squeeze_bars_required) 
+case1_sellb = case1b and (close < ma_value) and (bars_since_scross<=4) and (bg_color == -1 and sqztype == -1 and nosqzcount == 1 and sqzcount >= squeeze_bars_required) 
+// barcolor(sqztype == 1 ? color.orange : sqztype == -1 ? color.white : na)
+// bgcolor(case1_buya ? color.new(color.green,70) : case1_sella ? color.new(color.red,70) : na)
+
+
+// signal labels
+plotshape(case1_buya or case1_buyb, style=shape.labelup, editable=false, text= "BUY", textcolor=color.white, location= location.belowbar, color=color.green, size=size.tiny)
+plotshape(case1_sella or case1_sellb, style=shape.labeldown, editable=false, text='SELL', textcolor=color.white, location=location.abovebar, color=color.red, size=size.tiny)
+
+
+// alerts
+alertcondition(case1_buya or case1_buyb, "Buy Signal", "Buy Signal")
+alertcondition(case1_sella or case1_sellb, "Sell Signal", "Sell Signal")

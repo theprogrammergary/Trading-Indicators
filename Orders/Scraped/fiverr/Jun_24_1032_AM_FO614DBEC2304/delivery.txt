@@ -1,0 +1,28 @@
+Please read the disclaimer. 
+
+
+
+Here is the code below
+
+
+plot yClose = close(period = aggregationPeriod.DAY)[1];
+plot yHigh = high(period = aggregationPeriod.DAY)[1];
+plot yLow = low(period = aggregationPeriod.DAY)[1];
+plot yOpen = open(period = aggregationPeriod.DAY)[1];
+
+yClose.setPaintingStrategy(paintingStrategy.DASHES);
+yHigh.setPaintingStrategy(paintingStrategy.DASHES);
+yLow.setPaintingStrategy(paintingStrategy.DASHES);
+yOpen.setPaintingStrategy(paintingStrategy.DASHES);
+
+input showLabels = yes;
+defineglobalcolor("Label Color", color.white);
+addchartbubble(showLabels and barnumber() == highestAll(barnumber()),yClose,"yClose", globalcolor("Label Color"));
+addchartbubble(showLabels and barnumber() == highestAll(barnumber()),yHigh,"yHigh", globalcolor("Label Color"));
+addchartbubble(showLabels and barnumber() == highestAll(barnumber()),yLow,"yLow", globalcolor("Label Color"));
+addchartbubble(showLabels and barnumber() == highestAll(barnumber()),yOpen,"yOpen", globalcolor("Label Color"));
+
+yHigh.setDefaultColor(color.uptick);
+yLow.setDefaultColor(color.downtick);
+yClose.setDefaultColor(color.cyan);
+yOpen.setdefaultColor(color.white);

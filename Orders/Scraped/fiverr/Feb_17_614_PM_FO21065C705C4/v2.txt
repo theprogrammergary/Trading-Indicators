@@ -1,0 +1,136 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_manganet_v2", overlay = true, max_lines_count = 500)
+
+line1_amount = input.int(2, minval = 1, title = 'Line One', group = 'Settings', inline ='1')
+line1_color = input.color(color.new(color.yellow,0), title = '', group = 'Settings', inline ='1')
+line1_style = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Settings', inline ='1')
+line1_width = input.int(1, title = '', minval = 1, maxval = 5, group = 'Settings', inline ='1')
+
+line2_amount = input.int(6, minval = 1, title = 'Line Two', group = 'Settings', inline ='2')
+line2_color = input.color(color.new(color.green,0), title = '', group = 'Settings', inline ='2')
+line2_style = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Settings', inline ='2')
+line2_width = input.int(1, title = '', minval = 1, maxval = 5, group = 'Settings', inline ='2')
+
+midline_color = input.color(color.new(#b2b5be,0), title = 'Line Close', group = 'Settings', inline ='3')
+midline_style = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Settings', inline ='3')
+midline_width = input.int(1, title = '', minval = 1, maxval = 5, group = 'Settings', inline ='3')
+
+keep_old_lines = input.bool(true, title = 'Keep Old Lines', group = 'Settings', inline ='4')
+color_to_switch = input.color(color.blue, title = 'Switching Color', group = 'Settings', inline ='5')
+
+
+var float last_confirmed_time = na
+last_confirmed_time := barstate.islastconfirmedhistory ? time : last_confirmed_time[1]
+plotchar(time == last_confirmed_time ? true : false, title = 'Start Calculating', char = 'x', color = color.white)
+
+
+var line_mid = array.new_line(100,na)
+var line1_upper = array.new_line(100,na)
+var line1_lower = array.new_line(100,na)
+var line2_upper = array.new_line(100,na)
+var line2_lower = array.new_line(100,na)
+
+var float line_mid_value = na
+var float line1_upper_value = na
+var float line1_lower_value = na
+var float line2_upper_value = na
+var float line2_lower_value = na
+
+
+// function to draw lines
+f_drawlines(line_mid, line1_upper, line1_lower, line2_upper, line2_lower, anchor) =>
+
+    array.unshift(line_mid, line.new(x1 = time, y1 = anchor, x2 = time+1, y2 = anchor, xloc = xloc.bar_time,
+         extend = extend.right, color = midline_color, width = midline_width,
+         style = (midline_style == 'Solid' ? line.style_solid : midline_style == 'Dashed' ? line.style_dashed : midline_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    array.unshift(line1_upper, line.new(x1 = time, y1 = anchor + syminfo.mintick*line1_amount, x2 = time+1, y2 = anchor + syminfo.mintick*line1_amount, xloc = xloc.bar_time,
+         extend = extend.right, color = line1_color, width = line1_width,
+         style = (line1_style == 'Solid' ? line.style_solid : line1_style == 'Dashed' ? line.style_dashed : line1_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    array.unshift(line1_lower, line.new(x1 = time, y1 = anchor - syminfo.mintick*line1_amount, x2 = time+1, y2 = anchor - syminfo.mintick*line1_amount, xloc = xloc.bar_time,
+         extend = extend.right, color = line1_color, width = line1_width,
+         style = (line1_style == 'Solid' ? line.style_solid : line1_style == 'Dashed' ? line.style_dashed : line1_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    array.unshift(line2_upper, line.new(x1 = time, y1 = anchor + syminfo.mintick*line2_amount, x2 = time+1, y2 = anchor + syminfo.mintick*line2_amount, xloc = xloc.bar_time,
+         extend = extend.right, color = line2_color, width = line2_width,
+         style = (line2_style == 'Solid' ? line.style_solid : line2_style == 'Dashed' ? line.style_dashed : line2_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+    array.unshift(line2_lower, line.new(x1 = time, y1 = anchor - syminfo.mintick*line2_amount, x2 = time+1, y2 = anchor - syminfo.mintick*line2_amount, xloc = xloc.bar_time,
+         extend = extend.right, color = line2_color, width = line2_width,
+         style = (line2_style == 'Solid' ? line.style_solid : line2_style == 'Dashed' ? line.style_dashed : line2_style == 'Dotted' ? line.style_dotted : line.style_solid)))
+
+
+
+
+ // first time line
+if time == last_confirmed_time
+    f_drawlines(line_mid, line1_upper, line1_lower, line2_upper, line2_lower, close) 
+
+
+// past confirmed time
+if time > last_confirmed_time
+
+    // get line values
+    line_mid_value := line.get_y1(array.first(line_mid))
+    line1_upper_value := line.get_y1(array.first(line1_upper))
+    line1_lower_value := line.get_y1(array.first(line1_lower))
+    line2_upper_value := line.get_y1(array.first(line2_upper))
+    line2_lower_value := line.get_y1(array.first(line2_lower))
+
+    // // extend x2 to current bar's time
+    line.set_x2(array.first(line_mid), time)
+    line.set_x2(array.first(line1_upper), time)
+    line.set_x2(array.first(line1_lower), time)
+    line.set_x2(array.first(line2_upper), time)
+    line.set_x2(array.first(line2_lower), time)
+
+    // replace colors line 1
+    if high >= line1_upper_value
+        line.set_color(array.first(line1_upper), color_to_switch)
+    if low <= line1_lower_value
+        line.set_color(array.first(line1_lower), color_to_switch)
+
+
+    // check for intrabar redraw
+    if high >= line2_upper_value or low <= line2_lower_value
+
+        anchor = high >= line2_upper_value ? line2_upper_value : line2_lower_value
+        line.set_color(array.first(line_mid), color_to_switch)
+        line.set_color(array.first(line1_upper), color_to_switch)
+        line.set_color(array.first(line1_lower), color_to_switch)
+        line.set_color(array.first(line2_upper), color_to_switch)
+        line.set_color(array.first(line2_lower), color_to_switch)
+
+        if not keep_old_lines
+            line.delete(array.first(line_mid))
+            line.delete(array.first(line1_upper))
+            line.delete(array.first(line1_lower))
+            line.delete(array.first(line2_upper))
+            line.delete(array.first(line2_lower))
+
+        // end extension since lines aren't being deleted
+        line.set_extend(array.first(line_mid), extend.none)
+        line.set_extend(array.first(line1_upper), extend.none)
+        line.set_extend(array.first(line1_lower), extend.none)
+        line.set_extend(array.first(line2_upper), extend.none)
+        line.set_extend(array.first(line2_lower), extend.none)
+        
+        // draw new lines
+        f_drawlines(line_mid, line1_upper, line1_lower, line2_upper, line2_lower, anchor) 
+
+        // reset line values
+        line_mid_value := line.get_y1(array.first(line_mid))
+        line1_upper_value := line.get_y1(array.first(line1_upper))
+        line1_lower_value := line.get_y1(array.first(line1_lower))
+        line2_upper_value := line.get_y1(array.first(line2_upper))
+        line2_lower_value := line.get_y1(array.first(line2_lower))
+
+
+
+        
+
+// bgcolor(time > last_confirmed_time ? color.gray : na)

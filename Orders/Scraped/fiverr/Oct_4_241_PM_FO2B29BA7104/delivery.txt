@@ -1,0 +1,1 @@
+Here is working indicator. For the lower studies to work the timeframe has to be greater than the main chart. There is no way around this. Thinkorswim quirk.

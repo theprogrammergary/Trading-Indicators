@@ -1,0 +1,5 @@
+Try this file.
+
+Import .eld first.
+
+Then open .tsw

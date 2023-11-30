@@ -1,0 +1,19 @@
+input pct = .55;
+input MA_Length1 = 9;
+input MA_Length2 = 20;
+input MA_Type = averageType.SIMPLE;
+
+plot MA_1 = movingAverage(MA_Type, close, MA_Length1);
+plot MA_2 = movingAverage(MA_Type, close, MA_Length2);
+
+Plot Long = (close > open) and
+(Close >= Low + ((high- low)*pct)) and close > max(ma_1,ma_2);
+Long.setpaintingStrategy(paintingStrategy.BOOLEAN_POINTS);
+Long.setdefaultcolor(color.light_green);
+Long.setLineWeight(3);
+assignpricecolor(if Long then color.WHITE else color.current);
+alert(Long and !long[1], 
+"Alert", alert.bar, sound.ding);
+
+
+

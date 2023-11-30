@@ -1,0 +1,17 @@
+1. Bull vs Bear
+Tradestation requires separate study to color bars. 
+
+To change the bar color you must go to inputs and use the RGB color creator. To create a new RGB color go to this website and select copy rgb values of your created color into tradestation. 
+
+https://www.rapidtables.com/web/color/RGB_Color.html
+
+The reason for this is that tradestations default colors are lacking and to plot things based on if statements it removes the ability to change the color the traditional way.
+
+
+2. Twiggs Money Flow
+-Change colors in style and color sections of study settings. Traditional way.
+
+3. Absolute Histogram v2
+-Change colors in inputs section like bull vs bear.
+
+Let me known if you have any questions or need help.

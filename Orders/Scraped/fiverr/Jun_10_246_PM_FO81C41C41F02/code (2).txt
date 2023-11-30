@@ -1,0 +1,180 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("7 in 1", overlay = true)
+
+
+// settings
+use_ma1     = input.bool(true, title = 'MA 1', group = 'Settings', inline = 'ma1')
+ma_1_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma1')
+ma_1_val  = input.int(9, title = '', group = 'Settings', inline = 'ma1')
+ma1_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma1')
+color_ma1   = input.color(color.blue, title = '', group = 'Settings', inline = 'ma1') 
+
+use_ma2     = input.bool(true, title = 'MA 2', group = 'Settings', inline = 'ma2')
+ma_2_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma2')
+ma_2_val  = input.int(13, title = '', group = 'Settings', inline = 'ma2')
+ma2_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma2')
+color_ma2   = input.color(color.orange, title = '', group = 'Settings', inline = 'ma2') 
+
+use_ma3     = input.bool(true, title = 'MA 3', group = 'Settings', inline = 'ma3')
+ma_3_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma3')
+ma_3_val  = input.int(21, title = '', group = 'Settings', inline = 'ma3')
+ma3_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma3')
+color_ma3   = input.color(color.yellow, title = '', group = 'Settings', inline = 'ma3') 
+
+use_ma4     = input.bool(true, title = 'MA 4', group = 'Settings', inline = 'ma4')
+ma_4_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma4')
+ma_4_val  = input.int(55, title = '', group = 'Settings', inline = 'ma4')
+ma4_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma4')
+color_ma4   = input.color(color.purple, title = '', group = 'Settings', inline = 'ma4')
+
+use_ma5     = input.bool(true, title = 'MA 5', group = 'Settings', inline = 'ma5')
+ma_5_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma5')
+ma_5_val  = input.int(100, title = '', group = 'Settings', inline = 'ma5')
+ma5_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma5')
+color_ma5   = input.color(color.lime, title = '', group = 'Settings', inline = 'ma5') 
+
+use_ma6     = input.bool(true, title = 'MA 6', group = 'Settings', inline = 'ma6')
+ma_6_type    = input.string('EMA', title = '', options = ['SMA', 'EMA'], group = 'Settings', inline = 'ma6')
+ma_6_val  = input.int(200, title = '', group = 'Settings', inline = 'ma6')
+ma6_res   = input.string("Normal MA", title = '', 
+ options = ["Normal MA","Open","High","Low","Close","hl2","hlc3","ohlc4","hlcc4","Multitimeframe MA","Chart","1 Minute","3 Minutes","5 Minutes","15 Minutes","30 Minutes","45 Minutes","1 Hour","2 Hours","3 Hours","4 Hours","Day","Week","Month"], 
+ group = 'Settings', inline = 'ma6')
+color_ma6   = input.color(color.new(#311b92,0), title = '', group = 'Settings', inline = 'ma6') 
+
+use_vwap     = input.bool(true, title = 'VWAP', group = 'Settings', inline = 'ma7')
+anchor    = input.string('Session', title = '', options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group = 'Settings', inline = 'ma7')
+source_vwap  = input.source(hlc3, title = '', group = 'Settings', inline = 'ma7')
+color_vwap   = input.color(color.silver, title = '', group = 'Settings', inline = 'ma7') 
+
+
+
+ma_function(source, length, type) =>
+    if type == 'RMA'
+        ta.rma(source, length)
+    else if type == 'SMA'
+        ta.sma(source, length)
+    else if type == 'EMA'
+        ta.ema(source, length)
+    else if type == 'WMA'
+        ta.wma(source, length)
+    else if type == 'HMA'
+        if(length<2)
+            ta.hma(source,2)
+        else
+            ta.hma(source, length)
+    else 
+        ta.vwma(source, length)
+    
+sh(string type) =>
+    if type == "Only Show Smoothed MA "
+        false
+    else
+        true
+
+type_nor(type)=>
+    if (type == "Open") or (type == "High") or (type == "Low") or (type == "Close") or (type == "Normal MA")
+        true
+    else
+        false 
+
+tf(res)=>
+
+    if (res == "1 Minute")
+        '1'
+    else if (res == "3 Minutes")
+        '3'
+    else if (res == "5 Minutes")
+        '5'
+    else if (res == "15 Minutes")
+        '15'
+    else if (res == "30 Minutes")
+        '30'
+    else if (res == "45 Minutes")
+        '45'
+    else if (res == "1 Hour")
+        '60'
+    else if (res == "2 Hours")
+        '120'
+    else if (res == "3 Hours")
+        '180'
+    else if (res == "4 Hours")
+        '240'
+    else if (res == "Day")
+        'D'
+    else if (res =="Week" )
+        'W'
+    else if (res == "Month")
+        'M'
+    else
+        timeframe.period
+ 
+pr(res)=>
+    switch res
+        "Open" => open
+        "High" => high
+        "Low" => low
+        "Close" => close
+        "hlc3" => hlc3
+        "ohlc4" => ohlc4
+        "hlcc4" => hlcc4
+        =>close
+
+ma_1 = use_ma1 ? (type_nor(ma1_res)?ma_function(pr(ma1_res), ma_1_val, ma_1_type):request.security(syminfo.tickerid,tf(ma1_res) , ma_function(close, ma_1_val, ma_1_type))):na
+ma_2 = use_ma2 ?(type_nor(ma2_res)?ma_function(pr(ma2_res), ma_2_val, ma_2_type):request.security(syminfo.tickerid, tf(ma2_res), ma_function(close, ma_2_val, ma_2_type))):na
+ma_3 = use_ma3 ?(type_nor(ma3_res)?ma_function(pr(ma3_res), ma_3_val, ma_3_type):request.security(syminfo.tickerid, tf(ma3_res), ma_function(close, ma_3_val, ma_3_type))):na
+ma_4 = use_ma4 ?(type_nor(ma4_res)?ma_function(pr(ma4_res), ma_4_val, ma_4_type): request.security(syminfo.tickerid, tf(ma4_res), ma_function(close, ma_4_val, ma_4_type))):na
+ma_5 = use_ma5 ?(type_nor(ma5_res)?ma_function(pr(ma5_res), ma_5_val, ma_5_type):request.security(syminfo.tickerid, tf(ma5_res), ma_function(close, ma_5_val, ma_5_type))):na
+ma_6 = use_ma6 ?(type_nor(ma6_res)?ma_function(pr(ma6_res), ma_6_val, ma_6_type):request.security(syminfo.tickerid,tf(ma6_res) , ma_function(close, ma_6_val, ma_6_type))):na
+
+
+plot(ma_1, 'MA 1', color = color_ma1, style = plot.style_line, display = use_ma1 ? display.all : display.none)
+plot(ma_2, 'MA 2', color = color_ma2, style = plot.style_line, display = use_ma2 ? display.all : display.none)
+plot(ma_3, 'MA 3', color = color_ma3, style = plot.style_line, display = use_ma3 ? display.all : display.none)
+plot(ma_4, 'MA 4', color = color_ma4, style = plot.style_line, display = use_ma4 ? display.all : display.none)
+plot(ma_5, 'MA 5', color = color_ma5, style = plot.style_line, display = use_ma5 ? display.all : display.none)
+plot(ma_6, 'MA 6', color = color_ma6, style = plot.style_line, display = use_ma6 ? display.all : display.none)
+
+
+
+
+
+// vwap calculate
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+	"Earnings"  => not na(new_earnings)
+	"Dividends" => not na(new_dividends)
+	"Splits"    => not na(new_split)
+	"Session"   => timeframe.change("D")
+	"Week"      => timeframe.change("W")
+	"Month"     => timeframe.change("M")
+	"Quarter"   => timeframe.change("3M")
+	"Year"      => timeframe.change("12M")
+	"Decade"    => timeframe.change("12M") and year % 10 == 0
+	"Century"   => timeframe.change("12M") and year % 100 == 0
+	=> false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(source_vwap[1]) and not isEsdAnchor
+	isNewPeriod := true
+
+float vwapValue = na
+[_vwap, _stdevUpper, _] = ta.vwap(source_vwap, isNewPeriod, 1)
+vwapValue := _vwap
+
+plot(vwapValue, title = 'VWAP', color = color_vwap, style = plot.style_circles, display = use_vwap ? display.all : display.none)

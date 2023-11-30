@@ -1,0 +1,37 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Inside Extended", overlay = true)
+
+var bool inside = na
+inside := high < high[1] and low > low[1]
+
+var bool bar_before_inside_broken = true
+bar_before_inside_broken := bar_index == 0 ? true : inside and bar_before_inside_broken[1] == true ? false : bar_before_inside_broken[1] 
+
+var bool breakdown = false
+var bool breakout = false
+var float bar_before_inside_high = na
+var float bar_before_inside_low = na
+
+if bar_before_inside_broken == false
+    if bar_before_inside_broken[1] == true
+        bar_before_inside_high := high[1]
+        bar_before_inside_low := low[1] 
+    else 
+        breakdown := close < bar_before_inside_low
+        breakout := close > bar_before_inside_high
+        bar_before_inside_high := bar_before_inside_high[1]
+        bar_before_inside_low := bar_before_inside_low[1]
+        bar_before_inside_broken := bar_index == 0 ? true : breakdown or breakout ? true : bar_before_inside_broken[1]
+else 
+    breakdown := false
+    breakout := false
+    bar_before_inside_high := na
+    bar_before_inside_low := na
+
+barcolor(inside ? color.yellow : na)
+
+plot(bar_before_inside_high, title = 'Range High', color = color.gray, offset = -1, style = plot.style_linebr, linewidth = 3)
+plot(bar_before_inside_low , title = 'Range Low', color = color.gray, offset = -1, style = plot.style_linebr, linewidth = 3)

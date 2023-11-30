@@ -1,0 +1,26 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Candles In a Row", overlay = true)
+
+
+show_bullish = input.bool(true, title = "Show Bullish", group = "Bullish Settings")
+bullish_length = input.int(5, minval = 1, title = "Bullish Length", group = "Bullish Settings")
+
+show_bearish = input.bool(true, title = "Show Bearish", group = "Bearish Settings")
+bearish_length = input.int(5, minval = 1, title = "Bearish Length", group = "Bearish Settings")
+
+bull_candle = close >= open ? true : false
+bear_candle = close < open ? true : false
+
+var bull_count = 0
+var bear_count = 0
+
+bull_count := bull_candle ? bull_count[1] + 1 : 0
+bear_count := bear_candle ? bear_count[1] + 1 : 0
+
+plotshape(show_bullish and barstate.isconfirmed and bull_count == bullish_length, style=shape.triangledown, location = location.abovebar, color = color.new(color.red,0), size = size.small, offset = 1)
+plotshape(show_bearish and barstate.isconfirmed and bear_count == bearish_length, style=shape.triangleup, location = location.belowbar, color = color.new(color.green,0), size = size.small, offset = 1)
+
+
+

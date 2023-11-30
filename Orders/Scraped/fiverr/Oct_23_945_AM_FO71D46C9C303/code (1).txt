@@ -1,0 +1,183 @@
+
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_anthonyy2023", overlay=true, max_boxes_count = 500, max_lines_count = 500)
+
+// all settings
+// handlingOld     = input.string("Stop", title = "How to Handle Taken Level", options = ['Stop', 'Delete'], group = 'All Settings')
+
+// session 1 settings
+use_sess1       = input.bool(true, title = 'Session 1 (EST)', group = 'Session 1 Settings', inline = '1')
+time_sess1      = input.session("1800-0159", title = '', group = 'Session 1 Settings', inline = '1')
+sess1_css       = input.color(color.red, title = '', group = 'Session 1 Settings', inline = '2')
+sess1_box       = input.bool(false, title = 'Box', group = 'Session 1 Settings', inline = '2')
+
+// session 2 settings
+use_sess2       = input.bool(true, title = 'Session 2 (EST)', group = 'Session 2 Settings', inline = '1')
+time_sess2      = input.session("0200-0929", title = '', group = 'Session 2 Settings', inline = '1')
+sess2_css       = input.color(color.yellow, title = '', group = 'Session 2 Settings', inline = '2')
+sess2_box       = input.bool(false, title = 'Box', group = 'Session 2 Settings', inline = '2')
+
+// session 3 settings
+use_sess3       = input.bool(true, title = 'Session 3 (EST)', group = 'Session 3 Settings', inline = '1')
+time_sess3      = input.session("0930-1759", title = '', group = 'Session 3 Settings', inline = '1')
+sess3_css       = input.color(color.blue, title = '', group = 'Session 3 Settings', inline = '2')
+sess3_box       = input.bool(false, title = 'Box', group = 'Session 3 Settings', inline = '2')
+
+
+
+// global vars
+var sessionHighs    = array.new_line(150, na)
+var sessionLows     = array.new_line(150, na)
+
+var old_sessionHighs    = array.new_line(100, na)
+var old_sessionLows     = array.new_line(100, na)
+
+
+// functions
+f_linearray_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+
+f_calc_range(is_sess) =>
+    var float sess_high = 0.00
+    var float sess_low  = 0.00
+    if is_sess
+        sess_high   := not is_sess[1] ? high : math.max(high, sess_high[1])
+        sess_low    := not is_sess[1] ? low : math.min(low, sess_low[1])
+    [sess_high, sess_low]
+
+
+
+f_draw_untested_lines(sess_high, sess_low, sess_startBN, sess_endBN, css) =>
+    f_linearray_add_pop(sessionHighs, line.new(x1=sess_startBN, y1=sess_high, x2=sess_endBN, y2=sess_high,
+         color = color.new(css, 30), style = line.style_solid, extend = extend.none, width = 1, xloc=xloc.bar_time))   
+    f_linearray_add_pop(sessionLows, line.new(x1=sess_startBN, y1=sess_low, x2=sess_endBN, y2=sess_low,
+         color = color.new(css, 30), style = line.style_solid, extend = extend.none, width = 1, xloc=xloc.bar_time))   
+
+
+
+f_draw_range(drawBox, is_sess, sess_h, sess_l, css) =>
+    var box range_box = na
+    if is_sess
+        if not is_sess[1]
+            range_box := box.new(left = time, top = sess_h, right = time+1, bottom = sess_l,
+             border_color = color.new(css, 75), bgcolor = color.new(css, 90),
+             border_style = line.style_dashed,
+             extend = extend.right, xloc = xloc.bar_time)
+        else
+            box.set_right(range_box[1], time)
+            box.set_top(range_box[1], sess_h)
+            box.set_bottom(range_box[1], sess_l)
+
+
+    if not is_sess
+        box.set_extend(range_box, extend.none)
+
+        if drawBox
+            box.set_border_color(range_box[1], color.new(css,75))
+            box.set_bgcolor(range_box[1], color.new(css,90))
+        else
+            box.set_border_color(range_box[1], color.new(css,100))
+            box.set_bgcolor(range_box[1], color.new(css,100))
+
+
+        if is_sess[1]
+            f_draw_untested_lines(
+                 box.get_top(range_box), box.get_bottom(range_box),
+                 box.get_left(range_box), box.get_right(range_box),
+                 css
+             )
+
+
+
+f_topTaken() =>
+    takenCount = 0
+
+    if not barstate.isconfirmed
+        false
+
+    else
+        arraySize = array.size(sessionHighs)
+        for i = 0 to arraySize - 1
+            lineSessH = array.get(sessionHighs, i)
+            lvl = line.get_y2(lineSessH)
+
+            if high[1] < lvl and high > lvl and math.max(close, open) < lvl
+                takenCount += 1
+                copiedLine = line.copy(array.get(sessionHighs, i))
+                f_linearray_add_pop(old_sessionHighs, copiedLine)
+                line.delete(lineSessH)
+            
+            else if high > lvl
+                copiedLine = line.copy(array.get(sessionHighs, i))
+                f_linearray_add_pop(old_sessionHighs, copiedLine)
+                line.delete(lineSessH)    
+
+        takenCount >= 1
+
+
+f_botTaken() =>
+    takenCount = 0
+    
+    if not barstate.isconfirmed
+        false
+
+    else
+        arraySize = array.size(sessionLows)
+        for i = 0 to arraySize - 1
+            lineSessL = array.get(sessionLows, i)
+            lvl = line.get_y2(lineSessL)
+
+            if low[1] > lvl and low < lvl and math.min(close, open) > lvl
+                takenCount += 1
+                copiedLine = line.copy(array.get(sessionLows, i))
+                f_linearray_add_pop(old_sessionLows, copiedLine)
+                line.delete(lineSessL)
+            
+            else if low < lvl
+                copiedLine = line.copy(array.get(sessionLows, i))
+                f_linearray_add_pop(old_sessionLows, copiedLine)
+                line.delete(lineSessL)  
+
+        takenCount >= 1
+
+
+
+
+// calc session times
+is_sess1 = use_sess1 and time == time(timeframe.period, time_sess1, "America/New_York")
+is_sess2 = use_sess2 and time == time(timeframe.period, time_sess2, "America/New_York")
+is_sess3 = use_sess3 and time == time(timeframe.period, time_sess3, "America/New_York")
+
+
+// get session ranges
+[sess1_high, sess1_low] = f_calc_range(is_sess1)
+[sess2_high, sess2_low] = f_calc_range(is_sess2)
+[sess3_high, sess3_low] = f_calc_range(is_sess3)
+
+
+// draw session ranges
+f_draw_range(sess1_box, is_sess1, sess1_high, sess1_low, sess1_css)
+f_draw_range(sess2_box, is_sess2, sess2_high, sess2_low, sess2_css)
+f_draw_range(sess3_box, is_sess3, sess3_high, sess3_low, sess3_css)
+
+
+// look for alerts
+var bool highLvlWicked = false
+var bool LowLvlWicked = false
+
+
+// call taken functions when barstateisconfirmed
+highLvlWicked   := f_topTaken()
+LowLvlWicked    := f_botTaken()
+
+plotshape(highLvlWicked == true, title = 'High Wicked', location = location.abovebar, color = color.new(chart.fg_color, 20), style = shape.xcross, size = size.tiny)
+plotshape(LowLvlWicked == true, title = 'Low Wicked', location = location.belowbar, color = color.new(chart.fg_color,20), style = shape.xcross, size = size.tiny)
+
+alertcondition(highLvlWicked == true, "High Wicked", "High Wicked")
+alertcondition(LowLvlWicked == true, "Low Wicked", "Low Wicked")

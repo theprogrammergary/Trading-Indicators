@@ -1,0 +1,10 @@
+Please read the disclaimer. The code is below:
+
+
+plot bull_signal = open > hl2 and close > hl2;
+bull_signal.setpaintingStrategy(paintingStrategy.BOOLEAN_ARROW_UP);
+bull_signal.hide();
+
+plot bear_signal = open < hl2 and close < hl2;
+bear_signal.setpaintingStrategy(paintingStrategy.BOOLEAN_ARROW_DOWN);
+bear_signal.hide();

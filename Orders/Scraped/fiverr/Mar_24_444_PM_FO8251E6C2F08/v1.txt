@@ -1,0 +1,161 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("For kt4343 Strategy v1", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 2.0, initial_capital = 100000, calc_on_order_fills = false, calc_on_every_tick = true)
+
+use_alt_alerts = input.bool(true, 'Use Alternate Alerts')
+
+////////////////
+//ENTRY CRITERIA
+////////////////
+ma1_length = input.int(3, "Short EMA", group = 'Entry')
+ma2_length = input.int(27, "Long EMA", group = 'Entry')
+
+ma_1 = ta.ema(close, ma1_length)
+ma_2 = ta.ema(close, ma2_length)
+
+ma1 = plot(ma_1, "Short EMA", color = color.new(color.orange,40))
+ma2 = plot(ma_2, "Long EMA", color = color.new(color.yellow,40))
+fill(ma1, ma2 , color = ma_1 >= ma_2 ? color.new(color.teal,80) : color.new(color.red,80))
+
+long_entry_cond = ta.crossover(ma_1, ma_2)
+long_exit_cond = ta.crossunder(ma_1,ma_2)
+
+/////////////////////
+//POSITION MANAGEMENT
+/////////////////////
+use_atr_stop = input.bool(true, title = ' ', group = 'Position Management', inline = '1')
+atr_stop_amount = input.float(1.50, minval = 0.1, title = "ATR Stop Amount", group = 'Position Management' ,inline = '1')
+atr_value = ta.atr(3) * atr_stop_amount
+
+use_max_pct_loss = input.bool(true, title = ' ', group = 'Position Management', inline = '2')
+max_pct_loss_amount = input.float(20.00, minval = 0.1, title = "Max % Loss Amount", group = 'Position Management', inline = '2')
+
+profit_target_amount = input.float(20.00, minval = 0.1, title = "Profit Tgt % Amount", group = 'Position Management', inline = '3')
+
+manage_length = input.int(16, "Manage EMA", group = 'Position Management', inline = '4')
+manage_ema = ta.ema(close, manage_length)
+manageema = plot(manage_ema, title = "Manage EMA", color = color.new(color.white,90))
+
+/////////////////////
+//STRATEGY LOGIC
+/////////////////////
+entry_price = strategy.position_avg_price
+
+var atr_stop_level = 0.00
+var pct_stop_level = 0.00
+var stop_level = 0.00
+var tgt_1_level = 0.00
+
+//New Long
+if not na(entry_price) and na(entry_price[1])
+    
+    tgt_1_level := open + (open * (profit_target_amount/100))
+    atr_stop_level := low[1] - atr_value
+    pct_stop_level := (entry_price - (entry_price * (max_pct_loss_amount / 100)))
+    
+    if use_atr_stop and use_max_pct_loss
+        stop_level := math.max(atr_stop_level, pct_stop_level)
+    else if not use_atr_stop and use_max_pct_loss
+        stop_level := pct_stop_level
+    else if use_atr_stop and not use_max_pct_loss
+        stop_level := atr_stop_level
+    else
+        stop_level := na
+    
+//Position Management
+var first_target_hit = false 
+var primary_move_stop = false //when cloud switches colors move stop to low of candle
+var secondary_move_stop = false //when close crosses below manage ema move stop to low of candle
+var stopped_out = false
+    
+if not na(entry_price)
+
+    first_target_hit := high >= tgt_1_level and first_target_hit[1] == false ? true : first_target_hit[1]
+    
+    primary_move_stop := long_exit_cond
+    secondary_move_stop := ta.crossunder(close, manage_ema)
+
+    if long_entry_cond[1] and first_target_hit and not first_target_hit[1]
+        stop_level := entry_price
+        
+    else if first_target_hit and not first_target_hit[1]
+        stop_level := math.max(entry_price, stop_level[1])
+        
+    if primary_move_stop[1] or secondary_move_stop[1]
+        stop_level := low[1]
+        
+    stopped_out := low <= stop_level and not long_entry_cond[1] ? true : false
+    
+else if na(entry_price)
+    stop_level := na
+    primary_move_stop := false
+    secondary_move_stop := false
+    
+    first_target_hit := false  
+    tgt_1_level := na
+    stopped_out := stopped_out[1]
+    
+else
+    stop_level := stop_level[1]
+    primary_move_stop := primary_move_stop[1]
+    secondary_move_stop := secondary_move_stop[1]
+    
+    first_target_hit := first_target_hit[1]  
+    tgt_1_level := tgt_1_level[1]
+    stopped_out := stopped_out[1]
+
+//SEND ORDERS
+strategy.entry("LE", direction = strategy.long, when = long_entry_cond, alert_message = 'Long Entry')
+
+if strategy.position_size > 0 
+    strategy.close_all(when = stopped_out and not stopped_out[1], comment = "Stop", alert_message = 'Stopped Out')
+    strategy.close("LE", when = first_target_hit and not first_target_hit[1], qty_percent = profit_target_amount, comment = "Tgt", alert_message = 'Tgt Hit') //secondary move stop sell 20% and then move stop
+    strategy.close("LE", when = secondary_move_stop and not long_entry_cond[1], qty_percent = profit_target_amount, comment = "LM", alert_message = 'Long Management') //secondary move stop sell 20% and then move stop
+
+/////////////////////
+//VISUAL
+/////////////////////
+plot(entry_price, title = 'Entry', color = entry_price > 0 ? color.gray : color.new(color.white,100), style = plot.style_stepline)
+plot(entry_price > 0 and first_target_hit[1] == false ? tgt_1_level : na, title = 'TGT 1', color = first_target_hit[1] == false and entry_price > 0 ? color.lime : color.new(color.white,100), style = plot.style_stepline)
+plot(stop_level, title = 'Stop Loss', color = entry_price > 0 ? color.fuchsia : color.new(color.white,100), style = plot.style_stepline)
+
+color_candles = input.bool(true, title = 'Color Candles', group = 'Additional Visual Settings')
+color_bg = input.bool(true, title = 'Color BG', group = 'Additional Visual Settings')
+default_color = input.color(color.new(color.gray,0), title = 'Default Color', group = 'Additional Visual Settings')
+long_entry_color = input.color(color.new(#50ff00,0), title = 'Long Entry Color', group = 'Additional Visual Settings')
+long_exit_color = input.color(color.new(#ff0000,0), title = 'Long Exit Color', group = 'Additional Visual Settings')
+tgt_hit_color = input.color(color.new(#00e3ff,0), title = 'Tgt Hit Color', group = 'Additional Visual Settings')
+manage_ema_color = input.color(color.new(#ffee58,0), title = 'Manage EMA Cross Color', group = 'Additional Visual Settings')
+stopped_out_color = input.color(color.new(color.fuchsia,0), title = 'Stop Color', group = 'Additional Visual Settings')
+
+candle_color = stopped_out and not stopped_out[1] ? stopped_out_color : long_entry_cond ? long_entry_color : primary_move_stop ? long_exit_color :  first_target_hit and not first_target_hit[1] ? tgt_hit_color : secondary_move_stop ? manage_ema_color : default_color
+barcolor(color_candles ? candle_color : na)
+bgcolor(color_bg and strategy.position_size > 0 ? color.new(long_entry_color,95) : na)
+
+
+if use_alt_alerts
+
+    if stopped_out and not stopped_out[1]
+        alert("Stopped Out", alert.freq_once_per_bar)
+
+    if long_entry_cond  and barstate.isconfirmed
+        alert("Long Entry", alert.freq_once_per_bar)
+
+    if primary_move_stop and barstate.isconfirmed
+        alert("Long Exit", alert.freq_once_per_bar)
+        
+    if first_target_hit and not first_target_hit[1]
+        alert("Tgt Hit", alert.freq_once_per_bar)
+
+    if secondary_move_stop and barstate.isconfirmed
+        alert("Manage EMA Cross", alert.freq_once_per_bar)
+
+
+
+
+
+
+
+
+

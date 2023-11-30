@@ -1,0 +1,77 @@
+//@version=5
+indicator(title='for_andreroux07_signals', overlay=false)
+
+
+
+
+
+BuyVolume = high == low ? 0 : volume * (close - low) / (high - low)
+SellVolume = high == low ? 0 : volume * (high - close) / (high - low)
+plotcandle(0,BuyVolume,0,BuyVolume, color=color.new(color.lime,0))
+plotcandle(0,SellVolume,0,SellVolume, color=color.new(color.red, 0))
+
+
+f_signals(lookback) =>
+
+    buy_volume = high[lookback] == low[lookback] ? 0 : volume[lookback] * (close[lookback] - low[lookback]) / (high[lookback] - low[lookback])
+    sell_volume = high[lookback] == low[lookback] ? 0 : volume[lookback] * (high[lookback] - close[lookback]) / (high[lookback] - low[lookback])
+
+    buy_signal = buy_volume[1]*2 < sell_volume[1] and buy_volume > sell_volume[1] and buy_volume > sell_volume and sell_volume == 0
+    sell_signal = sell_volume[1] == 0 and buy_volume == 0 and sell_volume > buy_volume[1] and sell_volume > buy_volume
+
+    [buy_signal, sell_signal]
+
+lookback_1 =  timeframe.in_seconds('1') >  timeframe.in_seconds() ? 1 : 0
+[buy_signal1, sell_signal1] = request.security(syminfo.tickerid, '1', f_signals(lookback_1), lookahead = barmerge.lookahead_on) 
+
+lookback_2 =  timeframe.in_seconds('5') >  timeframe.in_seconds() ? 1 : 0
+[buy_signal2, sell_signal2] = request.security(syminfo.tickerid, '5', f_signals(lookback_1), lookahead = barmerge.lookahead_on) 
+
+lookback_3 =  timeframe.in_seconds('15') >  timeframe.in_seconds() ? 1 : 0
+[buy_signal3, sell_signal3] = request.security(syminfo.tickerid, '15', f_signals(lookback_1), lookahead = barmerge.lookahead_on) 
+
+lookback_4 =  timeframe.in_seconds('60') >  timeframe.in_seconds() ? 1 : 0
+[buy_signal4, sell_signal4] = request.security(syminfo.tickerid, '60', f_signals(lookback_1), lookahead = barmerge.lookahead_on) 
+
+
+buysignal1 = buy_signal1 and not buy_signal1[1] and barstate.isconfirmed
+buysignal2 = buy_signal2 and not buy_signal2[1] and barstate.isconfirmed
+buysignal3 = buy_signal3 and not buy_signal3[1] and barstate.isconfirmed
+buysignal4 = buy_signal4 and not buy_signal4[1] and barstate.isconfirmed
+
+sellsignal1 = sell_signal1 and not sell_signal1[1] and barstate.isconfirmed
+sellsignal2 = sell_signal2 and not sell_signal2[1] and barstate.isconfirmed
+sellsignal3 = sell_signal3 and not sell_signal3[1] and barstate.isconfirmed
+sellsignal4 = sell_signal4 and not sell_signal4[1] and barstate.isconfirmed
+
+
+plotchar(buysignal1 ? BuyVolume : na, title = 'Buy - 1', text = '', color = color.green, location = location.top, char = '★', size = size.small)
+plotchar(sellsignal1 ? SellVolume : na, title = 'Sell - 1', text = '', color = color.red, location = location.top, char = '★', size = size.small)
+
+plotchar(buysignal2 ? BuyVolume : na, title = 'Buy - 5', text = '', color = color.green, location = location.top, char = '★', size = size.small)
+plotchar(sellsignal2 ? SellVolume : na, title = 'Sell - 5', text = '', color = color.red, location = location.top, char = '★', size = size.small)
+
+plotchar(buysignal3 ? BuyVolume : na, title = 'Buy - 15', text = '', color = color.green, location = location.top, char = '★', size = size.small)
+plotchar(sellsignal3 ? SellVolume : na, title = 'Sell - 15', text = '', color = color.red, location = location.top, char = '★', size = size.small)
+
+plotchar(buysignal4 ? BuyVolume : na, title = 'Buy - 60', text = '', color = color.green, location = location.top, char = '★', size = size.small)
+plotchar(sellsignal4 ? SellVolume : na, title = 'Sell - 60', text = '', color = color.red, location = location.top, char = '★', size = size.small)
+
+
+if buy_signal1
+    alert('1 minute Buy', alert.freq_once_per_bar_close)
+if buy_signal2
+    alert('5 minute Buy', alert.freq_once_per_bar_close)
+if buy_signal3
+    alert('15 minute Buy', alert.freq_once_per_bar_close)
+if buy_signal4
+    alert('60 minute Buy', alert.freq_once_per_bar_close)
+
+if sell_signal1
+    alert('1 minute Sell', alert.freq_once_per_bar_close)
+if sell_signal2
+    alert('5 minute Sell', alert.freq_once_per_bar_close)
+if sell_signal3
+    alert('15 minute Sell', alert.freq_once_per_bar_close)
+if sell_signal4
+    alert('60 minute Sell', alert.freq_once_per_bar_close)

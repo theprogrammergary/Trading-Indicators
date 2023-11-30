@@ -1,0 +1,16 @@
+1. Indicator w Alert and Lower Studies
+-Make sure all inputs are right and matching each other.
+-Have at least 30 days loaded or else messes with calculations. 
+-Main chart cannot be more than the lower studies. For example if you switch the main chart to a daily chart, the lower 15min will not work. Once you switch back to a 15min chart or lower then the study will begin working again.
+-Yellow label appears in top left when a trend change has occured in the last three bars. This matches the logic in the scan.
+
+https://tos.mx/jDIABpB
+
+2. Scan
+-I wouldn't change the inputs on the scans as I have the defaults set to 35 lookback, VALCU, and weighted. 
+-If you want to ever change the times just message me
+-The scan needs the 15,1hr,4hr,and D to be trending green. AND to have changed trend on the 5min in the last three bars.
+
+https://tos.mx/BUBuEw6
+
+Let me know if you have any questions.

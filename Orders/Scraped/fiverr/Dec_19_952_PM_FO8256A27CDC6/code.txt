@@ -1,0 +1,122 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Day Trading Reversal System", overlay = true)
+
+
+rth_timeinput = input.session("0900-1430", title = 'RTH Hours (EST)') 
+rth =  time(timeframe.period, rth_timeinput, "America/New_York")
+
+up_color = input.color(color.new(#19b419,10), title = 'Up Color')
+down_color = input.color(color.new(#4b37af,10), title = 'Down Color')
+
+//  lod
+var float lod = na
+
+if rth and not rth[1]
+    lod := low
+else if rth and low < lod[1]
+    lod := low
+else
+    lod := lod[1]
+
+
+// lod x
+var float lod_x = na
+
+if low == lod and rth
+    lod_x := bar_index
+else
+    lod_x := lod_x[1]
+
+
+// lod_h
+var float lod_h = na
+
+if low == lod 
+    lod_h := high
+else
+    lod_h := lod_h[1]
+
+
+// lod_h_line
+var line lod_h_line = na
+
+if lod != lod[1]
+    line.delete(lod_h_line[1])
+    lod_h_line := line.new(x1 = bar_index, y1 = lod_h, x2 = bar_index + 1, y2 = lod_h, extend = extend.right, color = up_color)
+    
+
+// upbar
+var int upbar = na
+
+// arrow up
+var label arrow_up = na
+
+if ta.crossover(close, lod_h)
+    upbar := bar_index
+    label.delete(arrow_up[1])
+    arrow_up := label.new(x = bar_index, y = low, xloc = xloc.bar_index, yloc = yloc.belowbar, color = up_color, style = label.style_triangleup, size = size.tiny)
+else
+    upbar := upbar[1]
+
+
+
+
+//  hod
+var float hod = na
+
+if rth and not rth[1]
+    hod := high
+else if rth and high > hod[1]
+    hod := high
+else
+    hod := hod[1]
+
+
+// hod x
+var float hod_x = na
+
+if high == hod and rth
+    hod_x := bar_index
+else
+    hod_x := hod_x[1]
+
+
+// hod_l
+var float hod_l = na
+
+if high == hod 
+    hod_l := low
+else
+    hod_l := hod_l[1]
+
+
+// hod_l_line
+var line hod_l_line = na
+
+if hod != hod[1]
+    line.delete(hod_l_line[1])
+    hod_l_line := line.new(x1 = bar_index, y1 = hod_l, x2 = bar_index + 1, y2 = hod_l, extend = extend.right, color = down_color)
+
+
+// downbar
+var int downbar = na
+
+// arrow down
+var label arrow_down = na
+
+if ta.crossunder(close, hod_l)
+    downbar := bar_index
+    label.delete(arrow_down[1])
+    arrow_down := label.new(x = bar_index, y = low, xloc = xloc.bar_index, yloc = yloc.abovebar, color = down_color, style = label.style_triangledown, size = size.tiny)
+else
+    downbar := downbar[1]
+
+
+// delete arrows on new signal
+if hod != hod[1]
+    label.delete(arrow_down[1])  
+
+if lod != lod[1]
+    label.delete(arrow_up[1])

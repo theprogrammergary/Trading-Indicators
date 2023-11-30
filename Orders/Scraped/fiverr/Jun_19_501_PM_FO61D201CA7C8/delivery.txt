@@ -1,0 +1,1 @@
+Do you want certain coloring of todays volume and % of todays based on the value?

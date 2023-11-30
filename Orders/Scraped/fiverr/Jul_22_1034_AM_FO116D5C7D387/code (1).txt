@@ -1,0 +1,366 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_griffin_diggs", overlay=true, margin_long=100, margin_short=100, max_boxes_count = 500)
+
+
+// visual settings
+sess1_css       = input.color(color.blue, title = 'Session 1', group = 'Visual Settings', inline = '1')
+sess1_bg        = input.bool(true, title = 'BG', group = 'Visual Settings', inline = '1')
+sess1_box       = input.bool(true, title = 'Box', group = 'Visual Settings', inline = '1')
+
+sess2_css       = input.color(color.yellow, title = 'Session 2', group = 'Visual Settings', inline = '2')
+sess2_bg        = input.bool(true, title = 'BG', group = 'Visual Settings', inline = '2')
+sess2_box       = input.bool(true, title = 'Box', group = 'Visual Settings', inline = '2')
+
+sess3_css       = input.color(color.red, title = 'Session 3', group = 'Visual Settings', inline = '3')
+sess3_bg        = input.bool(true, title = 'BG', group = 'Visual Settings', inline = '3')
+sess3_box       = input.bool(true, title = 'Box', group = 'Visual Settings', inline = '3')
+
+
+
+// all session settings
+use_only_one_trade  = input.bool(true, title = 'Only One Breakout Per Session', group = 'All Session Settings', inline = '1')
+
+use_alt_exit    = input.string('EOD', title = 'When to exit trades', options = ['EOD', 'EOS', 'None'],
+ group = 'All Session Settings', inline = '2')
+
+
+
+// session 1 settings
+use_sess1       = input.bool(true, title = 'Session 1', group = 'Session 1 Settings', inline = '1')
+time_sess1      = input.session("0900-1000", title = '', group = 'Session 1 Settings', inline = '1')
+trading_sess1   = input.session("1000-1200", title = 'Trading Time', group = 'Session 1 Settings', inline = '1b')
+candles_sess1   = input.int(5, minval = 1, title = 'Candles Outside Range', group = 'Session 1 Settings', inline = '2')
+
+tp_type_sess1   = input.string('%', title = 'TP', group = 'Session 1 Settings', inline = '3',
+     options    = ['%', 'Price', 'None'])
+tp_amount_sess1 = input.float(1.00, title = '', group = 'Session 1 Settings', inline = '3')
+
+sl_type_sess1   = input.string('%', title = 'SL', group = 'Session 1 Settings', inline = '4',
+     options    = ['%', 'Price', 'None'])
+sl_amount_sess1 = input.float(1.00, title = '', group = 'Session 1 Settings', inline = '4')
+
+
+
+
+// session 2 settings
+use_sess2       = input.bool(true, title = 'Session 2', group = 'Session 2 Settings', inline = '1')
+time_sess2      = input.session("1300-1330", title = '', group = 'Session 2 Settings', inline = '1')
+trading_sess2   = input.session("1330-1400", title = 'Trading Time', group = 'Session 2 Settings', inline = '1b')
+candles_sess2   = input.int(5, minval = 1, title = 'Candles Outside Range', group = 'Session 2 Settings', inline = '2')
+
+tp_type_sess2   = input.string('%', title = 'TP', group = 'Session 2 Settings', inline = '3',
+     options    = ['%', 'Price', 'None'])
+tp_amount_sess2 = input.float(1.00, title = '', group = 'Session 2 Settings', inline = '3')
+
+sl_type_sess2   = input.string('%', title = 'SL', group = 'Session 2 Settings', inline = '4',
+     options    = ['%', 'Price', 'None'])
+sl_amount_sess2 = input.float(1.00, title = '', group = 'Session 2 Settings', inline = '4')
+
+
+
+
+// session 3 settings
+use_sess3       = input.bool(true, title = 'Session 3', group = 'Session 3 Settings', inline = '1')
+time_sess3      = input.session("1400-1430", title = '', group = 'Session 3 Settings', inline = '1')
+trading_sess3   = input.session("1430-1600", title = 'Trading Time', group = 'Session 3 Settings', inline = '1b')
+candles_sess3   = input.int(5, minval = 1, title = 'Candles Outside Range', group = 'Session 3 Settings', inline = '2')
+
+tp_type_sess3   = input.string('%', title = 'TP', group = 'Session 3 Settings', inline = '3',
+     options    = ['%', 'Price', 'None'])
+tp_amount_sess3 = input.float(1.00, title = '', group = 'Session 3 Settings', inline = '3')
+
+sl_type_sess3   = input.string('%', title = 'SL', group = 'Session 3 Settings', inline = '4',
+     options    = ['%', 'Price', 'None'])
+sl_amount_sess3 = input.float(1.00, title = '', group = 'Session 3 Settings', inline = '4')
+
+
+
+f_calc_range(is_sess) =>
+    var float sess_high = 0.00
+    var float sess_low  = 0.00
+    if is_sess
+        sess_high   := not is_sess[1] ? high : math.max(high, sess_high[1])
+        sess_low    := not is_sess[1] ? low : math.min(low, sess_low[1])
+    [sess_high, sess_low]
+
+
+
+f_draw_range(is_sess, is_trade, sess_h, sess_l, css) =>
+    var box range_box = na
+    if is_sess
+        if not is_sess[1]
+            range_box := box.new(left = time, top = sess_h, right = time+1, bottom = sess_l,
+             border_color = color.new(css,50), bgcolor = color.new(css, 80),
+             extend = extend.right, xloc = xloc.bar_time)
+        else
+            box.set_right(range_box[1], time)
+            box.set_top(range_box[1], sess_h)
+            box.set_bottom(range_box[1], sess_l)
+
+    if is_trade
+        box.set_right(range_box[1], time)
+
+    if not is_trade and not is_sess
+        box.set_extend(range_box, extend.none)
+
+
+
+f_range_signals(is_trade, num_candle, sess_h, sess_l) =>
+    var bool buy_signal     = na
+    var int buy_count       = 0
+
+    var bool sell_signal    = na
+    var int sell_count      = 0
+
+    var bool already_signaled = false
+
+    buy_start = ta.crossover(close, sess_h) and (not already_signaled or not use_only_one_trade)
+    sell_start = ta.crossunder(close, sess_l) and (not already_signaled or not use_only_one_trade)
+
+    if is_trade
+        buy_count := buy_signal[1] ? 0 
+         : buy_start ? 1 
+         : buy_count >= 1 and close > low[1] and close > sess_h and math.min(close, open) > sess_h ? buy_count[1] + 1 
+         : 0
+        buy_signal := buy_count == num_candle ? true : false
+
+        sell_count := sell_signal[1] ? 0
+         : sell_start ? 1 
+         : sell_count >= 1 and close < high[1] and close < sess_l and math.max(close, open) < sess_l ? sell_count[1] + 1 
+         : 0
+        sell_signal := sell_count == num_candle ? true : false
+
+        already_signaled := buy_signal or sell_signal ? true : already_signaled[1]
+    else
+        buy_count   := 0
+        sell_count  := 0
+        buy_signal  := false
+        sell_signal := false
+        already_signaled := false
+
+
+    [buy_signal, buy_count,
+     sell_signal, sell_count]
+
+
+
+
+// calc session times
+is_sess1 = use_sess1 and time(timeframe.period, time_sess1, "America/New_York")
+is_sess2 = use_sess2 and time(timeframe.period, time_sess2, "America/New_York")
+is_sess3 = use_sess3 and time(timeframe.period, time_sess3, "America/New_York")
+
+is_trade1 = use_sess1 and time(timeframe.period, trading_sess1, "America/New_York")
+is_trade2 = use_sess2 and time(timeframe.period, trading_sess2, "America/New_York")
+is_trade3 = use_sess3 and time(timeframe.period, trading_sess3, "America/New_York")
+
+
+
+// session / trade times background coloring
+bgcolor(is_sess1 and sess1_bg ? color.new(sess1_css, 77) : is_trade1 and sess1_bg  ? color.new(sess1_css, 90)
+ : is_sess2 and sess2_bg  ? color.new(sess2_css, 77) : is_trade2 and sess2_bg  ? color.new(sess2_css, 90)
+ : is_sess3 and sess3_bg  ? color.new(sess3_css, 77) : is_trade3 and sess3_bg  ? color.new(sess3_css, 90)
+ : na)
+
+
+
+// get session ranges
+[sess1_high, sess1_low] = f_calc_range(is_sess1)
+[sess2_high, sess2_low] = f_calc_range(is_sess2)
+[sess3_high, sess3_low] = f_calc_range(is_sess3)
+
+
+
+// draw session ranges
+if sess1_box
+    f_draw_range(is_sess1, is_trade1, sess1_high, sess1_low, sess1_css)
+if sess2_box
+    f_draw_range(is_sess2, is_trade2, sess2_high, sess2_low, sess2_css)
+if sess3_box
+    f_draw_range(is_sess3, is_trade3, sess3_high, sess3_low, sess3_css)
+
+
+
+// look for signals
+[buy_signal1, buy_count1, sell_signal1, sell_count1] = f_range_signals(is_trade1, candles_sess1, sess1_high, sess1_low)
+[buy_signal2, buy_count2, sell_signal2, sell_count2] = f_range_signals(is_trade2, candles_sess2, sess2_high, sess2_low)
+[buy_signal3, buy_count3, sell_signal3, sell_count3] = f_range_signals(is_trade3, candles_sess3, sess3_high, sess3_low)
+
+
+
+// bar coloring
+// barcolor(buy_count1 == 1 or buy_count2 == 1 or buy_count3 == 1
+//  or sell_count1 == 1 or sell_count2 == 1 or sell_count3 == 3 ? color.red : na)
+
+
+
+// draw circles
+plotshape(buy_count1 >= 1, title = 'Session 1 Buy', color = buy_count1 == candles_sess1 ? color.green : buy_count1 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+plotshape(buy_count2 >= 1, title = 'Session 2 Buy', color = buy_count2 == candles_sess1 ? color.green : buy_count2 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+plotshape(buy_count3 >= 1, title = 'Session 3 Buy', color = buy_count3 == candles_sess1 ? color.green : buy_count3 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+
+plotshape(sell_count1 >= 1, title = 'Session 1 Sell', color = sell_count1 == candles_sess1 ? color.green : sell_count1 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+plotshape(sell_count2 >= 1, title = 'Session 2 Sell', color = sell_count2 == candles_sess1 ? color.green : sell_count2 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+plotshape(sell_count3 >= 1, title = 'Session 3 Sell', color = sell_count3 == candles_sess1 ? color.green : sell_count3 == 1 ? color.orange : color.red,
+ style = shape.circle, location = location.belowbar, size = size.tiny)
+
+
+// send out alerts
+if buy_count1 >= 1 and buy_count1 < candles_sess1
+    alert("Signal " + str.tostring(candles_sess1 - buy_count1) + " bars away", alert.freq_once_per_bar_close)
+if buy_count2 >= 1  and buy_count2 < candles_sess2
+    alert("Signal " + str.tostring(candles_sess2 - buy_count2) + " bars away", alert.freq_once_per_bar_close)
+if buy_count3 >= 1  and buy_count3 < candles_sess3
+    alert("Signal " + str.tostring(candles_sess3 - buy_count3) + " bars away", alert.freq_once_per_bar_close)
+
+if sell_count1 >= 1 and sell_count1 < candles_sess1
+    alert("Signal " + str.tostring(candles_sess1 - sell_count1) + "bars away", alert.freq_once_per_bar_close)
+if sell_count2 >= 1 and sell_count2 < candles_sess2
+    alert("Signal " + str.tostring(candles_sess2 - sell_count2) + "bars away", alert.freq_once_per_bar_close)
+if sell_count3 >= 1 and sell_count3 < candles_sess3
+    alert("Signal " + str.tostring(candles_sess3 - sell_count3) + "bars away", alert.freq_once_per_bar_close)
+
+if buy_signal1 or buy_signal2 or buy_signal3
+    alert("Buy Signal", alert.freq_once_per_bar_close)
+
+if sell_signal1 or sell_signal2 or sell_signal3
+    alert("Sell Signal", alert.freq_once_per_bar_close)
+
+
+
+// entry orders
+if buy_signal1
+    strategy.entry("LE_s1", strategy.long, comment = 'Buy')
+if buy_signal2
+    strategy.entry("LE_s2", strategy.long, comment = 'Buy')
+if buy_signal3
+    strategy.entry("LE_s3", strategy.long, comment = 'Buy')
+
+if sell_signal1
+    strategy.entry("SS_s1", strategy.short, comment = 'Sell')
+if sell_signal2
+    strategy.entry("SS_s2", strategy.short, comment = 'Sell')
+if sell_signal3
+    strategy.entry("SS_s3", strategy.short, comment = 'Sell')
+
+
+
+// exit orders
+var int last_signal = 0
+last_signal :=
+ buy_signal1 ? 1 : buy_signal2 ? 2 : buy_signal3 ? 3
+ : sell_signal1 ? -1 : sell_signal2 ? -2 : sell_signal3 ? -3
+ : na(strategy.position_avg_price) ? 0 
+ : last_signal[1]
+
+var float sess1_tp      = 0.00
+var float sess2_tp      = 0.00
+var float sess3_tp      = 0.00
+
+var float sess1_sl      = 0.00
+var float sess2_sl      = 0.00
+var float sess3_sl      = 0.00
+
+sess1_tp := 
+ last_signal == 1 ? 
+     (tp_type_sess1 == 'Price' ? strategy.position_avg_price + (tp_amount_sess1)
+     : tp_type_sess1 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (tp_amount_sess1/100))
+     : na)
+ : last_signal == -1 ?
+      (tp_type_sess1 == 'Price' ? strategy.position_avg_price - (tp_amount_sess1)
+     : tp_type_sess1 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (tp_amount_sess1/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess1_tp[1]
+
+sess1_sl := 
+ last_signal == 1 ? 
+     (sl_type_sess1 == 'Price' ? strategy.position_avg_price - (sl_amount_sess1)
+     : sl_type_sess1 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (sl_amount_sess1/100))
+     : na)
+ : last_signal == -1 ? 
+     (sl_type_sess1 == 'Price' ? strategy.position_avg_price + (sl_amount_sess1)
+     : sl_type_sess1 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (sl_amount_sess1/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess1_sl[1]
+
+
+sess2_tp := 
+ last_signal == 2 ? 
+     (tp_type_sess2 == 'Price' ? strategy.position_avg_price + (tp_amount_sess2)
+     : tp_type_sess2 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (tp_amount_sess2/100))
+     : na)
+ : last_signal == -2 ? 
+     (tp_type_sess2 == 'Price' ? strategy.position_avg_price - (tp_amount_sess2)
+     : tp_type_sess2 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (tp_amount_sess2/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess2_tp[1]
+
+sess2_sl := 
+ last_signal == 2 ? 
+     (sl_type_sess2 == 'Price' ? strategy.position_avg_price - (sl_amount_sess2)
+     : sl_type_sess2 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (sl_amount_sess2/100))
+     : na)
+ : last_signal == -2 ? 
+     (sl_type_sess2 == 'Price' ? strategy.position_avg_price + (sl_amount_sess2)
+     : sl_type_sess2 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (sl_amount_sess2/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess2_sl[1]
+
+sess3_tp := 
+ last_signal == 3 ? 
+     (tp_type_sess3 == 'Price' ? strategy.position_avg_price + (tp_amount_sess3)
+     : tp_type_sess3 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (tp_amount_sess3/100))
+     : na)
+ : last_signal == -3 ? 
+     (tp_type_sess3 == 'Price' ? strategy.position_avg_price - (tp_amount_sess3)
+     : tp_type_sess3 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (tp_amount_sess3/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess3_tp[1]
+
+sess3_sl := 
+ last_signal == 3 ? 
+     (sl_type_sess3 == 'Price' ? strategy.position_avg_price - (sl_amount_sess3)
+     : sl_type_sess3 == '%' ? strategy.position_avg_price - (strategy.position_avg_price * (sl_amount_sess3/100))
+     : na)
+ : last_signal == -3 ? 
+     (sl_type_sess3 == 'Price' ? strategy.position_avg_price + (sl_amount_sess3)
+     : sl_type_sess3 == '%' ? strategy.position_avg_price + (strategy.position_avg_price * (sl_amount_sess3/100))
+     : na)
+ : na(strategy.position_avg_price) ? na 
+ : sess3_sl[1]
+
+if strategy.position_size > 0 
+    strategy.exit(id = 'LX_s1', from_entry = "LE_s1", limit = sess1_tp, stop = sess1_sl, comment_profit = 'Sell', comment_loss = 'Sell')
+    strategy.exit(id = 'LX_s2', from_entry = "LE_s2", limit = sess2_tp, stop = sess2_sl, comment_profit = 'Sell', comment_loss = 'Sell')
+    strategy.exit(id = 'LX_s3', from_entry = "LE_s3", limit = sess3_tp, stop = sess3_sl, comment_profit = 'Sell', comment_loss = 'Sell')
+else if strategy.position_size < 0 
+    strategy.exit(id = 'SS_X_s1', from_entry = "SS_s1", limit = sess1_tp, stop = sess1_sl, comment_profit = 'Buy', comment_loss = 'Buy')
+    strategy.exit(id = 'SS_X_s2', from_entry = "SS_s2", limit = sess2_tp, stop = sess2_sl, comment_profit = 'Buy', comment_loss = 'Buy')
+    strategy.exit(id = 'SS_X_s3', from_entry = "SS_s3", limit = sess3_tp, stop = sess3_sl, comment_profit = 'Buy', comment_loss = 'Buy')
+
+
+
+// alt exit orders
+day_switch      = session.islastbar
+session_switch  = (is_trade1[1] and not is_trade1) or (is_trade2[1] and not is_trade2) or (is_trade3[1] and not is_trade3)
+
+if not na(strategy.position_avg_price)
+    if use_alt_exit == 'EOD' and day_switch
+        strategy.close_all('EOD', 'End of Day Exit', true)
+    if use_alt_exit == 'EOS' and session_switch
+        strategy.close_all('EOS', 'End of Session Exit', true)
+
+

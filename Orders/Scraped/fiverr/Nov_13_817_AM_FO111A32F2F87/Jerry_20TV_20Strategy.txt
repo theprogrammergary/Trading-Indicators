@@ -1,0 +1,130 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=5
+strategy("Jerry Buy Zone Strategy", overlay=true, default_qty_value = 1000)
+
+//MACD DATA
+bblength = input.int(10, minval = 1, title = "BB Length", group = "MACD Settings")
+bbnum_dev = input.float(1.00, minval = 0.00, title = "BB Deviation", group = "MACD Settings")
+macdfastlength = input.int(12, minval = 1, title = "MACD Fast Length", group = "MACD Settings")
+macdslowlength = input.int(26, minval = 1, title = "MACD Slow Length", group = "MACD Settings")
+macdlength = input.int(5, minval = 1, title = "MACD Length", group = "MACD Settings")
+
+[macdLine, signalLine, histLine] = ta.macd(close, macdfastlength, macdslowlength, macdlength)
+[bb_midline, bb_upper, bb_lower] = ta.bb(macdLine, bblength, bbnum_dev)
+
+macd_line_color = macdLine > macdLine[1] and macdLine >= bb_upper ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine >= bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine <= bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine <= bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+macd_dots_color = macdLine > macdLine[1] and macdLine > bb_upper and macdLine < 0 ? color.new(#fbfb06,0) : macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0 ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine > bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine < bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine < bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+
+//ma function
+ma(averagetype, price, length) => 
+    if averagetype == "WILDERS"
+        ta.rma(price, length)
+    else
+        if averagetype == "SMA"
+            ta.sma(price, length)
+        else 
+            if averagetype == "EMA"
+                ta.ema(price, length)
+            else 
+                if averagetype == "WMA"
+                    ta.wma(price, length)
+				else
+					if averagetype == "HullMA"
+				        ta.wma(2 * ta.wma(price, length / 2) - ta.wma(price, length), math.round(math.sqrt(length)))
+					else
+                        price
+
+//Buy and Sell Arrows
+buyarrow1 = (macdLine > bb_upper and ta.crossover(macdLine,0)) or (ta.crossover(macdLine, bb_upper) and macdLine > 0)
+sellarrow = ta.crossunder(macdLine, bb_lower)
+
+stacked_up_for_longs = input.bool(false, title = "Stacked UP For Longs", tooltip = "If Yes then MA must be stacked UP to enter longs.", group = "Stacked MA Settings")
+stacked_down_for_shorts = input.bool(true, title = "Stacked DOWN For Shorts", tooltip = "If Yes then MA must be stacked Down to enter shorts.", group = "Stacked MA Settings")
+
+ma_Length1 = input.int(8, title = "MA Length 1", minval = 1, maxval = 250, group = "Stacked MA Settings")
+ma_Length2 = input.int(21, title = "MA Length 2", minval = 1, maxval = 250, group = "Stacked MA Settings")
+ma_Length3 = input.int(34, title = "MA Length 3", minval = 1, maxval = 250, group = "Stacked MA Settings")
+ma_Length4 = input.int(55, title = "MA Length 4", minval = 1, maxval = 250, group = "Stacked MA Settings")
+ma_Length5 = input.int(89, title = "MA Length 5", minval = 1, maxval = 250, group = "Stacked MA Settings")
+
+ma1 = ma("EMA", close, ma_Length1)
+ma2 = ma("EMA", close, ma_Length2)
+ma3 = ma("EMA", close, ma_Length3)
+ma4 = ma("EMA", close, ma_Length4)
+ma5 = ma("EMA", close, ma_Length5)
+
+stackedUP = not stacked_up_for_longs or (stacked_up_for_longs and ma1 > ma2 and ma2 > ma3 and ma3 > ma4 and ma4 > ma5)
+stackedDN = not stacked_down_for_shorts or (stacked_down_for_shorts and ma1 < ma2 and ma2 < ma3 and ma3 < ma4 and ma4 < ma5)
+
+useMOM1 = input.bool(false, title = "Use MOM 1", inline = '1', group = "MOM Settings")
+MOM1_pct = input.float(1.00, title = "- %",minval = 0, maxval = 100, inline = '1', group = "MOM Settings")
+useMOM2 = input.bool(false, title = "Use MOM 2",inline = '2',  group = "MOM Settings")
+MOM2_pct = input.float(2.00, title = "- %", minval = 0, maxval = 100, inline = '2', group = "MOM Settings")
+useMOM3 = input.bool(false, title = "Use MOM 3",inline = '3',  group = "MOM Settings")
+MOM3_pct = input.float(3.00, title = "- %", minval = 0, maxval = 100, inline = '3', group = "MOM Settings")
+
+month1_data = request.security(syminfo.tickerid, "1M", close[1])
+month2_data = request.security(syminfo.tickerid, "1M", close[2])
+month3_data = request.security(syminfo.tickerid, "1M", close[3])
+
+month1_chg = (close - month1_data) / month1_data * 100
+month2_chg = (close - month2_data) / month2_data * 100
+month3_chg = (close - month3_data) / month3_data * 100
+
+month1 = useMOM1 and month1_chg >= MOM1_pct ? 1 : useMOM1 and month1_chg <= -MOM1_pct ? -1 : 0
+month2 = useMOM2 and month2_chg >= MOM2_pct ? 1 : useMOM2 and month2_chg <= -MOM2_pct ? -1 : 0
+month3 = useMOM3 and month3_chg >= MOM3_pct ? 1 : useMOM3 and month3_chg <= -MOM3_pct ? -1 : 0
+
+mom_buy_condition = (not useMOM1 or month1 == 1) and (not useMOM2 or month2 == 1) and (not useMOM3 or month3 == 1) 
+mom_sell_condition = (not useMOM1 or month1 == -1) and (not useMOM2 or month2 == -1) and (not useMOM3 or month3 == -1) 
+
+useTradingHours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "Additional Trade Settings")
+trading_time = input.session("0930-1600", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Additional Trade Settings")
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Additional Trade Settings")
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Additional Trade Settings")
+
+long_entry = long_trades and buyarrow1 and stackedUP and trading_hours_cond and mom_buy_condition
+long_exit = long_trades and sellarrow and trading_hours_cond
+
+short_entry = short_trades and sellarrow and stackedDN and trading_hours_cond and mom_sell_condition
+short_exit = short_trades and buyarrow1 and trading_hours_cond
+
+
+use_trailing_stop = input.bool(true, title = "Use Trailing Stop", group = "Additional Trade Settings")
+trailing_stop_amount = input.float(10.0, minval = 0.00, maxval = 10.0, title = "Trailing Stop Amount", group = "Additional Trade Settings")
+
+var long_price = 0.00
+var short_price = 0.00
+
+var long_mult = 0.00
+var short_mult = 0.00
+
+var short_trailStopPrice = 0.00
+var long_trailStopPrice = 0.00
+
+if use_trailing_stop
+    long_price := (strategy.position_size > 0) and (strategy.position_size[1] <= 0) ? open : (strategy.position_size > 0) ? math.max(high,long_price[1]) : na
+    short_price := (strategy.position_size < 0) and (strategy.position_size[1] >= 0) ? open : (strategy.position_size < 0) ? math.min(low,short_price[1]) : na    
+
+    long_mult := long_price / 100
+    short_mult := short_price / 100    
+    
+    short_trailStopPrice := short_price + trailing_stop_amount * short_mult
+    long_trailStopPrice := long_price - trailing_stop_amount * long_mult
+    
+    if (strategy.position_size > 0)
+        strategy.exit(id="LE", stop=long_trailStopPrice, comment = "L_TS")
+    
+    if (strategy.position_size < 0)
+        strategy.exit(id="SS_E", stop=short_trailStopPrice, comment = "SS_TS")
+    
+//ORDERS
+strategy.close("LE",when = long_exit, comment = "LX")
+strategy.close("SS_E",when = short_exit, comment = "SS_X")
+
+strategy.entry("LE", strategy.long,when = long_entry) 
+strategy.entry("SS_E", strategy.short, when = short_entry) 

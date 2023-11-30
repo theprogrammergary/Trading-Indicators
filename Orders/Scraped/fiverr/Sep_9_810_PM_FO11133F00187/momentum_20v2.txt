@@ -1,0 +1,309 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study("Jerry Momentum Dream V2")
+
+price = input(close, "Price", input.source, group = "Momentum")
+length = input(20, "Length", input.integer, group = "Momentum")
+Num_Dev_Dn = input(-2.0, "Num_Dev_Dn", input.float, step = 0.10, group = "Momentum")
+Num_Dev_up = input(2.0, "Num_Dev_up", input.float, step = 0.10, group = "Momentum")
+averageType = input(defval="SMA", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Momentum")
+displace = input(0, "Displace", input.integer, group = "Momentum")
+
+rounding = syminfo.type == "stock" or syminfo.type == "futures" or syminfo.type == "index" ? 2 : syminfo.type == "forex" or syminfo.type == "crypto" ? 4 : 2
+
+sDev = stdev(price[-displace], length)
+ma(averageType, price, length) => 
+    if averageType == "WILDERS"
+        rma(price, length)
+    else
+        if averageType == "SMA"
+            sma(price, length)
+        else 
+            if averageType == "EMA"
+                ema(price, length)
+            else 
+                if averageType == "WMA"
+                    wma(price, length)
+				else
+					if averageType == "HullMA"
+				        wma(2 * wma(price, length / 2) - wma(price, length), round(sqrt(length)))
+					else
+                        price
+MidLineBB = ma(averageType,price[-displace],length)
+LowerBandBB = MidLineBB + Num_Dev_Dn * sDev
+UpperBandBB = MidLineBB + Num_Dev_up * sDev
+
+factorhigh = input(1.0, "factorhigh",step = 0.01, group = "Momentum")
+factormid = input(1.5, "factormid",step = 0.01, group = "Momentum")
+factorlow = input(2.0, "factorlow",step = 0.01, group = "Momentum")
+trueRangeAverageType = input(defval="SMA", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Momentum")
+truerangema(trueRangeAverageType, tr, length) => 
+    if averageType == "WILDERS"
+        rma(tr, length)
+    else
+        if averageType == "SMA"
+            sma(tr, length)
+        else 
+            if averageType == "EMA"
+                ema(tr, length)
+            else 
+                if averageType == "WMA"
+                    wma(tr, length)
+				else
+					if averageType == "HullMA"
+				        wma(2 * wma(tr, length / 2) - wma(tr, length), round(sqrt(length)))
+					else
+                        tr
+shifthigh = factorhigh * truerangema(trueRangeAverageType, tr, length)
+shiftMid = factormid * truerangema(trueRangeAverageType, tr, length)
+shiftlow = factorlow * truerangema(trueRangeAverageType, tr, length)
+average = ma(averageType,price,length)
+avg = average[-displace]
+
+UpperBandKCLow = average[-displace] + shiftlow[-displace]
+LowerBandKCLow = average[-displace] - shiftlow[-displace]
+
+UpperBandKCMid = average[-displace] + shiftMid[-displace]
+LowerBandKCMid = average[-displace] - shiftMid[-displace]
+
+UpperBandKCHigh = average[-displace] + shifthigh[-displace]
+LowerBandKCHigh = average[-displace] - shifthigh[-displace]
+
+
+K = (highest(high, length) + lowest(low,length)) / 2 + ema(close, length)
+momo = linreg(price - K / 2, length,0) 
+
+pos = momo >= 0
+neg = momo < 0
+up = momo >= momo[1]
+dn = momo < momo[1]
+
+presqueeze      = LowerBandBB > LowerBandKCLow and UpperBandBB < UpperBandKCLow
+presqueezein    = LowerBandBB > LowerBandKCLow and UpperBandBB < UpperBandKCLow and LowerBandBB > LowerBandBB[1]
+presqueezeout   = LowerBandBB > LowerBandKCLow and UpperBandBB < UpperBandKCLow and LowerBandBB < LowerBandBB[1]
+originalSqueeze     = LowerBandBB > LowerBandKCMid and UpperBandBB < UpperBandKCMid
+originalSqueezein   = LowerBandBB > LowerBandKCMid and UpperBandBB < UpperBandKCMid and LowerBandBB > LowerBandBB[1]
+originalSqueezeout  = LowerBandBB > LowerBandKCMid and UpperBandBB < UpperBandKCMid and LowerBandBB < LowerBandBB[1]
+ExtrSqueeze     = LowerBandBB > LowerBandKCHigh and UpperBandBB < UpperBandKCHigh
+ExtrSqueezein   = LowerBandBB > LowerBandKCHigh and UpperBandBB < UpperBandKCHigh and LowerBandBB > LowerBandBB[1]
+ExtrSqueezeout  = LowerBandBB > LowerBandKCHigh and UpperBandBB < UpperBandKCHigh and LowerBandBB < LowerBandBB[1]
+
+PosUp = pos and up
+PosDn = pos and dn
+NegDn = neg and dn
+NegUp = neg and up
+
+squeezeline_color = ExtrSqueezein ? #B03A2E : ExtrSqueezeout ?  #B03A2E : originalSqueezein?  #FF2D00 : originalSqueezeout? #FF2D00 : presqueezein? #FADBD8 : presqueezeout? #FFF300 : #07EB00
+momo_color = PosUp? #00FFFF : PosDn? #003BF5 : NegDn? #FF2D00 : NegUp? #FFF300 :#838383
+plot(momo, style=plot.style_columns, color = momo_color, title = "Momo")
+plot(0, "Squeezeline", style=plot.style_circles, linewidth=2, color = squeezeline_color)
+
+
+buy_arrow = (presqueezeout and not originalSqueezein and not originalSqueezeout) and (originalSqueezein[1] or originalSqueezeout[1]) and (momo > momo[1])
+plotshape(buy_arrow? -0.50 : na, "Buy Arrow", style=shape.triangleup , color = color.new(#07EB00, 50) , size = size.tiny, location = location.absolute)
+
+sell_arrow = (presqueezeout and not originalSqueezein and not originalSqueezeout) and (originalSqueezein[1] or originalSqueezeout[1]) and (momo < momo[1])
+plotshape(sell_arrow? 0.50 : na, "sell Arrow", style=shape.triangledown , color = color.new(#FFC500, 50) , size = size.tiny, location = location.absolute)
+
+//label 1 
+label1_text = ExtrSqueezein or ExtrSqueezeout or originalSqueezein or originalSqueezeout ? "Squeeze Alert (B.Call or Vertical | S.Put or Vertical)" : ""
+label1_color = ExtrSqueezein or ExtrSqueezeout ? #B9FAA4 : originalSqueezein or originalSqueezeout ? #07EB00 :  #000000
+//AddLabel(yes, if extrSqueezein or extrSqueezeout or originalSqueezein or originalSqueezeout then "Squeeze Alert (B.Call or Vertical | S.Put or Vertical)" else "", if extrSqueezein or extrSqueezeout then color.light_GREEN else if originalSqueezein or originalSqueezeout then color.GREEN else color.BLACK);
+
+sqz = (ExtrSqueezein or ExtrSqueezeout or originalSqueezein or originalSqueezeout)
+direction = sqz ? 1 : 0
+count = 0
+count :=  sqz and not sqz[1] ? 1 : count[1]+1
+isFired = not sqz and sqz[1] ?  1 : 0
+firedCount = 0
+firedCount :=  isFired ? 1 : firedCount[1]+1
+firedDirection = -1
+firedDirection :=  isFired ?  direction : firedDirection[1]
+
+sumIsFired = sum(isFired,5)
+isFiredDir = sumIsFired and firedDirection
+
+squeezeDots = (ExtrSqueezein or ExtrSqueezeout or originalSqueezein or originalSqueezeout)
+directions = squeezeDots ? 1 : 0 
+count_Squeeze = 0
+count_Squeeze := squeezeDots and not squeezeDots[1] ? 1 : count_Squeeze[1]+1
+fired = not squeezeDots and squeezeDots[1] ? 1 : 0
+firedCounts = 0
+firedCounts := fired ? 1 : firedCounts[1]+1
+firedDirections = -1
+firedDirections :=  fired ? directions : firedDirections[1]
+
+count4 = count_Squeeze <5 and fired
+count5 = count_Squeeze >= 5 and fired
+countnosqfired1 = count_Squeeze <5
+countnosqfired2 = count_Squeeze >= 5
+
+//label2
+label2_text = squeezeDots ? "Dots:" + tostring(count_Squeeze) : ""
+label2_color = squeezeDots and countnosqfired2 ? #B9FAA4 : countnosqfired1 ? #FFF300 : #00FFFF
+//addLabel(yes, if squeezeDots then “Dots:” + count_Squeeze else "", if squeezeDots and countnosqfired2 then color.liGHT_GREEN else if countnosqfired1 then color.yellow else color.cyan);
+
+//label3 
+label3_text =  PosUp ? "Momentum +?" :  NegUp ? "Momentum +?" : PosDn ?  "Momentum -?" : NegDn ? "Momentum -?" : ""
+label3_color = PosUp ? #B9FAA4 : NegUp ? #FFF300 : PosDn ? #D68910 : NegDn ? #FF2D00 : #FFF300
+//AddLabel(yes, if PosUp then "Momentum +?" else if NegUp then "Momentum +?" else if PosDn then "Momentum -?" else if NegDn then "Momentum -?" else "", if PosUp then color.light_GREEN else if NegUp then color.yellow else if PosDn then color.DARK_ORANGE else if NegDn then color.red else color.yellow); 
+
+
+Squeeze1 = ExtrSqueezein and PosUp       
+Squeeze2 = ExtrSqueezeout and PosUp     
+Squeeze3 = originalSqueezein and PosUp    
+Squeeze4 = originalSqueezeout and PosUp  
+
+SqueezeAlert1 = Squeeze1 or Squeeze2
+if SqueezeAlert1 
+    alert("Extra Squeeze Alert 1 Lime", freq = alert.freq_once_per_bar)
+SqueezeAlert2 = Squeeze3 or Squeeze4
+if SqueezeAlert2 
+    alert("Squeeze Alert 2 Green", freq = alert.freq_once_per_bar)
+BuyArrowAlert = (presqueezeout and not originalSqueezein and not originalSqueezeout) and (originalSqueezein[1] or originalSqueezeout[1]) and (momo > momo[1])
+if BuyArrowAlert 
+    alert("Post Squeeze Buy Alert", freq = alert.freq_once_per_bar)
+SellArrowAlert = (presqueezeout and not originalSqueezein and not originalSqueezeout) and (originalSqueezein[1] or originalSqueezeout[1]) and (momo < momo[1])
+if SellArrowAlert 
+    alert("Post Squeeze Sell Alert", freq = alert.freq_once_per_bar)
+
+//label4
+label4_text = BuyArrowAlert ? "Squeeze Fired ? (B.Call or Vertical | S.Put or Vertical)" :  SellArrowAlert ?  "Squeeze Fired ? (S.Call or Vertical | B.Put or Vertical)" : ""
+label4_color = BuyArrowAlert ? #B9FAA4 : SellArrowAlert?  #FF2D00 : #000000
+//AddLabel(yes, if BuyArrowAlert then "Squeeze Fired ? (B.Call or Vertical | S.Put or Vertical)" else if SellArrowAlert then "Squeeze Fired ? (S.Call or Vertical | B.Put or Vertical)" else "", if BuyArrowAlert then color.light_GREEN else if SellArrowAlert then color.red else color.black); 
+
+NoCoveredCall =  momo < 0
+SellCoveredCall = momo > 0 and momo > momo[1] and momo[1] > momo[2] and momo[2] > momo[3] and momo[3] > 0
+
+//label5
+label5_text = SellCoveredCall ? "Sell Covered Call" : NoCoveredCall ? "" : ""
+label5_color = SellCoveredCall ? #FFFFFF :  NoCoveredCall ? #000000 : #000000
+//(yes, if SellCoveredCall then "Sell Covered Call" else if NoCoveredCall then "" else "", if SellCoveredCall then color.WHITE else if NoCoveredCall then color.BLACK else color.BLACK);
+
+Momo_BarsBack = input(2, "Momo_BarsBack", input.integer, group = "Momentum")
+Color_Momo_Background = input(true, "Color Momo Background", input.bool, group = "Momentum")
+
+m_up = momo >= momo[1] ? 1 : 0 
+m_down = momo <= momo[1] ? 1 : 0
+
+Momomentum_Up_Scan = sum(m_up,Momo_BarsBack) == Momo_BarsBack and momo >= momo[Momo_BarsBack]
+Momomentum_Down_Scan = sum(m_down,Momo_BarsBack) == Momo_BarsBack and momo <= momo[Momo_BarsBack]
+Momomentum_NewUp_Scan = Momomentum_Up_Scan and not Momomentum_Up_Scan[1] ? momo : na
+plot(Momomentum_NewUp_Scan, style=plot.style_circles, linewidth = 3 , color = #B9FAA4)
+Momomentum_NewDown_Scan = Momomentum_Down_Scan and not Momomentum_Down_Scan[1] ? momo : na
+plot(Momomentum_NewDown_Scan, style=plot.style_circles, linewidth = 3 , color = #FADBD8)
+bgcolor(Color_Momo_Background and Momomentum_Up_Scan ? color.new(#00ff0a,70) : Color_Momo_Background and Momomentum_Down_Scan ? color.new(#ff0000,70) : na )
+
+
+Momo_Label = input(false, "Momo Label", input.bool, group = "Momentum")
+day1 = momo - momo[1]
+day2 = momo[1] - momo[2]
+day3 = momo[2] - momo[3]
+day4 = momo[3] - momo[4]
+day5 = momo[4] - momo[5]
+day6 = momo[5] - momo[6]
+day7 = momo[6] - momo[7]
+Momo_Strength = round(((day1 + day2 + day3 + day4 + day5 + day6 + day7)), rounding)
+
+//label 6
+label6_text = Momo_Label ? "Momo " + tostring(Momo_Strength) : "" 
+label6_color = #FFFFFF 
+//addlabel (Momo_Label, "Momo " + momo_strength, color.white);
+
+Stacked_label = input(true, "Stacked label", input.bool, group = "Momentum")
+Length1 = input(8, "Length1", input.integer, group = "Momentum")
+Length2 = input(21, "Length1", input.integer, group = "Momentum")
+Length3 = input(34, "Length1", input.integer, group = "Momentum") 
+Length4 = input(55, "Length1", input.integer, group = "Momentum")
+Length5 = input(89, "Length1", input.integer, group = "Momentum") 
+
+ema1 = ema(close,Length1)
+ema2 = ema(close,Length2)
+ema3 = ema(close,Length3)
+ema4 = ema(close,Length4)
+ema5 = ema(close,Length5)
+stackedUP = (ema1 > ema2 and ema2 > ema3 and ema3 > ema4 and ema4 > ema5)
+stackedDN = (ema1 < ema2 and ema2 < ema3 and ema3 < ema4 and ema4 < ema5)
+
+//label7
+label7_text = Stacked_label and stackedUP ? "STACKED +" :  Stacked_label and stackedDN ? "STACKED -" : ""
+label7_color = stackedUP ? #07EB00 :  stackedDN ? #FF2D00 : #838383
+
+
+//POSITION CALCULATOR
+Account_Size = input(10000, "Account Size", group = "Risk Management")
+Show_Label_NO_TOS_Account = input(true,"Show Label TOS", group = "Risk Management")
+Show_Question_NO_TOS_Account = input(true, "Show Question TOS", group = "Risk Management")
+Show_Profit_Per_Share = input(true,"Show Profit Per Share", group = "Risk Management")
+Show_Risk_Reward_Ratio = input(true,"Show Risk Reward Ratio", group = "Risk Management")
+Max_Percent_Per_Trade = input(5.00, "Max Percent Per Trade", group = "Risk Management")
+Percent_Rule = input(1.50, "Percent Rule", group = "Risk Management")
+Risk_Reward_Ratio = input(2.00, "Risk Reward Ratio", group = "Risk Management")
+ATR_Multiple = input(2.50, "ATR Multiple", group = "Risk Management")
+atr_length = input(14, type = input.integer, title = "ATR Length", group = "Risk Management")
+atr = atr(atr_length)
+atrp = atr / close * 100
+ts = atrp * ATR_Multiple
+Risk_Per_Share = round(close * ts * .01,rounding)
+Max_Per_Trade_Manual = round(Account_Size*Max_Percent_Per_Trade*.01,0)
+Max_Per_Trade_Buy_Manual = round(Max_Per_Trade_Manual / close, rounding)
+Max_Per_Trade_Risk_Manual = round(Max_Per_Trade_Buy_Manual * Risk_Per_Share, 0)
+Capital_At_Risk_Manual = round(Account_Size * Percent_Rule * .01, rounding)
+Shares_To_Buy_Manual = round(Capital_At_Risk_Manual / Risk_Per_Share, rounding)
+Total_Trade_Size_Manual = round(close * Shares_To_Buy_Manual, 0)
+Trade_Risk_Manual = round(Shares_To_Buy_Manual * Risk_Per_Share, 0)
+profit_per_share = round(close*(ts/100 * Risk_Reward_Ratio),0)
+profit_target_Price = round(close + profit_per_share, rounding)
+
+//TABLE
+text1 = Show_Label_NO_TOS_Account ? "Acct: $" + tostring(Account_Size) + " " + tostring(Percent_Rule) + "% Rule B:" + tostring(Shares_To_Buy_Manual) + "=$" + tostring(Total_Trade_Size_Manual) + " Risk $" + tostring(Trade_Risk_Manual) + " TS " + tostring(round(ts, 2)) + "%" : ""
+text2 = Show_Question_NO_TOS_Account ? "Max " + tostring(Max_Percent_Per_Trade) + "%" + "~$" + tostring(Max_Per_Trade_Manual) +": Will I risk $" + tostring(Max_Per_Trade_Risk_Manual) + " & buy " + tostring(Max_Per_Trade_Buy_Manual) + " shares for $" + tostring(round(Max_Per_Trade_Buy_Manual * close, 0)) + "?" + " TP:$" + tostring(profit_target_Price) : ""
+text3 = Show_Risk_Reward_Ratio and Show_Question_NO_TOS_Account ?  "RR:" + tostring(Risk_Reward_Ratio) : ""
+text4 = Show_Profit_Per_Share and Show_Question_NO_TOS_Account ? "PPS:$" + tostring(profit_per_share) : ""
+label1color = input(#cfcfcf, title = "Label Color 1", group = "Risk Management")
+label2color = input(#fea400, title = "Label Color 2", group = "Risk Management")
+
+
+
+//TABLE
+LabelSize = input(defval="small", options=["small", "medium", "large"])
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+var table t = table.new(position.bottom_right, 11, 1, border_width = 1, frame_color = #000000)
+ 
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = label1_text, width = 0, bgcolor = label1_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 0, text = label2_text, width = 0, bgcolor = label2_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 2, 0, text = label3_text, width = 0, bgcolor = label3_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 3, 0, text = label4_text, width = 0, bgcolor = label4_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 4, 0, text = label5_text, width = 0, bgcolor = label5_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 5, 0, text = label6_text, width = 0, bgcolor = label6_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 6, 0, text = label7_text, width = 0, bgcolor = label7_color, text_size = label_size, text_color = #000000)
+    table.cell(t, 7, 0, text = text1, width = 0, bgcolor = label1color, text_size = label_size, text_color = #000000)
+    table.cell(t, 8, 0, text = text2, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+    table.cell(t, 9, 0, text = text3, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+    table.cell(t, 10, 0, text = text4, width = 0, bgcolor = label2color, text_size = label_size, text_color = #000000)
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

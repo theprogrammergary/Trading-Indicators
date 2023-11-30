@@ -1,0 +1,212 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("For Dvarner Alert System", overlay = true)
+
+var need_to_alert = true
+var alert_text = ' '
+
+hull_standalone_alerts = input.bool(true, title = "Hull Standalone Alerts", group = "Choose Alerts")
+macd_changing_b_2_d_alerts = input.bool(true, title = "MACD Changing Bright-to-Dark Alerts", group = "Choose Alerts")
+ema_crossing_alerts = input.bool(true, title = "EMA Crossing Alerts", group = "Choose Alerts")
+stoch_crossing_alerts = input.bool(true, title = "Stoch Crossing Alerts", group = "Choose Alerts")
+timsegvol_alerts = input.bool(true, title = "Time Seg Vol Crossing Alerts", group = "Choose Alerts")
+
+//HULL
+hull_length = input.int(20, title = "Hull Length", group = "Hull Settings")
+hull_price = input.source(close, title = "Hull Price", group = "Hull Settings")
+hull_ma = ta.hma(hull_price, hull_length)
+hull_direction = hull_ma > hull_ma[1] ? 1 : -1
+plot(hull_ma, color = hull_direction == 1 ? color.green : color.red, title = "Hull MA", linewidth = 5)
+
+hull_standalone_alert = hull_direction != hull_direction[1] and hull_standalone_alerts
+var hull_alert_text = ' '
+
+if hull_standalone_alert
+    if hull_direction == 1
+        hull_alert_text := "Hull Green"
+    if hull_direction == -1
+        hull_alert_text := "Hull Red"
+else 
+    hull_alert_text := ""
+        
+//MACD
+fast_length = input.int(title="MACD Fast Length", defval=12, group = "MACD Settings")
+slow_length = input.int(title="MACD Slow Length", defval=26, group = "MACD Settings")
+signal_length = input.int(title="MACD Sigal Length",  minval = 1, maxval = 50, defval = 9, group = "MACD Settings")
+macd_src = input(title="MACD Price", defval=close,group = "MACD Settings")
+[macdLine, signalLine, histLine] = ta.macd(macd_src, fast_length, slow_length, signal_length)
+macd_direction = histLine >= 0 and histLine > histLine[1] ? 2 : histLine >= 0 ? 1 : histLine < 0 and histLine < histLine[1] ? -2 : -1 //2 == green, 1 == dark green, -2 == red, -1 == dark red
+
+macd_changing_b_2_d_alert = macd_changing_b_2_d_alerts and ((macd_direction == 1 and macd_direction[1] == 2) or (macd_direction == -1 and macd_direction[1] == -2))
+var macd_alert_text = ' '
+
+if macd_changing_b_2_d_alert
+    if macd_direction == 1
+        macd_alert_text := "MACD Green to Dark Green"
+    if macd_direction == -1
+        macd_alert_text := "MACD Red to Dark Red"
+else 
+    macd_alert_text := ""
+        
+
+//EMA
+ema1 = input.int(title="EMA 50 Length", defval=50, group = "EMA Settings")
+ema2 = input.int(title="EMA 100 Length", defval=100, group = "EMA Settings")
+ema3 = input.int(title="EMA 200 Length", defval = 200, group = "EMA Settings")
+ema_src = input(title="EMA Price", defval=close,group = "EMA Settings")
+ema_1 = ta.ema(ema_src, ema1)
+ema_2 = ta.ema(ema_src, ema2)
+ema_3 = ta.ema(ema_src, ema3)
+ema_1_crossing = ta.crossover(close, ema_1) ? 1 : ta.crossunder(close, ema_1) ? - 1 : 0
+ema_2_crossing = ta.crossover(close, ema_2) ? 1 : ta.crossunder(close, ema_2) ? - 1 : 0
+ema_3_crossing = ta.crossover(close, ema_3) ? 1 : ta.crossunder(close, ema_3) ? - 1 : 0
+
+plot(ema_1, title = 'EMA 50', color = color.aqua)
+plot(ema_2, title = 'EMA 100', color = color.orange)
+plot(ema_3, title = 'EMA 200', color = color.yellow)
+
+ema_crossing_alert = ema_crossing_alerts and ((ema_1_crossing != 0) or (ema_2_crossing != 0) or (ema_3_crossing != 0))
+var ema_alert_text = ' '
+
+if ema_crossing_alert
+    if ema_1_crossing != 1 and ema_2_crossing != 1 and ema_3_crossing == 1
+        ema_alert_text := 'Close crosses above EMA200'
+
+    if ema_1_crossing != 1 and ema_2_crossing == 1 and ema_3_crossing != 1
+        ema_alert_text := 'Close crosses above EMA100'
+
+    if ema_1_crossing == 1 and ema_2_crossing != 1 and ema_3_crossing != 1
+        ema_alert_text := ' Close crosses above EMA50'
+
+    if ema_1_crossing != 1 and ema_2_crossing == 1 and ema_3_crossing == 1
+        ema_alert_text := 'Close crosses above EMA100, and EMA200'
+
+    if ema_1_crossing == 1 and ema_2_crossing != 1 and ema_3_crossing == 1
+        ema_alert_text := 'Close crosses above EMA50, and EMA200'
+
+    if ema_1_crossing == 1 and ema_2_crossing == 1 and ema_3_crossing != 1
+        ema_alert_text := 'Close crosses above EMA50, and EMA100'
+
+    if ema_1_crossing == 1 and ema_2_crossing == 1 and ema_3_crossing == 1
+        ema_alert_text := 'Close crosses above EMA50, EMA100, and EMA200'
+        
+    //////////////////////////////////////////////////////////////////////
+    
+    if ema_1_crossing != -1 and ema_2_crossing != -1 and ema_3_crossing == -1
+        ema_alert_text := 'Close crosses below EMA200'
+
+    if ema_1_crossing != -1 and ema_2_crossing == -1 and ema_3_crossing != -1
+        ema_alert_text := 'Close crosses below EMA100'
+
+    if ema_1_crossing == -1 and ema_2_crossing != -1 and ema_3_crossing != -1
+        ema_alert_text := 'Close crosses below EMA50'
+
+    if ema_1_crossing != -1 and ema_2_crossing == -1 and ema_3_crossing == -1
+        ema_alert_text := 'Close crosses below EMA100, and EMA200'
+
+    if ema_1_crossing == -1 and ema_2_crossing != -1 and ema_3_crossing == -1
+        ema_alert_text := 'Close crosses below EMA50, and EMA200'
+
+    if ema_1_crossing == -1 and ema_2_crossing == -1 and ema_3_crossing != -1
+        ema_alert_text := 'Close crosses below EMA50, and EMA100'
+
+    if ema_1_crossing == -1 and ema_2_crossing == -1 and ema_3_crossing == -1
+        ema_alert_text := 'Close crosses below EMA50, EMA100, and EMA200'
+
+else 
+    ema_alert_text := ""
+
+//STOCH
+stoch_kperiod = input.int(10, title = 'K Period', group = 'Stoch Settings')
+stoch_dperiod = input.int(10, title = 'D Period', group = 'Stoch Settings')
+stoch_overbought = input.int(80, title = 'Overbought', group = 'Stoch Settings')
+stoch_mid = input.int(50, title = 'Other Alert Level', group = 'Stoch Settings')
+stoch_oversold = input.int(20, title = 'Oversold', group = 'Stoch Settings')
+
+stoch_k = ta.sma(ta.stoch(close, high, low, 3), stoch_kperiod)
+stoch_d = ta.sma(stoch_k, stoch_dperiod)
+
+stochk_ob_crossing = ta.crossover(stoch_k, stoch_overbought) ? 1 : ta.crossunder(stoch_k, stoch_overbought) ? - 1 : 0
+stochk_mid_crossing = ta.crossover(stoch_k, stoch_mid) ? 1 : ta.crossunder(stoch_k, stoch_mid) ? - 1 : 0
+stochk_os_crossing = ta.crossover(stoch_k, stoch_oversold) ? 1 : ta.crossunder(stoch_k, stoch_oversold) ? - 1 : 0
+
+stoch_k_crossingalert = stoch_crossing_alerts and ((stochk_ob_crossing != 0) or (stochk_mid_crossing != 0) or (stochk_os_crossing != 0))
+var stoch_alert_text = ' '
+
+if stoch_k_crossingalert
+    if stochk_ob_crossing != 1 and stochk_mid_crossing != 1 and stochk_os_crossing == 1
+        stoch_alert_text := 'Stoch crosses above 20'
+
+    if stochk_ob_crossing != 1 and stochk_mid_crossing == 1 and stochk_os_crossing != 1
+        stoch_alert_text := 'Stoch crosses above 50'
+
+    if stochk_ob_crossing == 1 and stochk_mid_crossing != 1 and stochk_os_crossing != 1
+        stoch_alert_text := ' Stoch crosses above 80'
+
+    if stochk_ob_crossing == 1 and stochk_mid_crossing == 1 and stochk_os_crossing != 1
+        stoch_alert_text := 'Stoch crosses above 50, and 80'
+
+    if stochk_ob_crossing == 1 and stochk_mid_crossing != 1 and stochk_os_crossing == 1
+        stoch_alert_text := 'Stoch crosses above 20, and 80'
+
+    if stochk_ob_crossing != 1 and stochk_mid_crossing == 1 and stochk_os_crossing == 1
+        stoch_alert_text := 'Stoch crosses above 20, and 50'
+
+    if stochk_ob_crossing == 1 and stochk_mid_crossing == 1 and stochk_os_crossing == 1
+        stoch_alert_text := 'Stoch crosses above 20, 50, and 80'
+        
+    //////////////////////////////////////////////////////////////////////
+    
+    if stochk_ob_crossing != -1 and stochk_mid_crossing != -1 and stochk_os_crossing == -1
+        stoch_alert_text := 'Stoch crosses below 20'
+
+    if stochk_ob_crossing != -1 and stochk_mid_crossing == -1 and stochk_os_crossing != -1
+        stoch_alert_text := 'Stoch crosses below 50'
+
+    if stochk_ob_crossing == -1 and stochk_mid_crossing != -1 and stochk_os_crossing != -1
+        stoch_alert_text := ' Stoch crosses below 80'
+
+    if stochk_ob_crossing == -1 and stochk_mid_crossing == -1 and stochk_os_crossing != -1
+        stoch_alert_text := 'Stoch crosses below 50, and 80'
+
+    if stochk_ob_crossing == -1 and stochk_mid_crossing != -1 and stochk_os_crossing == -1
+        stoch_alert_text := 'Stoch crosses below 20, and 80'
+
+    if stochk_ob_crossing != -1 and stochk_mid_crossing == -1 and stochk_os_crossing == -1
+        stoch_alert_text := 'Stoch crosses below 20, and 50'
+
+    if stochk_ob_crossing == -1 and stochk_mid_crossing == -1 and stochk_os_crossing == -1
+        stoch_alert_text := 'Stoch crosses below 20, 50, and 80'
+else 
+    stoch_alert_text := ""
+    
+// TIME SEGMENTED VOLUME
+l = input.int(13, title='TSV Length', group = 'Time Seg Vol Settings')
+l_ma = input.int(7, title='MA Length', group = 'Time Seg Vol Settings')
+t = math.sum(close > close[1] ? volume * (close - close[1]) : close < close[1] ? volume * (close - close[1]) : 0, l)
+m = ta.sma(t, l_ma)
+t_crossing = ta.crossover(t, 0) ? 1 : ta.crossunder(t, 0) ? - 1 : 0
+
+timesegvol_alert = timsegvol_alerts and (t_crossing != 0)
+var timesegvol_alert_text = ' '
+
+if timesegvol_alert
+    if t_crossing == 1
+        timesegvol_alert_text := 'Time Seg Vol Crosses Above 0'
+    if t_crossing == -1
+        timesegvol_alert_text := 'Time Seg Vol Crosses Below 0'
+else 
+    timesegvol_alert_text := ''
+
+//COMBINE ALERTS
+need_to_alert := hull_standalone_alert or macd_changing_b_2_d_alert or ema_crossing_alert or stoch_k_crossingalert or timesegvol_alert ? true : false
+alert_text := hull_alert_text + "\n" + macd_alert_text + "\n" + ema_alert_text + "\n" + stoch_alert_text + "\n" + timesegvol_alert_text
+
+if need_to_alert == true
+    alert(alert_text, alert.freq_once_per_bar_close)
+
+
+
+
+

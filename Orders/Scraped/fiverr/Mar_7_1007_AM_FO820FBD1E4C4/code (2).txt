@@ -1,0 +1,217 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_tangelak", overlay = true, max_labels_count = 500, max_boxes_count = 500)
+
+// sd length input
+sd_length = input.int(5, title = 'Length', group = 'Swing High/Low Settings', inline = '1', minval = 3, maxval = 50)
+
+
+// symbol settings
+symbol1 = input.symbol('NAS100', title = 'Symbol 1', group = 'Alert Symbols', inline = '2')
+symbol2 = input.symbol('US30', title = 'Symbol 2', group = 'Alert Symbols', inline = '3')
+
+
+// alert settings
+prior_day = input.bool(true, title = "Use Prior Day Levels", group = 'Alert Settings', inline = '1')
+prior_week = input.bool(true, title = "Use Prior Week Levels", group = 'Alert Settings', inline = '2')
+trend_filter = input.bool(true, title = "Ignore Divergence if Trend is Same", group = 'Alert Settings', inline = '3')
+
+
+// visual settings
+color_candles       = input.bool(true, title = 'Color Candles', group = 'Visual Settings', inline = '1')
+show_signals        = input.bool(true, title = 'Show Divergence On Chart', group = 'Visual Settings', inline = '2')
+dashboard_bull      = input.color(color.new(color.green,0), title='Bull', inline='3', group='Visual Settings')
+dashboard_bear      = input.color(color.new(color.red,0), title='Bear', inline='3', group='Visual Settings')
+dashboard_neutral   = input.color(color.new(color.yellow,0), title='Neutral', inline='3', group='Visual Settings')
+
+css_pdh         = input.color(color.red, title = 'PDH', group = 'Visual Settings', inline = '4')
+style_pdh       = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Visual Settings', inline = '4')
+css_pdl         = input.color(color.green, title = 'PDL', group = 'Visual Settings', inline = '5')
+style_pdl      = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Visual Settings', inline = '5')
+
+css_pwh         = input.color(color.fuchsia, title = 'PWH', group = 'Visual Settings', inline = '6')
+style_pwh       = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Visual Settings', inline = '6')
+css_pwl         = input.color(color.teal, title = 'PWL', group = 'Visual Settings', inline = '7')
+style_pwl      = input.string('Dashed', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Visual Settings', inline = '7')
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    var int last_signal = na
+
+    root = syminfo.root
+    current_price = close
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, root, last_signal, current_price]
+
+
+// check for divergence function
+f_divergence(pdh1, pdl1, pwh1, pwl1, lastsignal1, root1, trend1, cp1, pdh2, pdl2, pwh2, pwl2, lastsignal2, root2, trend2, cp2) =>
+    
+    var bool sym1_pdh = na
+    var bool sym1_pdl = na    
+    var bool sym2_pdh = na
+    var bool sym2_pdl = na
+
+    var bool sym1_pwh = na
+    var bool sym1_pwl = na    
+    var bool sym2_pwh = na
+    var bool sym2_pwl = na
+
+    sym1_pdh := ta.crossover(cp1, pdh1)
+    sym2_pdh := ta.crossover(cp2, pdh2)
+    sym1_pwh := ta.crossover(cp1, pwh1)
+    sym2_pwh := ta.crossover(cp2, pwh2)
+
+    sym1_pdl := ta.crossunder(cp1, pdl1)
+    sym2_pdl := ta.crossunder(cp2, pdl2)
+    sym1_pwl := ta.crossunder(cp1, pwl1)
+    sym2_pwl := ta.crossunder(cp2, pwl2)
+
+    var bool priorday_high_divergence = na
+    var bool priorday_low_divergence = na
+    var bool priorweek_high_divergence = na
+    var bool priorweek_low_divergence = na
+
+    var bool trend_not_equal = na
+    trend_not_equal := trend1 != trend2 or not trend_filter
+
+    priorday_high_divergence    := prior_day and trend_not_equal and ((sym1_pdh and not sym2_pdh) or (sym2_pdh and not sym1_pdh))
+    priorday_low_divergence     := prior_day and trend_not_equal  and ((sym1_pdl and not sym2_pdl) or (sym2_pdl and not sym1_pdl))
+    priorweek_high_divergence   := prior_week and trend_not_equal  and ((sym1_pwh and not sym2_pwh) or (sym2_pwh and not sym1_pwh))
+    priorweek_low_divergence    := prior_week and trend_not_equal  and ((sym1_pwl and not sym2_pwl) or (sym2_pwl and not sym1_pwl))
+
+    var string pdh_string = na
+    var string pdl_string = na
+    var string pwh_string = na
+    var string pwl_string = na
+
+    pdh_string := priorday_high_divergence and (sym1_pdh and not sym2_pdh) ? (root1 + " PDH vs. " + root2) :
+     priorday_high_divergence and (sym2_pdh and not sym1_pdh) ? (root2 + " PDH vs. " + root1) : ""
+    pdl_string := priorday_low_divergence and (sym1_pdl and not sym2_pdl) ? (root1 + ": PDL vs. " + root2) :
+     priorday_low_divergence and (sym2_pdl and not sym1_pdl) ? (root2 + " PDL vs. " + root1) : ""
+    pwh_string := priorweek_high_divergence and (sym1_pwh and not sym2_pwh) ? (root1 + ": PWH vs. " + root2) :
+     priorweek_high_divergence and (sym2_pwh and not sym1_pwh) ? (root2 + " PWH vs. " + root1) : ""
+    pwl_string := priorweek_low_divergence and (sym1_pwl and not sym2_pwl) ? (root1 + ": PWL vs. " + root2) :
+     priorweek_low_divergence and (sym2_pwl and not sym1_pwl) ? (root2 + " PWL vs. " + root1) : ""
+
+    var bool is_alert = na 
+    var int alert_type = na
+    var string alert_string = ''
+    is_alert := priorday_high_divergence or priorday_low_divergence or priorweek_high_divergence or priorweek_low_divergence
+    alert_type := (priorday_high_divergence or priorweek_high_divergence) ? 1 : (priorday_low_divergence or priorweek_low_divergence) ? - 1 : 0
+    alert_string := is_alert ? (
+         (priorday_high_divergence ? ('\n' + pdh_string) : '') 
+         + (priorday_low_divergence ? ('\n' + pdl_string) : '') 
+         + (priorweek_high_divergence ? ('\n' + pwh_string) : '') 
+         + (priorweek_low_divergence ? ('\n' + pwl_string) : '') 
+         ) : na
+
+    [is_alert, alert_type, alert_string]
+
+
+[sh_main, sl_main, psh_main, psl_main, csh_main, csl_main, hh_main, lh_main, ll_main, hl_main, trend_main, root_main, last_signal_main, main_cp] = f_get_swing_values(sd_length)
+plotshape(hl_main and sl_main, text="HL", title="Higher Low", style=shape.labelup, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.belowbar, offset = -sd_length)
+plotshape(ll_main and sl_main, text="LL", title="Lower Low", style=shape.labelup, color=dashboard_bear, textcolor=color.white, location=location.belowbar, offset = -sd_length)
+plotshape(hh_main and sh_main, text="HH", title="Higher High", style=shape.labeldown, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.abovebar, offset = -sd_length)
+plotshape(lh_main and sh_main, text="LH", title="Lower High", style=shape.labeldown, color=dashboard_bear, textcolor=color.white, location=location.abovebar, offset = -sd_length)
+barcolor(color_candles and trend_main == 1 ? dashboard_bull : color_candles and trend_main == -1 ? dashboard_bear : color_candles ? dashboard_neutral : na, title = 'Trend Bar Color')
+plot(csh_main, offset = -sd_length, color = dashboard_bear, title = 'Current Swing High (Repaints)', style = plot.style_stepline, display = display.none)
+plot(csl_main, offset = -sd_length, color = dashboard_bull, title = 'Current Swing Low (Repaints', style = plot.style_stepline, display = display.none)
+
+
+// call function to get swing values
+[sh_1, sl_1, psh_1, psl_1, csh_1, csl_1, hh_1, lh_1, ll_1, hl_1, trend_1, root_1, last_signal_1, cp_1] = request.security(symbol1, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+[sh_2, sl_2, psh_2, psl_2, csh_2, csl_2, hh_2, lh_2, ll_2, hl_2, trend_2, root_2, last_signal_2, cp_2] = request.security(symbol2, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+
+
+// call function to get prior day & week high/low
+[pdh_1, pdl_1] = request.security(symbol1, '1D', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+[pdh_2, pdl_2] = request.security(symbol2, '1D', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+[pwh_1, pwl_1] = request.security(symbol1, '1W', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+[pwh_2, pwl_2] = request.security(symbol2, '1W', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+[pdh_c, pdl_c] = request.security(symbol1, '1D', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+[pwh_c, pwl_c] = request.security(symbol1, '1W', [high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+
+var pdhs = array.new_box(200, na)
+var pdls = array.new_box(200, na)
+var pwhs = array.new_box(50, na)
+var pwls = array.new_box(50, na)
+
+if prior_day 
+    if pdh_c != pdh_c[1]
+        box.set_right(array.first(pdhs), time)
+        box.set_extend(array.first(pdhs), extend.none)
+        box.set_right(array.first(pdls), time)
+        box.set_extend(array.first(pdls), extend.none)
+
+        array.unshift(pdhs, box.new(left = time, top = pdh_c, right = time+1, bottom = pdh_c, xloc=xloc.bar_time,
+             border_color = css_pdh, extend=extend.right, text = 'PDH', text_halign = text.align_right, text_valign = text.align_bottom, text_color = css_pdh, text_size = size.small,
+             border_style = style_pdh == 'Solid' ? line.style_solid : style_pdh == 'Dashed' ? line.style_dashed : style_pdh == 'Dotted' ? line.style_dotted : line.style_solid))
+
+        array.unshift(pdls, box.new(left = time, top = pdl_c, right = time+1, bottom = pdl_c, xloc=xloc.bar_time,
+             border_color = css_pdl, extend=extend.right, text = 'PDL', text_halign = text.align_right, text_valign = text.align_top, text_color = css_pdl, text_size = size.small,
+             border_style = style_pdl == 'Solid' ? line.style_solid : style_pdl == 'Dashed' ? line.style_dashed : style_pdl == 'Dotted' ? line.style_dotted : line.style_solid))
+    else
+        box.set_right(array.first(pdhs), time)
+        box.set_right(array.first(pdls), time)
+
+if prior_week 
+    if pwh_c != pwh_c[1]
+        box.set_right(array.first(pwhs), time)
+        box.set_extend(array.first(pwhs), extend.none)
+        box.set_right(array.first(pwls), time)
+        box.set_extend(array.first(pwls), extend.none)
+
+        array.unshift(pwhs, box.new(left = time, top = pwh_c, right = time+1, bottom = pwh_c, xloc=xloc.bar_time,
+             border_color = css_pwh, extend=extend.right, text = 'PWH', text_halign = text.align_right, text_valign = text.align_top, text_color = css_pwh, text_size = size.small,
+             border_style = style_pwh == 'Solid' ? line.style_solid : style_pwh == 'Dashed' ? line.style_dashed : style_pwh == 'Dotted' ? line.style_dotted : line.style_solid))
+
+        array.unshift(pwls, box.new(left = time, top = pwl_c, right = time+1, bottom = pwl_c, xloc=xloc.bar_time,
+             border_color = css_pwl, extend=extend.right, text = 'PWL', text_halign = text.align_right, text_valign = text.align_bottom, text_color = css_pwl, text_size = size.small,
+             border_style = style_pwl == 'Solid' ? line.style_solid : style_pwl == 'Dashed' ? line.style_dashed : style_pwl == 'Dotted' ? line.style_dotted : line.style_solid))
+    else
+        box.set_right(array.first(pwhs), time)
+        box.set_right(array.first(pwls), time)
+
+
+
+// call function to look for break of prior highs / lows and divergence
+[divergence, alert_type, divergence_string] = f_divergence(pdh_1, pdl_1, pwh_1, pwl_1, last_signal_1, root_1, trend_1, cp_1, pdh_2, pdl_2, pwh_2, pwl_2, last_signal_2, root_2, trend_2, cp_2) 
+
+
+// compute alert
+var bool divergence_alert = na
+var string alert_string = na
+divergence_alert := divergence 
+alert_string := 'Divergence' + divergence_string 
+if divergence_alert  
+    if show_signals
+        label.new(x = time, y = hl2, text = alert_string, textalign = text.align_center, xloc = xloc.bar_time,
+         yloc = alert_type == 1 ? yloc.abovebar : yloc.belowbar,
+         style = alert_type == 1 ? label.style_label_down : label.style_label_up,
+         color = color.new(color.white, 70),
+         textcolor = color.new(color.white, 0), size = size.small)
+    alert(alert_string, alert.freq_once_per_bar_close)
+
+

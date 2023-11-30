@@ -1,0 +1,1 @@
+trade_sum = total profit or loss sumdollars = total sum of all entriestrades = number of trades

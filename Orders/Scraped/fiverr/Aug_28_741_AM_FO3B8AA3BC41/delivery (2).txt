@@ -1,0 +1,1 @@
+I forgot to have the labels update after we draw new ones. I didn't test this so if it doesn't work just let me know.

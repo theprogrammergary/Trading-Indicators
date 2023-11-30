@@ -1,0 +1,84 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_optiontrader123_50223", overlay = true)
+
+malength1 = input.int(9, title = 'Short   ', group = 'Settings', inline = '1')
+malength2 = input.int(20, title = 'Medium', group = 'Settings', inline = '2')
+malength3 = input.int(50, title = 'Long   ', group = 'Settings', inline = '3')
+
+ma_type1 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '1')
+ma_type2 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '2')
+ma_type3 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '3')
+
+color_candles = input.bool(true, title = 'Color Candles')
+show_signals = input.bool(true, title = 'Show Signals')
+
+sg1 = input.color(color.teal, title = 'SG1')
+sg2 = input.color(color.red, title = 'SG2')
+sg3 = input.color(color.silver, title = 'SG3')
+
+ // calc ma
+float ma_value1 = switch ma_type1
+    "EMA" => ta.ema(close, malength1)
+    "SMA" => ta.sma(close, malength1)
+    "WMA" => ta.wma(close, malength1)
+    "VWMA" => ta.vwma(close, malength1)
+    "HMA" => ta.hma(close, malength1)
+    => ta.sma(close, malength1)
+
+float ma_value2 = switch ma_type2
+    "EMA" => ta.ema(close, malength2)
+    "SMA" => ta.sma(close, malength2)
+    "WMA" => ta.wma(close, malength2)
+    "VWMA" => ta.vwma(close, malength2)
+    "HMA" => ta.hma(close, malength2)
+    => ta.sma(close, malength2)
+
+float ma_value3 = switch ma_type3
+    "EMA" => ta.ema(close, malength3)
+    "SMA" => ta.sma(close, malength3)
+    "WMA" => ta.wma(close, malength3)
+    "VWMA" => ta.vwma(close, malength3)
+    "HMA" => ta.hma(close, malength3)
+    => ta.sma(close, malength3)
+
+
+two_maavg = (ma_value1 + ma_value2) / 2
+three_maavg = (ma_value1 + ma_value2 + ma_value3) / 3
+
+p_shortma = plot(two_maavg, title = 'Short MA', color = color.new(sg3,89))
+p_3ma = plot(three_maavg, title = '3MA Avg', color = color.new(sg3,80))
+p_longma = plot(ma_value3, title = 'Longest MA', color = color.new(sg3,50))
+
+fill(p_shortma, p_3ma, color = two_maavg >= three_maavg ? color.new(color.teal, 30) : color.new(color.red,30), title = '2AVG - 3AVG Fill' )
+fill(p_shortma, p_longma, color = two_maavg >= ma_value3 ? color.new(color.teal, 70) : color.new(color.red,70), title = 'Long MA Fill' )
+
+
+var int last_signal = 0
+
+max_value = math.max(two_maavg, math.max(three_maavg, ma_value3))
+min_value = math.min(two_maavg, math.min(three_maavg, ma_value3))
+
+bull_cross = ta.crossover(close, max_value)
+bear_cross = ta.crossunder(close, min_value)
+
+long_entry = bull_cross and last_signal[1] != 1
+short_entry = bear_cross and last_signal[1] != -1
+
+last_signal := bull_cross ? 1 : bear_cross ? -1 : last_signal[1]
+
+plotshape(show_signals and long_entry ? math.min(low, three_maavg) - syminfo.mintick * 10 : na,
+ style=shape.labelup, editable=false, text= "BUY", textcolor=color.white, location= location.belowbar,
+ color=color.new(sg1, 30), size=size.tiny)
+
+plotshape(show_signals and short_entry ? math.max(high, three_maavg) - syminfo.mintick * 10 : na,
+ style=shape.labeldown, editable=false, text='SELL', textcolor=color.white, location=location.abovebar,
+ color=color.new(sg2, 30), size=size.tiny)
+
+
+barcolor(color_candles and last_signal == 1 ? sg1 : color_candles and last_signal == -1 ? sg2 : color_candles ? sg3 : na, editable = false)

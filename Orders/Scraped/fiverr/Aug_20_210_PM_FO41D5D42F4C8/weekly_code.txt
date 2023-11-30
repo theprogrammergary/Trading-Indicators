@@ -1,0 +1,35 @@
+#####   WEEKLY CONDITIONS #####
+
+#INPUT PRICE FILTER
+input min_price = 5.00;
+input max_price = 500.00;
+def price_filter = close >= min_price and close <= max_price;
+
+
+#VOLUME
+input volume_avg_length = 8;
+input volume_trigger_pct = 80;
+input volume_avg_min = 250000;
+def volume_timeframe = aggregationPeriod.WEEK;
+def avg_volume = round(movingaverage(averagetype.SIMPLE, volume(period = volume_timeframe), volume_avg_length)[1],0);
+def volume_scan = volume(period = volume_timeframe) / avg_volume * 100 >= volume_trigger_pct and avg_volume >= volume_avg_min;
+
+
+
+#MA CROSS / INCREASING
+input ma_length = 30;
+def ma_timeframe = aggregationPeriod.WEEK;
+def ma = movingaverage(averageType.SIMPLE, close(period = ma_timeframe), ma_length);
+def ma_scan = close(period = ma_timeframe) crosses above ma and ma >= ma[1] and ma[1] >= ma[2];
+
+plot scan =  price_filter and volume_scan and ma_scan;
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,34 @@
+script Moxie {
+    input priceC = close;
+    def vc1 = ExpAverage(priceC , 12) - ExpAverage(priceC , 26);
+    def va1 = ExpAverage(vc1, 9);
+    plot sData = (vc1 - va1) * 3;
+}
+def moxie = Moxie(close);
+def moxie_trend = if moxie > moxie[1] then 1 else -1;
+def moxie_bull = moxie > moxie[1];
+def moxie_bear = moxie <= moxie[1];
+def green_in_a_row = sum(moxie_bull, 7) == 7;
+def red_in_a_row = sum(moxie_bear, 7) == 7;
+
+
+
+
+
+
+#plot scan1 = moxie > 0 and (moxie_trend[4] == -1 and moxie_trend[5] == -1 and moxie_trend[6] == -1) and (moxie_trend[3] == -1 and moxie_trend[2] == -1 and moxie_trend[1] == 1 and moxie_trend == -1) and moxie[3] > moxie[1] and moxie < moxie[1];
+
+
+#plot scan2 = moxie < 0 and (moxie_trend[4] == -1 and moxie_trend[5] == -1 and moxie_trend[6] == -1) and (moxie_trend[3] == -1 and moxie_trend[2] == -1 and moxie_trend[1] == 1 and moxie_trend == -1) and moxie[3] > moxie[1] and moxie < moxie[1];
+
+
+#plot scan3 =  moxie > 0 and (moxie_trend[4] == 1 and moxie_trend[5] == 1 and moxie_trend[6] == 1)  and moxie_trend[3] == 1 and moxie_trend[2] == 1 and moxie_trend[1] == -1 and moxie_trend == 1 and moxie[3] < moxie[1] and moxie > moxie[1];
+
+
+#plot scan4 =  moxie < 0 and (moxie_trend[4] == 1 and moxie_trend[5] == 1 and moxie_trend[6] == 1)  and moxie_trend[3] == 1 and moxie_trend[2] == 1 and moxie_trend[1] == -1 and moxie_trend == 1 and moxie[3] < moxie[1] and moxie > moxie[1];
+
+
+plot scan5 =   moxie > 0 and (green_in_a_row is true within 3 bars) and moxie_trend == -1 and (moxie <= lowest(moxie[2], 2));
+
+
+#plot scan6 =   moxie < 0 and (red_in_a_row is true within 3 bars) and moxie_trend == 1 and (moxie >= highest(moxie[2], 2));

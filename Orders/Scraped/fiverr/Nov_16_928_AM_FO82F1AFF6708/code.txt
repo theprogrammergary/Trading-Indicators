@@ -1,0 +1,263 @@
+declare upper;
+
+def rsi = RSI();
+def rvi = RelativeVolatilityIndex();
+def old_rsi = rsi[1];
+def old_rvi = rvi[1];
+def vol = volume;
+
+# Condition to check if it's after 10 AM (10:00)
+input start = 1000;
+input end = 1550;
+def isAfter10AM = SecondsFromTime(start) >= 0;
+def isBefore2PM = SecondsFromTime(end) <= 0;
+
+# Only plot the vertical lines after 10 AM
+def after10AM = if isAfter10AM and isBefore2PM then 1 else 0;
+
+# Plot the vertical lines for different conditions (after 10 AM)
+# AssignPriceColor(if after10AM and rsi > 70 and rvi > 70 and rvi <= 79 then color.light_orange 
+# else if after10AM and rvi > 80 then Color.red 
+# else if after10AM and rsi > 75 and old_rsi < 75 then Color.plum 
+# else if after10AM and rsi < 40 and rvi < 30 and rvi >= 20 then Color.light_green 
+# else if after10AM and rsi < 30 and rvi < 20 then Color.green 
+# else if after10AM and volume > 2*volume[1] and rsi < 35 then color.white 
+# else color.current);
+
+# add vertical lines
+# AddVerticalLine(after10AM and rsi > 69 and rvi > 80, "", Color.PINK);
+# AddVerticalLine(after10AM and rsi < 30 and rvi < 20, "", Color.white);
+
+
+# track colored candle instances
+def greenCandle = (after10AM and rsi < 40 and rvi < 30 and rvi >= 20) or (after10AM and rsi < 30 and rvi < 20);
+def redCandle   = (after10AM and rsi > 70 and rvi > 70 and rvi <= 79) or (after10AM and rvi > 80);
+assignpricecolor(if greenCandle then color.light_green else if redCandle then color.pink else color.current);
+
+def last_red_lvl    = if redCandle then high else last_red_lvl[1];
+def last_red_BN     = if redCandle then barnumber() else last_red_BN[1];
+
+def track_green_lvl  = if greenCandle then low else track_green_lvl[1];
+def track_green_BN   = if greenCandle then barnumber() else track_green_BN[1];
+
+def last_green_lvl    = if redCandle then track_green_lvl else last_green_lvl[1];
+def last_green_BN     = if redCandle then track_green_BN else last_green_BN[1];
+
+
+# fib tool
+input display_only_last = yes;
+input legend = yes;
+input display_labels =yes;
+
+input use_level_1 = yes;
+input use_level_2 = yes;
+input use_level_3 = yes;
+input use_level_4 = yes;
+input use_level_5 = yes;
+input use_level_6 = yes;
+input use_level_7 = yes;
+
+input fib_level_1 = 0.50;
+input fib_level_2 = 0.705;
+input fib_level_3 = 0.79;
+input fib_level_4 = 0.90;
+input fib_level_5 = 0.95;
+input fib_level_6 = 1.10;
+input fib_level_7 = 1.169;
+
+
+
+def drawNew = last_red_BN != last_red_BN[1] and (last_green_BN != 0);
+def fibDistance;
+def fib0Value;
+def fib100Value;
+def fib1Value;
+def fib2Value;
+def fib3Value;
+def fib4Value;
+def fib5Value;
+def fib6Value;
+def fib7Value;
+
+
+if (drawNew) {
+
+    fib0Value = last_red_lvl;
+    fib100Value = last_green_lvl;
+    fibDistance = absvalue(fib0Value - fib100Value);
+    fib1Value = fib0Value - (fibDistance * (fib_level_1));
+    fib2Value = fib0Value - (fibDistance * (fib_level_2));
+    fib3Value = fib0Value - (fibDistance * (fib_level_3));
+    fib4Value = fib0Value - (fibDistance * (fib_level_4));
+    fib5Value = fib0Value - (fibDistance * (fib_level_5));
+    fib6Value = fib0Value - (fibDistance * (fib_level_6));
+    fib7Value = fib0Value - (fibDistance * (fib_level_7));
+
+
+} else {
+    fib0Value = fib0Value[1];
+    fib100Value = fib100Value[1];
+    fibDistance = fibDistance[1];
+    fib1Value = fib1Value[1];    
+    fib2Value = fib2Value[1]; 
+    fib3Value = fib3Value[1];   
+    fib4Value = fib4Value[1];   
+    fib5Value = fib5Value[1];    
+    fib6Value = fib6Value[1];    
+    fib7Value = fib7Value[1];    
+}
+
+
+
+def isLastDay = getday() == getlastday();
+def lastFib0Value = if isnan(close[-1]) then fib0Value else double.nan;
+def lastFib100Value = if isnan(close[-1]) then fib100Value else double.nan;
+def lastFib1Value = if isnan(close[-1]) then fib1Value else double.nan;
+def lastFib2Value = if isnan(close[-1]) then fib2Value else double.nan;
+def lastFib3Value = if isnan(close[-1]) then fib3Value else double.nan;
+def lastFib4Value = if isnan(close[-1]) then fib4Value else double.nan;
+def lastFib5Value = if isnan(close[-1]) then fib5Value else double.nan;
+def lastFib6Value = if isnan(close[-1]) then fib6Value else double.nan;
+def lastFib7Value = if isnan(close[-1]) then fib7Value else double.nan;
+
+
+
+
+
+def canDisplay = !isnan(close);
+plot fib0 = if canDisplay then fib0Value else double.nan;
+plot fib100 = if canDisplay then fib100Value else double.nan;
+plot fib1 = if use_level_1 and canDisplay then fib1Value else double.nan;
+plot fib2 = if use_level_2 and canDisplay then  fib2Value else double.nan;
+plot fib3 = if use_level_3 and canDisplay then  fib3Value else double.nan;
+plot fib4 = if use_level_4 and canDisplay then  fib4Value else double.nan;
+plot fib5 = if use_level_5 and canDisplay then  fib5Value else double.nan;
+plot fib6 = if use_level_6 and canDisplay then  fib6Value else double.nan;
+plot fib7 = if use_level_7 and canDisplay then  fib7Value else double.nan;
+
+
+fib0.definecolor("Default", color.white);
+fib100.definecolor("Default", color.gray);
+fib1.definecolor("Default", createcolor(255, 152, 0));
+fib2.definecolor("Default", createcolor(76, 175, 80));
+fib3.definecolor("Default", createcolor(8, 152, 129));
+fib4.definecolor("Default", createcolor(0, 188, 212));
+fib5.definecolor("Default", createcolor(41, 98, 255));
+fib6.definecolor("Default", createcolor(242, 54, 69));
+fib7.definecolor("Default", createcolor(156, 39, 176));
+
+fib0.assignvaluecolor(fib0.color("Default"));
+fib100.assignvaluecolor(fib100.color("Default"));
+fib1.assignvaluecolor(fib1.color("Default"));
+fib2.assignvaluecolor(fib2.color("Default"));
+fib3.assignvaluecolor(fib3.color("Default"));
+fib4.assignvaluecolor(fib4.color("Default"));
+fib5.assignvaluecolor(fib5.color("Default"));
+fib6.assignvaluecolor(fib6.color("Default"));
+fib7.assignvaluecolor(fib7.color("Default"));
+fib0.setdefaultcolor(fib0.color("Default"));
+fib100.setdefaultcolor(fib100.color("Default"));
+fib1.setdefaultcolor(fib1.color("Default"));
+fib2.setdefaultcolor(fib2.color("Default"));
+fib3.setdefaultcolor(fib3.color("Default"));
+fib4.setdefaultcolor(fib4.color("Default"));
+fib5.setdefaultcolor(fib5.color("Default"));
+fib6.setdefaultcolor(fib6.color("Default"));
+fib7.setdefaultcolor(fib7.color("Default"));
+
+fib0.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib100.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib1.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib2.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib3.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib4.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib5.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib6.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+fib7.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+
+fib0.sethiding(display_only_last);
+fib100.sethiding(display_only_last);
+fib1.sethiding(!use_level_1 or display_only_last);
+fib2.sethiding(!use_level_2 or display_only_last);
+fib3.sethiding(!use_level_3 or display_only_last);
+fib4.sethiding(!use_level_4 or display_only_last);
+fib5.sethiding(!use_level_5 or display_only_last);
+fib6.sethiding(!use_level_6 or display_only_last);
+fib7.sethiding(!use_level_7 or display_only_last);
+
+
+def canDisplayLast = display_only_last;
+plot last_fib0 = highestall(lastFib0Value);
+plot last_fib100 = highestall(lastFib100Value);
+plot last_fib1 = highestall(lastFib1Value);
+plot last_fib2 = highestall(lastFib2Value);
+plot last_fib3 = highestall(lastFib3Value);
+plot last_fib4 = highestall(lastFib4Value);
+plot last_fib5 = highestall(lastFib5Value);
+plot last_fib6 = highestall(lastFib6Value);
+plot last_fib7 = highestall(lastFib7Value);
+
+last_fib0.sethiding(!canDisplayLast);
+last_fib100.sethiding(!canDisplayLast);
+last_fib1.sethiding(!use_level_1 or !canDisplayLast);
+last_fib2.sethiding(!use_level_2 or !canDisplayLast);
+last_fib3.sethiding(!use_level_3 or !canDisplayLast);
+last_fib4.sethiding(!use_level_4 or !canDisplayLast);
+last_fib5.sethiding(!use_level_5 or !canDisplayLast);
+last_fib6.sethiding(!use_level_6 or !canDisplayLast);
+last_fib7.sethiding(!use_level_7 or !canDisplayLast);
+
+last_fib0.assignvaluecolor(fib0.color("Default"));
+last_fib100.assignvaluecolor(fib100.color("Default"));
+last_fib1.assignvaluecolor(fib1.color("Default"));
+last_fib2.assignvaluecolor(fib2.color("Default"));
+last_fib3.assignvaluecolor(fib3.color("Default"));
+last_fib4.assignvaluecolor(fib4.color("Default"));
+last_fib5.assignvaluecolor(fib5.color("Default"));
+last_fib6.assignvaluecolor(fib6.color("Default"));
+last_fib7.assignvaluecolor(fib7.color("Default"));
+last_fib0.setdefaultcolor(fib0.color("Default"));
+last_fib100.setdefaultcolor(fib100.color("Default"));
+last_fib1.setdefaultcolor(fib1.color("Default"));
+last_fib2.setdefaultcolor(fib2.color("Default"));
+last_fib3.setdefaultcolor(fib3.color("Default"));
+last_fib4.setdefaultcolor(fib4.color("Default"));
+last_fib5.setdefaultcolor(fib5.color("Default"));
+last_fib6.setdefaultcolor(fib6.color("Default"));
+last_fib7.setdefaultcolor(fib7.color("Default"));
+
+last_fib0.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib100.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib1.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib2.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib3.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib4.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib5.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib6.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+last_fib7.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+
+
+
+
+addlabel(legend, 0, fib0.color("Default"));
+addlabel(legend and use_level_1, fib_level_1, fib1.color("Default"));
+addlabel(legend and use_level_2, fib_level_2, fib2.color("Default"));
+addlabel(legend and use_level_3, fib_level_3, fib3.color("Default"));
+addlabel(legend and use_level_4, fib_level_4, fib4.color("Default"));
+addlabel(legend and use_level_5, fib_level_5, fib5.color("Default"));
+addlabel(legend and use_level_6, fib_level_6, fib6.color("Default"));
+addlabel(legend and use_level_7, fib_level_7, fib7.color("Default"));
+addlabel(legend, 100, fib100.color("Default"));
+
+
+def displayBubble = display_labels and barnumber() == highestall(barnumber());
+addchartbubble(displayBubble, last_fib0, "0", fib0.color("Default"), yes );
+addchartbubble(displayBubble, last_fib100, "100", fib100.color("Default"), yes );
+addchartbubble(displayBubble and use_level_1, last_fib1, fib_level_1, fib1.color("Default"), yes );
+addchartbubble(displayBubble and use_level_2, last_fib2, fib_level_2, fib2.color("Default"), yes );
+addchartbubble(displayBubble and use_level_3, last_fib3, fib_level_3, fib3.color("Default"), yes );
+addchartbubble(displayBubble and use_level_4, last_fib4, fib_level_4, fib4.color("Default"), yes );
+addchartbubble(displayBubble and use_level_5, last_fib5, fib_level_5, fib5.color("Default"), yes );
+addchartbubble(displayBubble and use_level_6, last_fib6, fib_level_6, fib6.color("Default"), yes );
+addchartbubble(displayBubble and use_level_7, last_fib7, fib_level_7, fib7.color("Default"), yes );
+

@@ -1,0 +1,218 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_jesse5841", overlay=true, max_labels_count = 500, max_lines_count = 500)
+
+
+
+// settings
+_start_time     = input.string('0930', title = 'Start Calculating Time', group = 'Settings', tooltip = 'EST Timezone, Formatted "hhmm"')
+_trade_time     = input.session('0945-1600', title = 'Trading Time', group = 'Settings')
+_entry_channel1 = input.float(0.60, title = 'Entry Channel 1', group = 'Settings', minval = 0.00, step = 0.25)
+_entry_channel2 = input.float(0.75, title = 'Entry Channel 2', group = 'Settings', minval = 0.00, step = 0.25)
+
+_pt_channel1    = input.float(1.34, title = 'Profit Target Channel 1', group = 'Settings', minval = 0.00, step = 0.25)
+_pt_channel2    = input.float(1.584, title = 'Profit Target Channel 2', group = 'Settings', minval = 0.00, step = 0.25)
+_pt_channel3    = input.float(1.786, title = 'Profit Target Channel 3', group = 'Settings', minval = 0.00, step = 0.25)
+
+_stop           = input.float(0.00, title = 'Stop', group = 'Settings', step = 0.25)
+
+
+// condition settings
+_vwap_dev       = input.float(0.85, "Condition 1: VWAP Deviation", group = 'Condition Settings', inline = '1')
+_use_cond2      = input.bool(false, title = 'Condition 2: Bars Back - New H/L', group = 'Condition Settings', inline = '2')
+_new_hl_back    = input.int(20, title = '', group = 'Condition Settings', inline = '2', minval = 3, maxval = 100)
+_use_cond3      = input.bool(false, title = 'Condition 3: Body Larger Than Opposing', group = 'Condition Settings', inline = '3')
+_use_doubled    = input.bool(true, title = 'Use Double Doinks', group = 'Condition Settings', inline = '4')
+
+
+// visual settings
+label_size      = input.string("Normal", title = 'Label Size', options = ['Small', 'Normal', 'Large'], group = 'Visual Settings')
+entry_color     = input.color(color.blue, title = 'Entry', group = 'Visual Settings')
+stop_color      = input.color(color.red, title = 'Stop', group = 'Visual Settings')
+tgt1_color      = input.color(color.green, title = 'Target 1', group = 'Visual Settings')
+tgt2_color      = input.color(color.fuchsia, title = 'Target 2', group = 'Visual Settings')
+tgt3_color      = input.color(color.yellow, title = 'Target 3', group = 'Visual Settings')
+
+
+// anchored vwap calculation
+current_time = str.format_time(time, "HHmm",  "America/New_York")
+begin_new_anchor = current_time == _start_time 
+[vwap, upper, lower] = ta.vwap(hlc3, begin_new_anchor, _vwap_dev)
+p_vwap = plot(vwap, title = 'VWAP', color = color.new(color.blue,70))
+p_uvwap = plot(upper, title = 'VWAP Upper', color = color.new(color.white,70))
+p_lvwap = plot(lower, title = 'VWAP Lower', color =  color.new(color.white,70))
+ok_to_trade = time(timeframe.period, _trade_time,  "America/New_York")
+fill(p_uvwap, p_lvwap, color = ok_to_trade ? color.new(color.white, 85) : na, title = 'VWAP Fill')
+
+
+
+
+// conditions calculation
+// 1. close breaks out of std band
+bullcond_1 = close[1] < upper[1] and close > upper and math.min(close,open) < vwap
+bearcond_1 = close[1] > lower[1] and close < lower and math.max(close,open)  > vwap
+// barcolor(bullcond_1 ? color.green : bearcond_1 ? color.red : na)
+
+
+// 2. Making a new high or low
+bullcond_2 = high == ta.highest(high, _new_hl_back) or not _use_cond2
+bearcond_2 = low == ta.lowest(low, _new_hl_back) or not _use_cond2
+// barcolor(bullcond_2 ? color.green : bearcond_3 ? color.red : na)
+
+
+// 3. largest body size...bull vs bear
+var float largest_bull_body = na
+var float largest_bear_body = na
+
+largest_bull_body := begin_new_anchor and close > open ? math.abs(close-open)
+ : begin_new_anchor ? 0 
+ : close > open ? math.max(largest_bull_body[1], math.abs(close-open)) 
+ : largest_bull_body[1]
+
+largest_bear_body := begin_new_anchor and close < open ? math.abs(close-open)
+ : begin_new_anchor ? 0 
+ : close < open ? math.max(largest_bear_body[1], math.abs(close-open)) 
+ : largest_bear_body[1]
+
+bullcond_3 = largest_bull_body > largest_bear_body  or not _use_cond3
+bearcond_3 = largest_bear_body > largest_bull_body or _use_cond3
+
+
+
+
+
+
+
+
+
+
+
+// create signals
+var int     last_signal     = na
+var bool    buy_signal      = na 
+var bool    sell_signal     = na 
+var float   entry_1         = na
+var float   entry_2         = na
+
+var float   tgt1            = na
+var float   tgt2            = na
+var float   tgt3            = na
+
+var float stop_price        = na
+
+var bool tgt_hit            = na
+var bool stop_hit           = na
+var bool in_trade           = na
+
+
+bull_doink = bullcond_1 and bullcond_2 and bullcond_3
+bull_d_doinK = (close[1] < upper[1] and close > upper and math.min(close[1],open[1]) < vwap[1])  and bullcond_2 and bullcond_3 and _use_doubled
+
+bear_doink = bearcond_1 and bearcond_2 and bearcond_3
+bear_d_doinK = (close[1] > lower[1] and close < lower and math.max(close[1],open[1]) > vwap[1]) and bearcond_2 and bearcond_3 and _use_doubled
+
+buy_signal  := (bull_doink or bull_d_doinK) and ok_to_trade and not (in_trade[1] and last_signal == 1)
+sell_signal := (bear_doink or bear_d_doinK) and ok_to_trade and not (in_trade[1] and last_signal == -1)
+last_signal := buy_signal ? 1 : sell_signal ? -1 : last_signal[1]
+barcolor(buy_signal ? color.green : sell_signal ? color.red : na)
+
+
+if buy_signal
+    stop_price  := math.round_to_mintick(low +  ((high-low) * _stop))
+    entry_1     := math.round_to_mintick(low +  ((high-low) * _entry_channel1))
+    entry_2     := math.round_to_mintick(low +  ((high-low) * _entry_channel2))
+    tgt1        := math.round_to_mintick(low +  ((high-low) * _pt_channel1))
+    tgt2        := math.round_to_mintick(low +  ((high-low) * _pt_channel2))
+    tgt3        := math.round_to_mintick(low +  ((high-low) * _pt_channel3))
+
+    
+else if sell_signal
+    stop_price  := math.round_to_mintick(high -  ((high-low) * _stop))
+    entry_1     := math.round_to_mintick(high -  ((high-low) * _entry_channel1))
+    entry_2     := math.round_to_mintick(high -  ((high-low) * _entry_channel2))
+    tgt1        := math.round_to_mintick(high -  ((high-low) * _pt_channel1))
+    tgt2        := math.round_to_mintick(high -  ((high-low) * _pt_channel2))
+    tgt3        := math.round_to_mintick(high -  ((high-low) * _pt_channel3))
+
+
+tgt_hit := (buy_signal or sell_signal) ? false : (in_trade[1] and last_signal == 1 and high >= tgt1) or (in_trade[1] and last_signal == -1 and low <= tgt1) ? true
+ : tgt_hit[1]
+stop_hit :=  (buy_signal or sell_signal) ? false : (in_trade[1] and last_signal == 1 and low <= stop_price) or (in_trade[1] and last_signal == -1 and high >= stop_price) ? true
+ : stop_hit[1]
+in_trade := buy_signal or sell_signal ? true : (tgt_hit[1] or stop_hit[1]) ? false : in_trade[1]
+// bgcolor(in_trade and last_signal == 1 ? color.new(color.green,80) : in_trade and last_signal == -1 ? color.new(color.red,80) : na)
+
+
+// draw levels
+var line entry_line1 = na
+var line entry_line2 = na
+var line stop_line   = na
+var line tgt1_line   = na
+var line tgt2_line   = na
+var line tgt3_line   = na
+
+var label entry_label1 = na
+var label entry_label2 = na
+var label stop_label   = na
+var label tgt1_label   = na
+var label tgt2_label   = na
+var label tgt3_label   = na
+
+label_sizer = label_size == 'Small' ? size.small : label_size == 'Normal' ? size.normal : label_size == 'Large' ? size.large : size.small
+if buy_signal or sell_signal
+    line.set_extend(entry_line1[1], extend.none)
+    line.set_extend(entry_line2[1], extend.none)
+    line.set_extend(stop_line[1], extend.none)
+    line.set_extend(tgt1_line[1], extend.none)
+    line.set_extend(tgt2_line[1], extend.none)
+    line.set_extend(tgt3_line[1], extend.none)
+
+    entry_line1 := line.new(x1=bar_index, y1=entry_1, x2=bar_index+1, y2=entry_1,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = entry_color, width =1)
+    entry_line2 := line.new(x1=bar_index, y1=entry_2, x2=bar_index+1, y2=entry_2,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = entry_color, width =1)
+    stop_line := line.new(x1=bar_index, y1=stop_price, x2=bar_index+1, y2=stop_price,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = stop_color, width =1)
+    tgt1_line := line.new(x1=bar_index, y1=tgt1, x2=bar_index+1, y2=tgt1,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = tgt1_color, width =1)
+    tgt2_line := line.new(x1=bar_index, y1=tgt2, x2=bar_index+1, y2=tgt2,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = tgt2_color, width =1)
+    tgt3_line := line.new(x1=bar_index, y1=tgt3, x2=bar_index+1, y2=tgt3,
+     xloc=xloc.bar_index, extend=extend.right, style=line.style_solid, color = tgt3_color, width =1)
+
+    entry_label1 := label.new(x=bar_index[1], y=entry_1, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = entry_color, size = label_sizer, textalign = text.align_center, text=str.tostring(entry_1), color = entry_color)
+    entry_label2 := label.new(x=bar_index[1], y=entry_2, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = entry_color, size = label_sizer, textalign = text.align_center, text=str.tostring(entry_2), color = entry_color)
+    stop_label := label.new(x=bar_index[1], y=stop_price, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = stop_color, size = label_sizer, textalign = text.align_center, text=str.tostring(stop_price), color = stop_color)
+    tgt1_label := label.new(x=bar_index[1], y=tgt1, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = tgt1_color, size = label_sizer, textalign = text.align_center, text=str.tostring(tgt1), color = tgt1_color)
+    tgt2_label := label.new(x=bar_index[1], y=tgt2, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = tgt2_color, size = label_sizer, textalign = text.align_center, text=str.tostring(tgt2), color = tgt2_color)
+    tgt3_label := label.new(x=bar_index[1], y=tgt3, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_none,
+     textcolor = tgt3_color, size = label_sizer, textalign = text.align_center, text=str.tostring(tgt3), color = tgt3_color)
+
+else if in_trade[1] and not in_trade
+    line.set_x2(entry_line1,bar_index)
+    line.set_x2(entry_line2,bar_index)
+    line.set_x2(stop_line,bar_index)
+    line.set_x2(tgt1_line,bar_index)
+    line.set_x2(tgt2_line,bar_index)
+    line.set_x2(tgt3_line,bar_index)
+    line.set_extend(entry_line1[1], extend.none)
+    line.set_extend(entry_line2[1], extend.none)
+    line.set_extend(stop_line[1], extend.none)
+    line.set_extend(tgt1_line[1], extend.none)
+    line.set_extend(tgt2_line[1], extend.none)
+    line.set_extend(tgt3_line[1], extend.none)
+
+else if in_trade
+    line.set_x2(entry_line1,bar_index)
+    line.set_x2(entry_line2,bar_index)
+    line.set_x2(stop_line,bar_index)
+    line.set_x2(tgt1_line,bar_index)
+    line.set_x2(tgt2_line,bar_index)
+    line.set_x2(tgt3_line,bar_index)

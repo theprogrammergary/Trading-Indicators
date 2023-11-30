@@ -1,0 +1,186 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_tomaszpanke990", overlay = true)
+
+
+// ma settings1
+use_ma1       = input.bool(true, title = 'Use MA Group 1', group = 'MA 1 Settings')
+ma_type_1     = input.string("EMA", title = 'MA', options = ['EMA', 'SMA', 'HMA', 'WMA'], group = 'MA 1 Settings', inline = 'MA_1')
+ma_length_1   = input.int(13, title = '', group = 'MA 1 Settings', inline = 'MA_1')
+ma_tf_1       = input.timeframe('3', title = '', group = 'MA 1 Settings', inline = 'MA_1')
+
+ma_above_pct_1= input.float(0.25, title = 'MA Above %', group = 'MA 1 Settings', inline = 'pct1', step = 0.25)
+ma_below_pct_1= input.float(-0.25, title = 'MA Below %', group = 'MA 1 Settings', inline = 'pct1', step = 0.25)
+
+
+// ma settings2
+use_ma2       = input.bool(false, title = 'Use MA Group 2', group = 'MA 2 Settings')
+ma_type_2    = input.string("EMA", title = 'MA', options = ['EMA', 'SMA', 'HMA', 'WMA'], group = 'MA 2 Settings', inline = 'MA_2')
+ma_length_2   = input.int(13, title = '', group = 'MA 2 Settings', inline = 'MA_2')
+ma_tf_2       = input.timeframe('', title = '', group = 'MA 2 Settings', inline = 'MA_2')
+
+ma_above_pct_2= input.float(0.25, title = 'MA Above %', group = 'MA 2 Settings', inline = 'pct2', step = 0.25)
+ma_below_pct_2= input.float(-0.25, title = 'MA Below %', group = 'MA 2 Settings', inline = 'pct2', step = 0.25)
+
+
+// ma settings3
+use_ma3       = input.bool(false, title = 'Use MA Group 3', group = 'MA 3 Settings')
+ma_type_3     = input.string("EMA", title = 'MA', options = ['EMA', 'SMA', 'HMA', 'WMA'], group = 'MA 3 Settings', inline = 'MA_3')
+ma_length_3   = input.int(13, title = '', group = 'MA 3 Settings', inline = 'MA_3')
+ma_tf_3       = input.timeframe('', title = '', group = 'MA 3 Settings', inline = 'MA_3')
+
+ma_above_pct_3= input.float(0.25, title = 'MA Above %', group = 'MA 3 Settings', inline = 'pct3', step = 0.25)
+ma_below_pct_3= input.float(-0.25, title = 'MA Below %', group = 'MA 3 Settings', inline = 'pct3', step = 0.25)
+
+
+
+// supertrend 1 settings
+use_st1       = input.bool(true, title = 'Use Supertrend Group 1', group = 'Supertrend 1 Settings')
+st_length1   = input.int(10, title = 'Length', group = 'Supertrend 1 Settings', inline = 'ST')
+st_fact1     = input.float(3.00, title = 'Fact', step = 0.25, group = 'Supertrend 1 Settings', inline = 'ST')
+st_tf1       = input.timeframe('3', title = '', group = 'Supertrend 1 Settings', inline = 'ST')
+
+st_above_pct1= input.float(0.25, title = 'ST Above %', group = 'Supertrend 1 Settings', inline = 'pct', step = 0.25)
+st_below_pct1= input.float(-0.25, title = 'ST Below %', group = 'Supertrend 1 Settings', inline = 'pct', step = 0.25)
+
+// supertrend 2 settings
+use_st2       = input.bool(false, title = 'Use Supertrend Group 2', group = 'Supertrend 2 Settings')
+st_length2   = input.int(10, title = 'Length', group = 'Supertrend 2 Settings', inline = 'ST')
+st_fact2     = input.float(3.00, title = 'Fact', step = 0.25, group = 'Supertrend 2 Settings', inline = 'ST')
+st_tf2       = input.timeframe('', title = '', group = 'Supertrend 2 Settings', inline = 'ST')
+
+st_above_pct2= input.float(0.25, title = 'ST Above %', group = 'Supertrend 2 Settings', inline = 'pct', step = 0.25)
+st_below_pct2= input.float(-0.25, title = 'ST Below %', group = 'Supertrend 2 Settings', inline = 'pct', step = 0.25)
+
+// supertrend 3 settings
+use_st3       = input.bool(false, title = 'Use Supertrend Group 3', group = 'Supertrend 3 Settings')
+st_length3   = input.int(10, title = 'Length', group = 'Supertrend 3 Settings', inline = 'ST')
+st_fact3     = input.float(3.00, title = 'Fact', step = 0.25, group = 'Supertrend 3 Settings', inline = 'ST')
+st_tf3       = input.timeframe('', title = '', group = 'Supertrend 3 Settings', inline = 'ST')
+
+st_above_pct3= input.float(0.25, title = 'ST Above %', group = 'Supertrend 3 Settings', inline = 'pct', step = 0.25)
+st_below_pct3= input.float(-0.25, title = 'ST Below %', group = 'Supertrend 3 Settings', inline = 'pct', step = 0.25)
+
+
+
+// calculate ma value
+f_ma(i_maSource, i_maType, i_maLength) =>
+    float ma = switch i_maType
+        "EMA" => ta.ema(i_maSource, i_maLength)
+        "SMA" => ta.sma(i_maSource, i_maLength)
+        "HMA" => ta.hma(i_maSource, i_maLength)
+        "WMA" => ta.wma(i_maSource, i_maLength)
+        => ta.ema(i_maSource, i_maLength)
+
+
+f_calculate_ma(ma_type, ma_length, ma_tf) =>
+    higherSrc   = timeframe.in_seconds() == timeframe.in_seconds(ma_tf) ? close : close[1]
+    ma_higherTF = request.security(syminfo.tickerid, ma_tf, f_ma(close, ma_type, ma_length), lookahead = barmerge.lookahead_off)
+    ma_lowerTF  = request.security_lower_tf(syminfo.tickerid, ma_tf, f_ma(close, ma_type, ma_length), ignore_invalid_timeframe = true)
+
+    useLowerTF   = timeframe.in_seconds() > timeframe.in_seconds(ma_tf)
+    ma_value     = useLowerTF ? (array.size(ma_lowerTF) > 0 ? array.last(ma_lowerTF) : na) : ma_higherTF
+
+
+ma_value1        = f_calculate_ma(ma_type_1, ma_length_1, ma_tf_1)
+ma_distance1     = (close-ma_value1)/ma_value1 * 100
+ma_aboveSignal1  = ma_distance1 > ma_above_pct_1
+ma_belowSignal1  = ma_distance1 < ma_below_pct_1
+
+ma_value2        = f_calculate_ma(ma_type_2, ma_length_2, ma_tf_2)
+ma_distance2     = (close-ma_value2)/ma_value2 * 100
+ma_aboveSignal2  = ma_distance2 > ma_above_pct_2
+ma_belowSignal2  = ma_distance2 < ma_below_pct_2
+
+ma_value3        = f_calculate_ma(ma_type_3, ma_length_3, ma_tf_3)
+ma_distance3     = (close-ma_value3)/ma_value3 * 100
+ma_aboveSignal3  = ma_distance3 > ma_above_pct_3
+ma_belowSignal3  = ma_distance3 < ma_below_pct_3
+
+
+plotshape(true ? ma_value1 : na, title = 'MA 1 Signal', style = shape.circle, location = location.absolute, display = use_ma1 ? display.all : display.none,
+  color = ma_aboveSignal1 ? color.rgb(0, 207, 7) : ma_belowSignal1 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+plot(ma_value1, color = color.new(color.yellow, 50), style = plot.style_stepline, title = 'MA 1', display = use_ma1 ? display.all : display.none)
+
+plotshape(true ? ma_value2 : na, title = 'MA 2 Signal', style = shape.circle, location = location.absolute, display = use_ma2 ? display.all : display.none,
+  color = ma_aboveSignal2 ? color.rgb(0, 207, 7) : ma_belowSignal2 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+plot(ma_value2, color = color.new(color.yellow, 50), style = plot.style_stepline, title = 'MA 2', display = use_ma2 ? display.all : display.none)
+
+plotshape(true ? ma_value3 : na, title = 'MA 3 Signal', style = shape.circle, location = location.absolute, display = use_ma3 ? display.all : display.none,
+  color = ma_aboveSignal3 ? color.rgb(0, 207, 7) : ma_belowSignal3 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+plot(ma_value3, color = color.new(color.yellow, 50), style = plot.style_stepline, title = 'MA 3', display = use_ma3 ? display.all : display.none)
+
+
+
+// calculate supertrend value
+f_calculate_st(st_fact, st_length, st_tf) =>
+    [st_higherTF, stDirection_higherTF] = request.security(syminfo.tickerid, st_tf, ta.supertrend(st_fact, st_length), lookahead = barmerge.lookahead_off)
+    [st_lowerTF, stDirection_lowerTF]  = request.security_lower_tf(syminfo.tickerid, st_tf, ta.supertrend(st_fact, st_length), ignore_invalid_timeframe = true)
+
+    useLowerTF   = timeframe.in_seconds() > timeframe.in_seconds(st_tf)
+    st_direction = useLowerTF ? (array.size(stDirection_lowerTF) > 0 ? array.last(stDirection_lowerTF) : na) : stDirection_higherTF
+    st_value     = useLowerTF ? (array.size(st_lowerTF) > 0 ? array.last(st_lowerTF) : na) : st_higherTF
+
+    [st_direction, st_value]
+
+p_stFill = plot(ohlc4, color = color.new(color.black, 100), title = 'Supertrend Fill Level')
+
+[st_direction1, st_value1] = f_calculate_st(st_fact1, st_length1, st_tf1)
+[st_direction2, st_value2] = f_calculate_st(st_fact2, st_length2, st_tf2)
+[st_direction3, st_value3] = f_calculate_st(st_fact3, st_length3, st_tf3)
+
+st_distance1     = (close-st_value1)/st_value1 * 100
+st_aboveSignal1  = st_distance1 > st_above_pct1
+st_belowSignal1  = st_distance1 < st_below_pct1
+plotshape(true ? st_value1 : na, title = 'ST 1 Signal', style = shape.square, location = location.absolute, display = use_st1 ? display.all : display.none,
+  color = st_aboveSignal1 ? color.rgb(0, 207, 7) : st_belowSignal1 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+
+p_stBull1 = plot(st_direction1 < 0 ? st_value1 : na, color = color.rgb(76, 175, 79, 79), style = plot.style_linebr, title = 'Supertrend 1 Bull', display = use_st1 ? display.all : display.none)
+p_stBear1 = plot(st_direction1 >= 0 ? st_value1 : na, color = color.rgb(255, 82, 82, 77), style = plot.style_linebr, title = 'Supertrend 1 Bear', display = use_st1 ? display.all : display.none)
+fill(p_stBull1, p_stFill, color = color.new(color.green, 85), display = use_st1 ? display.all : display.none, title = 'Supertrend 1 Fill Bull')
+fill(p_stBear1, p_stFill, color = color.new(color.red, 85), display = use_st1 ? display.all : display.none, title = 'Supertrend 1 Fill Bear')
+
+st_distance2     = (close-st_value2)/st_value2 * 100
+st_aboveSignal2  = st_distance2 > st_above_pct2
+st_belowSignal2  = st_distance2 < st_below_pct2
+plotshape(true ? st_value2 : na, title = 'ST 2 Signal', style = shape.square, location = location.absolute, display = use_st2 ? display.all : display.none,
+  color = st_aboveSignal2 ? color.rgb(0, 207, 7) : st_belowSignal2 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+
+p_stBull2 = plot(st_direction2 < 0 ? st_value2 : na, color = color.rgb(76, 175, 79, 79), style = plot.style_linebr, title = 'Supertrend 2 Bull', display = use_st2 ? display.all : display.none)
+p_stBear2 = plot(st_direction2 >= 0 ? st_value2 : na, color = color.rgb(255, 82, 82, 77), style = plot.style_linebr, title = 'Supertrend 2 Bear', display = use_st2 ? display.all : display.none)
+fill(p_stBull2, p_stFill, color = color.new(color.green, 85), display = use_st2 ? display.all : display.none, title = 'Supertrend 2 Fill Bull')
+fill(p_stBear2, p_stFill, color = color.new(color.red, 85), display = use_st2 ? display.all : display.none, title = 'Supertrend 2 Fill Bear')
+
+st_distance3     = (close-st_value3)/st_value3 * 100
+st_aboveSignal3  = st_distance3 > st_above_pct3
+st_belowSignal3  = st_distance3 < st_below_pct3
+plotshape(true ? st_value3 : na, title = 'ST 3 Signal', style = shape.square, location = location.absolute, display = use_st3 ? display.all : display.none,
+  color = st_aboveSignal3 ? color.rgb(0, 207, 7) : st_belowSignal3 ? color.rgb(255, 0, 0) : color.rgb(120, 123, 134, 100))
+
+p_stBull3 = plot(st_direction3 < 0 ? st_value3 : na, color = color.rgb(76, 175, 79, 79), style = plot.style_linebr, title = 'Supertrend 3 Bull', display = use_st3 ? display.all : display.none)
+p_stBear3 = plot(st_direction3 >= 0 ? st_value3 : na, color = color.rgb(255, 82, 82, 77), style = plot.style_linebr, title = 'Supertrend 3 Bear', display = use_st3 ? display.all : display.none)
+fill(p_stBull3, p_stFill, color = color.new(color.green, 85), display = use_st3 ? display.all : display.none, title = 'Supertrend 3 Fill Bull')
+fill(p_stBear3, p_stFill, color = color.new(color.red, 85), display = use_st3 ? display.all : display.none, title = 'Supertrend 3 Fill Bear')
+
+
+
+// alerts
+alertcondition(ma_aboveSignal1, "MA 1 Above Signal")
+alertcondition(ma_belowSignal1, "MA 1 Below Signal")
+
+alertcondition(ma_aboveSignal2, "MA 2 Above Signal")
+alertcondition(ma_belowSignal2, "MA 2 Below Signal")
+
+alertcondition(ma_aboveSignal3, "MA 3 Above Signal")
+alertcondition(ma_belowSignal3, "MA 3 Below Signal")
+
+alertcondition(st_aboveSignal1, "Supertrend 1 Above Signal")
+alertcondition(st_belowSignal1, "Supertrend 1 Below Signal")
+
+alertcondition(st_aboveSignal2, "Supertrend 2 Above Signal")
+alertcondition(st_belowSignal2, "Supertrend 2 Below Signal")
+
+alertcondition(st_aboveSignal3, "Supertrend 3 Above Signal")
+alertcondition(st_belowSignal3, "Supertrend 3 Below Signal")

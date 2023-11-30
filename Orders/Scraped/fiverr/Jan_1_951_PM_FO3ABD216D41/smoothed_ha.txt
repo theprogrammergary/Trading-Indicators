@@ -1,0 +1,76 @@
+# SMOOTHED HEIKIN ASHI FILTER
+
+
+
+
+
+#CHANGE THESE
+input ha_smoothinglength = 21;
+input ha_smoothing = {default Valcu, Vervoort};
+input ha_smoothingtype = {default TEMA, Exponential, Weighted, Hull, Variable, SIMPLE};
+
+
+
+#IGNORE BELOW
+def openMA;
+def closeMA;
+def highMA;
+def lowMA;
+switch (ha_smoothingtype) {
+case SIMPLE:
+    openMA = Average(open, ha_smoothinglength);
+    closeMA = Average(close, ha_smoothinglength);
+    highMA = Average(high, ha_smoothinglength);
+    lowMA = Average(low, ha_smoothinglength);
+case Exponential:
+    openMA = ExpAverage(open, ha_smoothinglength);
+    closeMA = ExpAverage(close, ha_smoothinglength);
+    highMA = ExpAverage(high, ha_smoothinglength);
+    lowMA = ExpAverage(low, ha_smoothinglength);
+case Weighted:
+    openMA = WMA(open, ha_smoothinglength);
+    closeMA = WMA(close, ha_smoothinglength);
+    highMA = WMA(high, ha_smoothinglength);
+    lowMA = WMA(low, ha_smoothinglength);
+case Hull:
+    openMA = HullMovingAvg(open, ha_smoothinglength);
+    closeMA =  HullMovingAvg(close, ha_smoothinglength);
+    highMA =  HullMovingAvg(high, ha_smoothinglength);
+    lowMA =  HullMovingAvg(low, ha_smoothinglength);
+case Variable:
+    openMA = VariableMA(open, ha_smoothinglength);
+    closeMA = VariableMA(close, ha_smoothinglength);
+    highMA = VariableMA(high, ha_smoothinglength);
+    lowMA = VariableMA(low, ha_smoothinglength);
+case TEMA:
+    openMA = TEMA(open, ha_smoothinglength);
+    closeMA = TEMA(close, ha_smoothinglength);
+    highMA = TEMA(high, ha_smoothinglength);
+    lowMA = TEMA(low, ha_smoothinglength);
+}
+
+def smoothed_haopen;
+def smoothed_haclose;
+switch (ha_smoothing) {
+case Valcu:
+    smoothed_haopen = ( (smoothed_haopen[1] + (openMA[1] + highMA[1] + lowMA[1] + closeMA[1]) / 4.0) / 2.0);
+    smoothed_haclose = ((openMA + highMA + lowMA + closeMA) / 4.0) ;
+case Vervoort:
+    smoothed_haopen = ( (smoothed_haopen[1] + (openMA[1] + highMA[1] + lowMA[1] + closeMA[1]) / 4.0) / 2.0);
+    smoothed_haclose = ((((openMA + highMA + lowMA + closeMA) / 4.0) + smoothed_haopen + Max(highMA, smoothed_haopen) + Min(lowMA, smoothed_haopen)) / 4.0);
+}
+def smoothed_hatrend = smoothed_haclose > smoothed_haopen;
+
+
+
+
+#CHANGE THESE
+#PICK THE SCAN YOU WANT BELOW...ONLY ONE CAN BE COLORED REST NEED TO ADD # TO GRAY THEM OUT
+
+plot BUYCHANGE_smoothedha = smoothed_hatrend and !smoothed_hatrend[1];
+#plot SELLCHANGE_smoothedha = !smoothed_hatrend and smoothed_hatrend[1];
+
+#plot BUY_smoothedha = smoothed_hatrend;
+#plot SELL_smoothedha = !smoothed_hatrend;
+
+

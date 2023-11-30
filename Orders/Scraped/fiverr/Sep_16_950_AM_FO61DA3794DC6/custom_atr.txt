@@ -1,0 +1,32 @@
+### ATR AT TIME ###
+
+input min_atr_pct = 19.00;
+input max_atr_pct = 35.00;
+input atr_length = 14;
+
+def daily_h = high(period = aggregationPeriod.DAY)[1];
+def daily_l = high(period = aggregationPeriod.DAY)[1];
+def daily_c = high(period = aggregationPeriod.DAY)[1];
+
+def daily_atr = MovingAverage(averageType.WILDERS, TrueRange(daily_h, daily_l, daily_c), atr_length);
+
+
+
+
+#IGNORE BELOW
+def new_day = getday() != getday()[1];;
+
+def opening_high =  if new_day then round(high,2) else opening_high[1];
+def opening_low =   if new_day then round(low,2) else opening_low[1];
+def opening_range = opening_high - opening_low;
+
+def opening_range_pct = round(opening_range / daily_atr,2);
+
+
+def scan = opening_range_pct * 100 >= min_atr_pct and opening_range_pct * 100 <= max_atr_pct;
+addlabel(yes, aspercent(opening_range_pct), if scan then color.cyan else color.dark_gray);
+
+
+
+
+

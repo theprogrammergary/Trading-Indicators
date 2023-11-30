@@ -1,0 +1,179 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy(title='for_scottsmith7033', overlay=true)
+
+
+//Strategy Inputs
+useTradingHours = input.bool(false, title = " ", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "Additional Trade Settings",inline = '1')
+trading_time = input.session("0930-1555", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Additional Trade Settings",inline = '1')
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Additional Trade Settings",inline = '2')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Additional Trade Settings",inline = '3')
+
+use_profit_target = input.bool(true, title = "Profit Target", tooltip = "Do we want to use a profit target?" , group = "Additional Trade Settings",inline = '4')
+pt_amount = input.float(5.00, minval = 0.00, maxval = 99.0, step = 0.25,  title = " ", group = "Additional Trade Settings", inline = '4')
+
+use_stop = input.bool(true, title = "Stop", tooltip = "Do we want to use a hard stop loss?" , group = "Additional Trade Settings",inline = '5')
+stop_amount = input.float(4.00, minval = 0.00, maxval = 99.0, step = 0.25, title = " ", group = "Additional Trade Settings", inline = '5')
+
+use_trailing_stop = input.bool(true, title = "Trailing Stop", tooltip = "Do we want to use a trailing stop loss?" , group = "Additional Trade Settings",inline = '6')
+trailing_stop_amount = input.float(2.50, minval = 0.00, maxval = 99.0, step = 0.25, title = " ", group = "Additional Trade Settings", inline = '6')
+
+//new conditions 4-4-22
+//rsi
+rsi_length = input.int(14, minval = 1, title = 'RSI Length', group = 'Indicator Settings', inline = '1')
+rsi_entry_level = input.int(50, minval = 1, title = 'RSI Entry Level', group = 'Indicator Settings', inline = '2')
+rsi = ta.rsi(close, rsi_length)
+
+rsi_buy = rsi > rsi_entry_level
+rsi_sell = rsi < rsi_entry_level
+
+//vol osc
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+shortlen = input.int(5, minval=1, title = "Vol Osc. Short Length", group = 'Indicator Settings', inline = '3')
+longlen = input.int(10, minval=1, title = "Vol Osc. Long Length", group = 'Indicator Settings', inline = '4')
+osc_entry_level = input.int(0, title = 'Vol Osc. Entry Level', group = 'Indicator Settings', inline = '5')
+short = ta.ema(volume, shortlen)
+long = ta.ema(volume, longlen)
+osc = 100 * (short - long) / long
+
+vol_osc_buy = osc > osc_entry_level
+vol_osc_sell = osc < osc_entry_level
+
+//SMA and EMA code
+smaInput1 = input(9, title='SMA1', group = 'Indicator Settings', inline = '6')
+smaInput2 = input(50, title='SMA2', group = 'Indicator Settings', inline = '7')
+smaInput3 = input(180, title='SMA3', group = 'Indicator Settings', inline = '8')
+emaInput1 = input(20, title='EMA1', group = 'Indicator Settings', inline = '9')
+sma1 = ta.sma(close, smaInput1)
+sma2 = ta.sma(close, smaInput2)
+sma3 = ta.sma(close, smaInput3)
+EMA1 = ta.ema(close, emaInput1)
+
+sma1_buy = close > sma1
+sma1_sell = close < sma1
+
+sma3_buy = close > sma3
+sma3_sell = close < sma3
+
+ema1_buy = close > EMA1
+ema1_sell = close < EMA1
+
+
+plot(sma1, color=color.new(color.red, 0), title='SMA1')
+plot(sma2, color=color.new(color.blue, 0), title='SMA2')
+plot(sma3, color=color.new(color.white, 0), title='SMA3')
+plot(EMA1, color=color.new(color.yellow, 0), title='EMA1')
+no = input(3, title='BUY/SELL Swing')
+Barcolor = input(false, title='BUY/SELL Bar Color')
+Bgcolor = input(false, title='BUY/SELL Background Color')
+res = ta.highest(high, no)
+sup = ta.lowest(low, no)
+iff_1 = close < sup[1] ? -1 : 0
+avd = close > res[1] ? 1 : iff_1
+avn = ta.valuewhen(avd != 0, avd, 0)
+tsl = avn == 1 ? sup : res
+Buy = ta.crossover(close, tsl) and trading_hours_cond
+Sell = ta.crossunder(close, tsl) and trading_hours_cond
+plotshape(Buy, title='Buy', color=color.new(color.green, 0), style=shape.arrowup, location=location.belowbar, text='Buy')
+plotshape(Sell, title='Sell', color=color.new(color.red, 0), style=shape.arrowdown, text='Sell')
+colr = close >= tsl ? color.green : close <= tsl ? color.red : na
+plot(tsl, color=colr, linewidth=3, title='BUY/SELL Chart Line')
+barcolor(Barcolor ? color.new(colr,80) : na)
+bgcolor(Bgcolor ? color.new(colr,80) : na)
+
+var new_buy_cond = false
+var new_buy = false
+new_buy_cond := rsi_buy and vol_osc_buy and sma1_buy and sma3_buy and ema1_buy
+new_buy := (new_buy_cond and not new_buy_cond[1])
+
+var new_sell_cond = false
+var new_sell = false
+new_sell_cond := rsi_sell and vol_osc_sell and sma1_sell and sma3_sell and ema1_sell
+new_sell := (new_sell_cond and not new_sell_cond[1])
+
+
+//ENTRY CONDITIONS
+long_entry = long_trades and new_buy
+long_exit = Sell
+short_entry = short_trades and new_sell
+short_exit = Buy
+
+var long_price = 0.00
+var short_price = 0.00
+
+var long_mult = 0.00
+var short_mult = 0.00
+
+var short_profitTarget = 0.00
+var long_profitTarget = 0.00
+
+var short_StopPrice = 0.00
+var long_StopPrice = 0.00
+
+var short_trailStopPrice = 0.00
+var long_trailStopPrice = 0.00
+
+var short_stop = 0.00
+var long_stop = 0.00
+
+
+long_price := (strategy.position_size > 0) and (strategy.position_size[1] <= 0) ? open : (strategy.position_size > 0) ? math.max(high,long_price[1]) : na
+short_price := (strategy.position_size < 0) and (strategy.position_size[1] >= 0) ? open : (strategy.position_size < 0) ? math.min(low,short_price[1]) : na    
+
+long_mult := long_price / 100
+short_mult := short_price / 100    
+
+long_profitTarget := use_profit_target and (strategy.position_size > 0) ? strategy.position_avg_price + ((pt_amount/100) * strategy.position_avg_price) : 99999999
+short_profitTarget := use_profit_target and (strategy.position_size < 0) ? strategy.position_avg_price - ((pt_amount/100) * strategy.position_avg_price) : 0.00000
+
+short_StopPrice := strategy.position_avg_price + ((stop_amount/100) * strategy.position_avg_price)
+long_StopPrice := strategy.position_avg_price - ((stop_amount/100) * strategy.position_avg_price)
+
+short_trailStopPrice := short_price + trailing_stop_amount * short_mult
+long_trailStopPrice := long_price - trailing_stop_amount * long_mult
+
+
+if use_stop and use_trailing_stop
+    short_stop := math.min(short_StopPrice, short_trailStopPrice)
+    long_stop := math.max(long_StopPrice, long_trailStopPrice)
+if use_stop and not use_trailing_stop
+    short_stop := short_StopPrice
+    long_stop := long_StopPrice 
+if not use_stop and use_trailing_stop
+    short_stop := short_trailStopPrice
+    long_stop := long_trailStopPrice 
+if not use_stop and not use_trailing_stop
+    short_stop := 999999.99 
+    long_stop := 0.00
+
+
+// plot(long_stop, color = color.fuchsia)
+// plot(long_trailStopPrice, color = color.fuchsia)
+// barcolor(strategy.position_size > 0 ? color.green : strategy.position_size < 0 ? color.red : color.yellow)
+
+//ORDERS
+if strategy.position_size > 0 
+    strategy.exit(id="LE", limit = long_profitTarget, stop = long_stop, comment = "LX")
+    
+if strategy.position_size < 0 
+    strategy.exit(id="SS_E", limit = short_profitTarget, stop = short_stop, comment = "SS_X")
+
+strategy.close("LE",when = long_exit, comment = "LX")
+strategy.close("SS_E",when = short_exit, comment = "SS_X")
+
+strategy.entry("LE", strategy.long,when = long_entry) 
+strategy.entry("SS_E", strategy.short, when = short_entry) 
+
+if useTradingHours and not time("",trading_time, "America/New_York")
+    strategy.close_all(comment = 'TX')
+    
+    
+// plot(strategy.position_avg_price, color = color.white)
+// plot(long_profitTarget, color = color.yellow)
+// plot(long_trailStopPrice, color = color.yellow)

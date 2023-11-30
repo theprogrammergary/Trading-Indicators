@@ -1,0 +1,33 @@
+# BUY ENTRY LINE SCAN
+
+
+input BuyEntry = 3;
+input BuyExit = 75;
+
+
+def lb1 = fold li1 = 1 to BuyExit with lt1= 0 do if lt1>=0 and (GetValue(low, li1) > GetValue(low, lt1)) then lt1 else li1;
+def lb2 = fold li2 = 1 to BuyExit with lt2= 0 do if li2 == lb1 or (lt2>=0 and GetValue(low, li2) > GetValue(low, lt2)) then lt2 else li2;
+def lb3 = fold li3 = 1 to BuyExit with lt3= 0 do if li3 == lb1 or li3 == lb2 or (lt3>=0 and GetValue(low, li3) > GetValue(low, lt3)) then lt3  else li3;
+
+def l1 = GetValue(low, lb1);
+def l2 = GetValue(low, lb2);
+def l3 = GetValue(low, lb3); 
+def LL = round(((l2 + l3) / 2.0)/ticksize(),0)*ticksize();
+
+def QB = Highest(high, BuyEntry);
+def co = BarNumber() > BuyExit;
+def exit;  def exit_fixna = if isnan(exit) then exit_fixna[1] else exit;
+
+def switchside = if co and high > qb[1] and !switchside[1] then yes else if low < exit_fixna[1] then no else switchside[1];
+def switchside_fixna = if isnan(switchside) then switchside_fixna[1] else switchside;
+exit = if switchside_fixna and !switchside_fixna[1] then LL else if switchside_fixna then max(exit_fixna[1], LL) else LL;
+
+def EntryPr = if high > QB[1] and switchside_fixna and !switchside_fixna[1] then QB[1] else if !switchside_fixna then 0 else EntryPr[1];
+def EntryLine = if LL < EntryPr then EntryPr else 0;
+def pEntryLine = if co then EntryLine else 0;
+
+plot scan = pEntryLine > 0 and close crosses pEntryLine;
+scan.assignvalueColor(if scan then color.yellow else color.black);
+assignbackgroundcolor(if scan then color.yellow else color.black);
+
+

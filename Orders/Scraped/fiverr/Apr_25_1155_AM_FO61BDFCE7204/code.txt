@@ -1,0 +1,603 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_Nakefoster_V3", overlay = true, max_boxes_count = 500)
+
+
+// main settings
+show_signals = input.bool(true, title = 'Buy/Sell Signals', group = 'Main Settings', inline = '0')
+show_reversion = input.bool(false, title = 'Reversion Channel', group = 'Main Settings', inline = '1')
+show_candles = input.bool(false, title = 'Custom Candles', group = 'Main Settings', inline = '2')
+use_sd          = input.bool(false, title = 'Supply & Demand Zones', group = 'Main Settings', inline = '3')
+show_lr     = input.bool(true, title = 'Regression Channel', group = 'Main Settings', inline = '4')
+show_net = input.bool(false, title = 'Trend Net', group = 'Main Settings', inline = '6')
+
+
+_css_bull = input.color(color.new(#71f51f, 0), title = 'Bull', group = 'Color Settings', inline = '1')
+_css_bear = input.color(color.new(#c91b13, 0), title = 'Bear', group = 'Color Settings', inline = '2')
+_css_neut1 = input.color(color.new(#e8d346, 0), title = 'Neutral 1', group = 'Color Settings', inline = '3')
+_css_neut2 = input.color(color.new(color.gray, 0), title = 'Neutral 2', group = 'Color Settings', inline = '4')
+
+
+// supply demand settings
+sd_timeframe    = ""
+swing_length    = 10
+boxes_width     = 7.5
+history_of_demand_to_keep = 50
+
+
+bull_r = color.r(_css_bull)
+bull_g = color.g(_css_bull)
+bull_b = color.b(_css_bull)
+
+bear_r = color.r(_css_bear)
+bear_g = color.g(_css_bear)
+bear_b = color.b(_css_bear)
+
+
+css_supply      = not use_sd ? color.new(#000000,100) : color.new(color.rgb(bear_r*.85, bear_g*.85, bear_b*.85), 50)
+css_textsupply  = not use_sd ? color.new(#000000,100) : color.new(_css_bear,100)
+css_supplyout   = not use_sd ? color.new(#000000,100) : color.new(_css_bear,100)
+style_supply    = line.style_solid
+
+css_demand      = not use_sd ? color.new(#000000,100) : color.new(color.rgb(bull_r*.85, bull_g*.85, bull_b*.85), 50)
+css_textdemand  = not use_sd ? color.new(#000000,100) : color.new(_css_bull,100)
+css_demandout   = not use_sd ? color.new(#000000,100) : color.new(_css_bull,100)
+style_demand    = line.style_solid 
+
+css_buy = color.new(color.rgb(bull_r*.85, bull_g*.75, bull_b*.85), 50)
+css_sell = color.new(color.rgb(bear_r*.75, bear_g*.85, bear_b*.85), 50)
+
+// FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    csh_time = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), time[sd_length], 0)
+    csl_time = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), time[sd_length], 0)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_time, csl_time]
+
+
+// FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING
+f_check_overlapping(new_poi, box_array, atr) =>
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+
+
+
+// FUNCTION TO DRAW SUPPLY OR DEMAND ZONE
+f_supply_demand(box_array, box_type, atr, box_left, level) =>
+    atr_buffer = atr * (boxes_width / 10)
+    // box_left = time[swing_length]
+    box_right = time
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+    var bool new_supply_or_demand = false
+
+    if box_type == 1
+        box_top := level
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := level
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    if okay_to_draw
+        new_supply_or_demand := true
+
+        //delete oldest box, and then create a new box and add it to the array
+        if box_type == 1 
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_supplyout, border_width = 1,
+             bgcolor = css_supply, extend = extend.right, text ="", text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = css_textsupply, text_size = size.small, xloc = xloc.bar_time, border_style = style_supply))
+        
+        else if box_type == -1
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_demandout, border_width = 1,
+             bgcolor = css_demand, extend = extend.right,  text ="", text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = css_textdemand, text_size = size.small, xloc = xloc.bar_time, border_style = style_demand))
+
+    new_supply_or_demand
+
+
+
+// FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN
+f_delete_boxes(box_array, zone_type) =>
+
+    // supply
+    if zone_type == 1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_top(array.get(box_array,i))
+            if close >= level_to_break
+                box.delete(array.get(box_array, i))
+
+    // demand
+    if zone_type == -1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_bottom(array.get(box_array,i))
+            if close <= level_to_break
+                box.delete(array.get(box_array, i))
+
+
+
+
+
+// FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT
+f_extend_box_endpoint(box_array) =>
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), time + (timeframe.in_seconds() * 1000 * 100))
+
+
+// FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT
+// ARRAYS FOR SUPPLY / DEMAND
+var current_supply_box = array.new_box(history_of_demand_to_keep, na)
+var current_demand_box = array.new_box(history_of_demand_to_keep, na)
+var bool new_demand = false
+var bool new_supply = false
+
+atr =  request.security(syminfo.ticker, sd_timeframe, ta.atr(50)[1])
+
+// supply/demand zones
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_time, csl_time] = request.security(syminfo.ticker, sd_timeframe, f_get_swing_values(swing_length))
+
+
+bar_mult = timeframe.in_seconds(sd_timeframe) / timeframe.in_seconds() 
+
+// bgcolor(not na(sh) ? color.new(color.red,50) : not na(sl) ? color.new(color.green,50) : na, offset = -swing_length * bar_mult)
+if not na(sh)
+    // draw supply zone
+    new_supply :=  f_supply_demand(current_supply_box, 1, atr, csh_time, csh)
+else if not na(sl)
+    // draw demand zone
+    new_demand :=  f_supply_demand(current_demand_box,  -1, atr, csl_time, csl)
+else
+    new_demand := false
+    new_supply := false
+
+// update boxes
+f_delete_boxes(current_supply_box, 1)
+f_delete_boxes(current_demand_box, -1)
+
+f_extend_box_endpoint(current_supply_box)
+f_extend_box_endpoint(current_demand_box)
+
+
+
+
+
+
+// linear regression
+lengthInput = 100
+sourceInput = hlc3
+devInput    = 2.35
+lr_extend   = true
+
+
+calculate_linreg(length, deviation) =>
+    a = ta.wma(sourceInput, length)
+    b = ta.sma(sourceInput, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(sourceInput[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation
+    [A, m, B, linreg_1]
+    
+drawLinReg(color_input, A, m, B, k) =>
+    lr_ext = lr_extend ? 50 : 0
+    _x1 = bar_index - lengthInput + 1
+    _x2 = bar_index + lr_ext
+    _y1 = A + k
+    _y2 = -m*lr_ext + (B + k)
+    current_value = -m*0 + (B + k)
+    line lr = line.new(x1=_x1, y1=_y1, x2=_x2, y2=_y2, extend = extend.none, color = color_input, width = 1)
+    line.delete(lr[1])
+    
+    current_value
+
+[tf1_A, tf1_m, tf1_B, tf1_linreg1] = calculate_linreg(lengthInput, devInput)
+lr_mid = show_lr ? drawLinReg(_css_neut2, tf1_A, tf1_m, tf1_B, 0) : na
+lr_upper = show_lr ? drawLinReg(_css_bear, tf1_A, tf1_m, tf1_B, tf1_linreg1) : na
+lr_lower = show_lr ? drawLinReg(_css_bull, tf1_A, tf1_m, tf1_B, -tf1_linreg1) : na
+
+in_top = high >= lr_upper
+in_bottom = low <= lr_lower
+
+
+
+// ma net
+maLength1    = 20
+maLength2    = 25
+maLength3    = 30
+maLength4    = 35
+maLength5    = 40
+maLength6    = 45
+maLength7    = 50
+
+maType1      = "EMA"
+maType2      = "EMA"
+maType3      = "EMA"
+maType4      = "EMA"
+maType5      = "EMA"
+maType6      = "EMA"
+maType7      = "EMA"
+
+
+getMA(_maType, _maLength) =>
+    if _maLength== 0
+        na
+    else
+        switch _maType 
+            "SMA" => ta.sma(close, _maLength)
+            "HMA" => ta.hma(close, _maLength)
+            "WMA" => ta.wma(close, _maLength)
+            "VWMA" => ta.vwma(close, _maLength)
+            "DEMA" =>
+                e1 = ta.ema(close, _maLength)
+                e2 = ta.ema(e1, _maLength)
+                2 * e1 - e2
+            => ta.ema(close, _maLength)
+
+ma1 = show_net ? getMA(maType1, maLength1) : na
+ma2 = show_net ? getMA(maType2, maLength2) : na
+ma3 = show_net ? getMA(maType3, maLength3) : na
+ma4 = show_net ? getMA(maType4, maLength4) : na
+ma5 = show_net ? getMA(maType5, maLength5) : na
+ma6 = show_net ? getMA(maType6, maLength6) : na
+ma7 = show_net ? getMA(maType7, maLength7) : na
+
+net_max = math.max(ma1, ma2, ma3, ma4, ma5, ma6, ma7)
+net_min = math.min(ma1, ma2, ma3, ma4, ma5, ma6, ma7)
+
+var int net_color = na
+net_color := hl2 >= net_max ? 1 : hl2 <= net_min ? -1 : net_color[1] 
+p_ma1 = plot(ma1, title = 'Net 1', color = net_color == 1 ? color.new(_css_bull, 80) : color.new(_css_bear, 80), editable = false)
+p_ma2 = plot(ma2, title = 'Net 2', color = net_color == 1 ? color.new(_css_bull, 75) : color.new(_css_bear, 75), editable = false)
+p_ma3 = plot(ma3, title = 'Net 3', color = net_color == 1 ? color.new(_css_bull, 70) : color.new(_css_bear, 70), editable = false)
+p_ma4 = plot(ma4, title = 'Net 4', color = net_color == 1 ? color.new(_css_bull, 65) : color.new(_css_bear, 65), editable = false)
+p_ma5 = plot(ma5, title = 'Net 5', color = net_color == 1 ? color.new(_css_bull, 60) : color.new(_css_bear, 60), editable = false)
+p_ma6 = plot(ma6, title = 'Net 6', color = net_color == 1 ? color.new(_css_bull, 55) : color.new(_css_bear, 55), editable = false)
+p_ma7 = plot(ma7, title = 'Net 7', color = net_color == 1 ? color.new(_css_bull, 50) : color.new(_css_bear, 50), editable = false)
+
+p_net_max = plot(net_max, title = 'Net Max', color = color.new(#000000, 100), editable = false)
+p_net_min = plot(net_min, title = 'Net Min', color = color.new(#000000, 100), editable = false)
+
+fill(p_net_max, p_net_min, color = net_color == 1 ? color.new(_css_bull, 90) : color.new(_css_bear, 90), title = 'Net Fill', editable = false)
+
+
+
+// QQE
+src=close
+Fast=3
+Slow=4.2360
+RSI=8
+SF=1
+
+WiMA(src, length) => 
+    var float MA_s = na
+    MA_s := (src + nz(MA_s[1] * (length-1)))/length
+
+RSIndex= ta.ema(ta.rsi(close,RSI), SF)
+
+//{Smoothed ATR of Smoothed RSI}
+TH= RSIndex[1] > RSIndex ? RSIndex[1] : RSIndex
+TL= RSIndex[1] < RSIndex ? RSIndex[1] : RSIndex
+TR= TH-TL
+
+AtrRsi= WiMA(TR, 14)
+SmoothedAtrRsi= WiMA(AtrRsi, 14)
+
+//{Fast and Slow ATR Trailing Levels} 
+var float longband = na
+var float shortband = na
+DeltaFastAtrRsi= SmoothedAtrRsi*Fast
+
+newshortband =  RSIndex + DeltaFastAtrRsi
+newlongband = RSIndex - DeltaFastAtrRsi
+
+longband := RSIndex[1] > longband[1] and RSIndex > longband[1]?
+ math.max(longband[1],newlongband) : newlongband
+shortband := RSIndex[1] < shortband[1] and RSIndex < shortband[1]?
+ math.min(shortband[1], newshortband):newshortband
+
+var int qqe_trend = na
+qqe_trend := ta.cross(RSIndex, shortband[1]) ? 1 : ta.cross(longband[1], RSIndex) ? -1 : nz(qqe_trend[1],1)
+FastAtrRsiTL = qqe_trend == 1 ? longband: shortband
+
+
+var float longband1 = na
+var float shortband1 = na
+DeltaSlowAtrRsi= SmoothedAtrRsi*Slow
+
+newshortband1 = RSIndex + DeltaSlowAtrRsi
+newlongband1 = RSIndex - DeltaSlowAtrRsi
+
+longband1 := RSIndex[1] > longband1[1] and RSIndex > longband1[1]?
+ math.max(longband1[1],newlongband1):newlongband1
+shortband1 := RSIndex[1] < shortband1[1] and  RSIndex < shortband1[1]?
+ math.min(shortband1[1], newshortband1):newshortband1
+
+var int qqe_trend1 = na
+qqe_trend1 := ta.cross(RSIndex, shortband1[1]) ? 1 : ta.cross(longband1[1], RSIndex) ? -1 : nz(qqe_trend1[1],1)
+SlowAtrRsiTL= qqe_trend1 == 1 ? longband1: shortband1
+
+var int last_buysellsignal = 0
+var bool buy_signal = na
+var bool sell_signal = na
+
+buy_signal := barstate.isconfirmed and (ta.crossover(FastAtrRsiTL, SlowAtrRsiTL) and (nz(last_buysellsignal[1],0) != 1))
+sell_signal := barstate.isconfirmed and (ta.crossunder(FastAtrRsiTL, SlowAtrRsiTL) and (nz(last_buysellsignal[1],0) != -1))
+
+last_buysellsignal := buy_signal ? 1 : sell_signal ? -1 : last_buysellsignal[1]
+// barcolor(last_buysellsignal == 1 ? color.lime : last_buysellsignal == -1 ? color.red : na)
+// bgcolor(buy_signal ? color.lime : sell_signal ? color.red : na)
+
+if buy_signal and show_signals
+    label.new(x=bar_index,y=low,text='BUY'
+     , xloc=xloc.bar_index, yloc=yloc.belowbar
+     , color = color.new(css_buy, 30), style = label.style_label_up
+     , size = size.small, textcolor = color.white)
+if sell_signal and show_signals
+    label.new(x=bar_index,y=high,text='SELL'
+     , xloc=xloc.bar_index, yloc=yloc.abovebar
+     , color = color.new(css_sell, 30), style = label.style_label_down
+     , size = size.small, textcolor = color.white)
+
+// barcolor(not show_candles ? na : last_signal == 1 ? _css_bull : last_signal == -1 ? _css_bear : na)
+candlecolor = last_buysellsignal == 1 ? _css_bull : last_buysellsignal == -1 ? _css_bear : na
+plotcandle(show_candles ? open : na
+ , show_candles ? high : na
+ , show_candles ? low : na
+ , show_candles ? close : na 
+ , title = 'Custom Candles'
+ , color = color.new(candlecolor,0)
+ , wickcolor = color.new(candlecolor,30)
+ , bordercolor = color.new(candlecolor,30))
+
+
+
+// mean reversion channel
+// source = input(hlc3, title='Price Source')
+// mrc_type = input.string('Default', title='Channel Type'
+//  , options=['Default', 'Gaussian', 'EMA','SMA', 'RMA']
+//  , group = 'Mean Reversion Channel', inline = '1')
+
+mrc_type = 'Default'
+length = 200
+innermult = 1.0
+show_inner_channel = true
+show_outer_channel= true
+outermult = 2.21
+
+var pi = 2 * math.asin(1)
+var mult = pi * innermult
+var mult2 = pi * outermult
+var gradsize = 0.5
+
+
+//-----------------------
+// Ehler SwissArmyKnife Function
+//-----------------------
+SAK_smoothing(_type, _src, _length) =>
+    c0 = 1.0
+    c1 = 0.0
+    b0 = 1.0
+    b1 = 0.0
+    b2 = 0.0
+    a1 = 0.0
+    a2 = 0.0
+    alpha = 0.0
+    beta = 0.0
+    gamma = 0.0
+    cycle = 2 * pi / _length
+
+    if _type == 'EMA'
+        alpha := (math.cos(cycle) + math.sin(cycle) - 1) / math.cos(cycle)
+        b0 := alpha
+        a1 := 1 - alpha
+        a1
+    if _type == 'Gaussian'
+        beta := 2.415 * (1 - math.cos(cycle))
+        alpha := -beta + math.sqrt(beta * beta + 2 * beta)
+        c0 := alpha * alpha
+        a1 := 2 * (1 - alpha)
+        a2 := -(1 - alpha) * (1 - alpha)
+        a2
+    if _type == 'SMA'
+        c1 := 1 / _length
+        b0 := 1 / _length
+        a1 := 1
+        a1
+    if _type == 'RMA'
+        alpha := 1 / _length
+        b0 := alpha
+        a1 := 1 - alpha
+        a1
+
+    _Input = _src
+    _Output = 0.0
+    _Output := c0 * (b0 * _Input + b1 * nz(_Input[1]) + b2 * nz(_Input[2])) + a1 * nz(_Output[1]) + a2 * nz(_Output[2]) - c1 * nz(_Input[_length])
+    _Output
+
+//-----------------------
+// SuperSmoother Function
+//-----------------------
+supersmoother(_src, _length) =>
+    s_a1 = math.exp(-math.sqrt(2) * pi / _length)
+    s_b1 = 2 * s_a1 * math.cos(math.sqrt(2) * pi / _length)
+    s_c3 = -math.pow(s_a1, 2)
+    s_c2 = s_b1
+    s_c1 = 1 - s_c2 - s_c3
+    ss = 0.0
+    ss := s_c1 * _src + s_c2 * nz(ss[1], _src[1]) + s_c3 * nz(ss[2], _src[2])
+    ss
+
+
+//-----------------------
+// Mean Reversion Channel Function
+//-----------------------
+get_mrc() =>
+
+    var float v_meanline = na
+    var float v_meanrange = na
+    var float v_upband1 = na
+    var float v_loband1 = na
+    var float v_upband2 = na
+    var float v_loband2 = na
+    var int  v_condition = na
+
+    if show_reversion
+        v_condition := 0
+        v_meanline := hlc3
+        v_meanrange := supersmoother(ta.tr, length)
+
+        //-- Get Line value
+        if mrc_type == 'Default'
+            v_meanline := supersmoother(hlc3, length)
+            v_meanline
+
+        if mrc_type != 'Default'
+            v_meanline := SAK_smoothing(mrc_type, hlc3, length)
+            v_meanline
+
+        v_upband1 := v_meanline + v_meanrange * mult
+        v_loband1 := v_meanline - v_meanrange * mult
+        v_upband2 := v_meanline + v_meanrange * mult2
+        v_loband2 := v_meanline - v_meanrange * mult2
+
+        //-- Check Condition
+        if close > v_meanline
+            v_upband2_1 = v_upband2 + v_meanrange * gradsize * 4
+            v_upband2_9 = v_upband2 + v_meanrange * gradsize * -4
+            if high >= v_upband2_9 and high < v_upband2
+                v_condition := 1
+                v_condition
+            else if high >= v_upband2 and high < v_upband2_1
+                v_condition := 2
+                v_condition
+            else if high >= v_upband2_1
+                v_condition := 3
+                v_condition
+            else if close <= v_meanline + v_meanrange
+                v_condition := 4
+                v_condition
+            else
+                v_condition := 5
+                v_condition
+
+        if close < v_meanline
+            v_loband2_1 = v_loband2 - v_meanrange * gradsize * 4
+            v_loband2_9 = v_loband2 - v_meanrange * gradsize * -4
+            if low <= v_loband2_9 and low > v_loband2
+                v_condition := -1
+                v_condition
+            else if low <= v_loband2 and low > v_loband2_1
+                v_condition := -2
+                v_condition
+            else if low <= v_loband2_1
+                v_condition := -3
+                v_condition
+            else if close >= v_meanline + v_meanrange
+                v_condition := -4
+                v_condition
+            else
+                v_condition := -5
+                v_condition
+    else
+        v_meanline := na
+        v_meanrange := na
+        v_upband1 := na
+        v_loband1 := na
+        v_upband2 := na
+        v_loband2 := na
+        v_condition := na
+
+    [v_meanline, v_meanrange, v_upband1, v_loband1, v_upband2, v_loband2, v_condition]
+
+[meanline, meanrange, upband1, loband1, upband2, loband2, condition] = get_mrc()
+
+// z = plot(meanline, color=color.new(#FFCD00, 0), style=plot.style_line, title=' Mean', linewidth=2)
+// x1 = plot(upband1, color=color.new(color.green, 50), style=plot.style_circles, title=' R1', linewidth=1)
+// x2 = plot(loband1, color=color.new(color.green, 50), style=plot.style_circles, title=' S1', linewidth=1)
+y1 = plot(upband2, color=color.new(color.gray,95), style=plot.style_line, title=' R2', linewidth=1, editable = false, display = show_inner_channel ? display.all : display.none)
+y2 = plot(loband2, color=color.new(color.gray,95), style=plot.style_line, title=' S2', linewidth=1, editable = false, display = show_inner_channel ? display.all : display.none)
+
+
+
+p_upperband1 = plot(upband2 + meanrange * gradsize * 6, color=color.new(_css_bear,85), display = show_outer_channel ? display.all : display.none, editable = false)
+p_upperband2 = plot(upband2 + meanrange * gradsize * 8, color=color.new(_css_bear,85), display = show_outer_channel ? display.all : display.none, editable = false)
+p_upperband3 = plot(upband2 + meanrange * gradsize * 10, color=color.new(_css_bear,85), display = show_outer_channel ? display.all : display.none, editable = false)
+
+p_lowerband1 = plot(loband2 - meanrange * gradsize * 6, color=color.new(_css_bull,85), display = show_outer_channel ? display.all : display.none, editable = false)
+p_lowerband2 = plot(loband2 - meanrange * gradsize * 8, color=color.new(_css_bull,85), display = show_outer_channel ? display.all : display.none, editable = false)
+p_lowerband3 = plot(loband2 - meanrange * gradsize * 10, color=color.new(_css_bull,85), display = show_outer_channel ? display.all : display.none, editable = false)
+
+
+fill(y1, p_upperband1, color = color.new(_css_bear,85), editable = false, display = show_inner_channel ? display.all : display.none)
+fill(y2, p_lowerband1, color = color.new(_css_bull,85), editable = false, display = show_inner_channel ? display.all : display.none)
+
+fill(p_upperband1, p_upperband2, color = color.new(_css_bear,60), editable = false, display = show_outer_channel ? display.all : display.none)
+fill(p_lowerband1, p_lowerband2, color = color.new(_css_bull,60), editable = false, display = show_outer_channel ? display.all : display.none)
+fill(p_upperband2, p_upperband3, color = color.new(_css_bear,40), editable = false, display = show_outer_channel ? display.all : display.none)
+fill(p_lowerband2, p_lowerband3, color = color.new(_css_bull,40), editable = false, display = show_outer_channel ? display.all : display.none)
+
+
+
+
+
+// alerts
+alertcondition(buy_signal,    "Buy Signal", "Buy Signal")
+alertcondition(sell_signal, "Sell Signal", "Sell Signalt")
+
+

@@ -1,0 +1,120 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_pierreicon", overlay = true)
+
+
+// MACD's
+[macdLine1, signalLine1, histLine1] = ta.macd(close, 13, 144, 9)
+[macdLine2, signalLine2, histLine2] = ta.macd(close, 13, 21, 9)
+
+macd1_side = histLine1 > 0 ? 1 : -1
+macd2_side = histLine2 > 0 ? 1 : -1
+
+// STOCH
+stoch_k = ta.sma(ta.stoch(close, high, low, 7), 3)
+stoch_d = ta.sma(stoch_k, 3)
+
+stoch_buy_crossover = stoch_k < 20 and ta.crossover(stoch_k,stoch_d)
+stoch_sell_crossunder = stoch_k > 80 and ta.crossunder(stoch_k,stoch_d)
+
+
+// CREATE BUY SELL SIGNALS
+var last_signal = 0 
+long_entry = stoch_buy_crossover and macd1_side == 1 and macd2_side == -1 
+short_entry = stoch_sell_crossunder and macd1_side == -1 and macd2_side == 1 
+
+last_signal := long_entry ? 1 : short_entry ? -1 : last_signal[1]
+
+buy_color = input.color(#007d05, title='Buy', inline='1', group='Color Settings')
+sell_color = input.color(#c30616, title='Sell', inline='1', group='Color Settings')
+plotshape(long_entry, style=shape.labelup, editable=false, text= "BUY", textcolor=color.white, location= location.belowbar, color=color.new(buy_color, 30), size=size.tiny)
+plotshape(short_entry, style=shape.labeldown, editable=false, text='SELL', textcolor=color.white, location=location.abovebar, color=color.new(sell_color, 30), size=size.tiny)
+
+
+
+
+
+
+// TABLE
+
+// trend
+ema_length = 20
+o = ta.ema(open, ema_length)
+c = ta.ema(close, ema_length)
+h = ta.ema(high, ema_length)
+l = ta.ema(low, ema_length)
+ha_t = ticker.heikinashi(syminfo.tickerid)
+[ha_o, ha_h, ha_l, ha_c] = request.security(ha_t, timeframe.period, [ta.ema(open, ema_length), ta.ema(high, ema_length), ta.ema(low, ema_length), ta.ema(close, ema_length)])
+
+ha_o_smooth = ta.ema(ha_o, ema_length)
+ha_c_smooth = ta.ema(ha_c, ema_length)
+ha_h_smooth = ta.ema(ha_h, ema_length)
+ha_l_smooth = ta.ema(ha_l, ema_length)
+dif_oc = ha_c_smooth - ha_o_smooth
+dif_hl = ha_h_smooth - ha_l_smooth
+variable_oc_percent = dif_oc * 100 / dif_hl
+
+// trend strength %
+strength_pct = variable_oc_percent * 2 >= 100 ? 100 : variable_oc_percent * 2 <= -100 ? -100 : variable_oc_percent * 2
+
+// momentum
+[macdLine3, signalLine3, histLine3] = ta.macd(close, 20, 50, 10)
+
+// volatility
+rvi = ta.rsi(ta.stdev(close, 30),14) / 100
+
+// volume
+volume_bars = 20
+float volume_up = 0
+float volume_down = 0
+if barstate.islast
+    for i = 0 to volume_bars-1
+        if (close[i]>open[i])
+            volume_up:=volume_up+volume[i]
+        else
+            volume_down:=volume_down+volume[i]
+
+total_up_down_vol=volume_up-volume_down
+// plot(one_side ? math.abs(total_up_down_vol) : total_up_down_vol  ,color=total_up_down_vol>0 ? color.green : color.red, style=plot.style_columns)
+
+
+
+// ema
+
+// shares float
+var float f = na
+var int f_length = na
+var string f_tablestring = na
+f := math.round(request.financial(syminfo.tickerid, "FLOAT_SHARES_OUTSTANDING", "FY",ignore_invalid_symbol=true),0)
+if barstate.islast
+    f_length := str.length(str.tostring(f))
+    f_tablestring := f_length >= 10 ? str.tostring(math.round(f*0.000000001,2)) + ' B' : f_length >= 7 ? str.tostring(math.round(f*0.000001,2)) + ' M' : str.tostring(math.round(f,2)) + ' K'
+
+
+
+
+
+show_table = input.bool(true, title = 'Show Table', group = 'Table Settings', inline = '1')
+
+
+if barstate.islast and show_table
+
+    var table t = table.new(position.middle_right , 3, 10, frame_color=color.new(#434651, 0), frame_width=3, border_color=color.new(#434651,0), border_width=3)
+
+    // column 1
+    table.cell(t, 0, 0, text = '📈 Trend', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+    table.cell(t, 0, 1, text = '💪 Trend Strength', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+    table.cell(t, 0, 2, text = '⌚ Momentum', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+    table.cell(t, 0, 3, text = '⚡ Volatility', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+    table.cell(t, 0, 4, text = '📊 Volume', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+    table.cell(t, 0, 5, text = '📝 Shares Float', width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_left)
+
+    // column 2
+    table.cell(t, 1, 0, text = variable_oc_percent > 0 ? 'Long' : 'Short', width=0, bgcolor=variable_oc_percent > 0 ? buy_color : sell_color, text_color=color.white, text_size=size.normal, text_halign=text.align_center)
+    table.cell(t, 1, 1, text = str.tostring(math.abs(strength_pct),format.percent), width=0, bgcolor=variable_oc_percent > 0 and math.abs(strength_pct) > 55 ? buy_color : variable_oc_percent < 0 and math.abs(strength_pct) > 55 ? sell_color : color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_center)
+    table.cell(t, 1, 2, text = histLine3 > 0 ? 'Bullish' : 'Bearish', width=0, bgcolor= histLine3 > 0 ? buy_color : sell_color, text_color= color.white, text_size=size.normal, text_halign=text.align_center)
+    table.cell(t, 1, 3, text = rvi > rvi[3] ? 'Increasing' : 'Decreasing', width=0, bgcolor=histLine3 > 0 ? buy_color : sell_color, text_color=color.white, text_size=size.normal, text_halign=text.align_center)
+    table.cell(t, 1, 4, text = total_up_down_vol > 0 ? 'Bullish' : 'Bearish', width=0, bgcolor=total_up_down_vol > 0 ? buy_color : sell_color, text_color=color.white, text_size=size.normal, text_halign=text.align_center)
+    table.cell(t, 1, 5, text = f_tablestring, width=0, bgcolor=color.gray, text_color=color.white, text_size=size.normal, text_halign=text.align_center)

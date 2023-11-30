@@ -1,0 +1,186 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_mattmoheeka_candles", overlay = true, max_labels_count = 500)
+
+update_live = input.bool(true, title = 'Update Live', group = 'Settings')
+bull_bear_mode = input.bool(true, title = 'Bull/Bear Mode', group = 'Settings')
+
+
+// candle color settings
+default_bullbody        = input.color(color.new(#ffffff,0), title = 'Bull Body', group = 'Default Candles')
+default_bulloutline     = input.color(color.new(#3b3b3b, 0), title = 'Bull Outline', group = 'Default Candles')
+default_bullwick        = input.color(color.new(#3b3b3b,0), title = 'Bull Wick', group = 'Default Candles')
+
+default_bearbody        = input.color(color.new(#000000, 0), title = 'Bear Body', group = 'Default Candles')
+default_bearoutline     = input.color(color.new(#000000, 0), title = 'Bear Outline', group = 'Default Candles')
+default_bearwick        = input.color(color.new(#000000,0), title = 'Bear Wick', group = 'Default Candles')
+
+
+// first candle of day settings
+_color_firsts         = input.bool(true, title = 'Color First Candles', group = 'First Candles')
+first_time            = input.session("0930-0931", title = 'First Candle Time (EST.)', group = 'First Candles')
+first_bullbody        = input.color(color.new(#20ff36, 0), title = 'Bull Body', group = 'First Candles')
+first_bulloutline     = input.color(color.new(#2f7736, 0), title = 'Bull Outline', group = 'First Candles')
+first_bullwick        = input.color(color.new(#2f7736,0), title = 'Bull first', group = 'First Candles')
+
+first_bearbody        = input.color(color.new(#ff2989, 0), title = 'Bear Body', group = 'First Candles')
+first_bearoutline     = input.color(color.new(#a42525, 0), title = 'Bear Outline', group = 'First Candles')
+first_bearwick        = input.color(color.new(#a42525,0), title = 'Bear first', group = 'First Candles')
+
+
+// wick settings
+_wickratio_size = input.float(2.0, title = 'Wick Compared Against Body Ratio', group = 'Wick Candles')
+_wicktowickratio_size = input.float(1.5, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Wick Candles', minval = 1.0)
+wick_bullbody        = input.color(color.new(#55d562, 0), title = 'Bull Body', group = 'Wick Candles')
+wick_bulloutline     = input.color(color.new(#2f7736, 0), title = 'Bull Outline', group = 'Wick Candles')
+wick_bullwick        = input.color(color.new(#2f7736,0), title = 'Bull Wick', group = 'Wick Candles')
+
+wick_bearbody        = input.color(color.new(#ff1010, 0), title = 'Bear Body', group = 'Wick Candles')
+wick_bearoutline     = input.color(color.new(#a42525, 0), title = 'Bear Outline', group = 'Wick Candles')
+wick_bearwick        = input.color(color.new(#a42525,0), title = 'Bear Wick', group = 'Wick Candles')
+
+
+// doji settings
+_color_dojis = input.bool(true, title = 'Color Doji Candles', group = 'Doji Candles')
+_dojiratio_size = input.float(2.0, title = 'Wick Compared Against Body Ratio', group = 'Doji Candles')
+_dojitodojiratio_size = input.float(1.5, title = 'Wick Compared Against Opposite Wick Ratio', group = 'Doji Candles')
+doji_body        = input.color(color.new(#fffb27, 0), title = 'Doji Body', group = 'Doji Candles')
+doji_outline     = input.color(color.new(#8f8127, 0), title = 'Doji Outline', group = 'Doji Candles')
+doji_wick        = input.color(color.new(#8f8127,0), title = 'Doji Wick', group = 'Doji Candles')
+
+
+
+// # filtering
+// # hammer filtering
+filter_hammers = input.bool(true, title = 'Filter Hammers', group = 'Filter Settings', inline = '1')
+hammer_lower_wick_pct = input.float(40.00, title = '  | Lower Wick %', group = 'Filter Settings', inline = '1')
+
+upper_wick = close > open ? (high - close) : (high - open)
+lower_wick = close > open ? math.abs(low - open) : math.abs(low - close)
+candle_size = high - low
+
+upper_wick_percentage = upper_wick / candle_size * 100
+lower_wick_percentage = lower_wick / candle_size * 100
+
+hammer_cond = (filter_hammers and lower_wick_percentage >= hammer_lower_wick_pct) 
+
+
+// # shooting star filtering
+filter_shootingstars = input.bool(true, title = 'Filter Shooting Stars', group = 'Filter Settings', inline = '2')
+star_upper_wick_pct = input.float(40.00, title = '  | Upper Wick %', group = 'Filter Settings', inline = '2')
+
+shootingstar_cond = (upper_wick_percentage >= star_upper_wick_pct) 
+
+
+// higher/lower than x previous bars
+bull_lower = input.bool(true, title = 'Bull Lower than x', group = 'Filter Settings', inline = '3')
+lower_x = input.int(5, title = '', group = 'Filter Settings', inline = '3')
+bear_higher = input.bool(true, title = 'Bear Higher than x', group = 'Filter Settings', inline = '4')
+higher_x = input.int(5, title = '', group = 'Filter Settings', inline = '4')
+
+bull_lower_cond = (bull_lower and low == ta.lowest(low,lower_x+1)) or not bull_lower
+bear_higher_cond = (bear_higher and high == ta.highest(high,higher_x+1)) or not bear_higher
+
+
+// first candle calculations
+var bool is_first_candle = na
+var bool first_candle_bull = na 
+var bool first_candle_bear = na 
+is_first_candle := time('', first_time, 'America/New_York') and _color_firsts
+first_candle_bull := is_first_candle and close >= open
+first_candle_bear := is_first_candle and close < open
+// bgcolor(is_first_candle ? color.yellow : na)
+
+
+// wick calculations
+var float body_size = na
+var float topwick_size = na
+var float bottomwick_size = na
+var float wick_size = na
+var float body_wick_ratio = na
+
+var bool top_wicked = na
+var bool bottom_wicked = na
+
+body_size := math.abs(close-open)
+topwick_size := high - math.max(close,open)
+bottomwick_size := math.min(close,open) - low
+wick_size := topwick_size + bottomwick_size
+body_wick_ratio := wick_size / body_size
+// label.new(bar_index,high,text=str.tostring(lower_wick_percentage), yloc=yloc.abovebar, style=label.style_label_down)
+// label.new(bar_index,high,text=str.tostring(bottomwick_size), yloc=yloc.belowbar, style=label.style_label_up)
+
+update_live_cond = (update_live or (not update_live and barstate.isconfirmed))
+
+top_wicked := update_live_cond and (topwick_size/body_size) >= _wickratio_size and (topwick_size/bottomwick_size >= _wicktowickratio_size)
+ and (not bull_bear_mode or (bull_bear_mode and close < open))
+ and not (shootingstar_cond and filter_shootingstars)
+ and bear_higher_cond
+
+bottom_wicked := update_live_cond and (bottomwick_size/body_size) >= _wickratio_size and (bottomwick_size/topwick_size >= _wicktowickratio_size)
+ and (not bull_bear_mode or (bull_bear_mode and close > open))
+ and not (hammer_cond and filter_hammers)
+ and bull_lower_cond
+
+
+// doji calculations
+var bool is_doji = na
+is_doji := update_live_cond and _color_dojis and math.min(topwick_size/body_size, bottomwick_size/body_size) >= _wickratio_size 
+ and (math.max(topwick_size/bottomwick_size, bottomwick_size/topwick_size) <= _dojitodojiratio_size)
+// bgcolor(is_doji ? color.yellow : na)
+
+
+// color calculations
+var color css_body = na
+var color css_wick = na
+var color css_outline = na
+var bool  bullish_candle = na
+var bool  bearish_candle = na
+
+bullish_candle := close > open
+bearish_candle := close < open
+
+css_body := first_candle_bull ? first_bullbody : 
+ first_candle_bear ? first_bearbody :
+ is_doji ? doji_body : 
+ top_wicked ? wick_bearbody : 
+ bottom_wicked ? wick_bullbody : 
+ bullish_candle ? default_bullbody : 
+ bearish_candle ? default_bearbody : 
+ default_bullbody
+
+css_wick := first_candle_bull ? first_bullwick : 
+ first_candle_bear ? first_bearwick :
+ is_doji ? doji_wick : 
+ top_wicked ? wick_bearwick : 
+ bottom_wicked ? wick_bullwick : 
+ bullish_candle ? default_bullwick : 
+ bearish_candle ? default_bearwick : 
+ default_bullwick
+
+css_outline := first_candle_bull ? first_bulloutline : 
+ first_candle_bear ? first_bearoutline :
+ is_doji ? doji_outline : 
+ top_wicked ? wick_bearoutline : 
+ bottom_wicked ? wick_bulloutline : 
+ bullish_candle ? default_bulloutline : 
+ bearish_candle ? default_bearoutline : 
+ default_bulloutline
+
+plotcandle(open,high,low,close,title='Custom Candles', color = css_body, wickcolor = css_wick, bordercolor = css_outline)
+
+
+// alerts
+alertcondition(is_doji, 'Doji Candle', 'Doji Candle')
+alertcondition(bottom_wicked, 'Bottom Wicked', 'Bottom Wicked')
+alertcondition(top_wicked, 'Top Wicked', 'Top Candlwicked')
+
+
+
+// debugging
+// label.new(bar_index, high, text = str.tostring(topwick_size/bottomwick_size), style = label.style_label_center, yloc=yloc.abovebar)
+// label.new(bar_index, low, text = str.tostring(bottomwick_size/topwick_size), style = label.style_label_center, yloc=yloc.belowbar)
+// label.new(bar_index, high, text = str.tostring(topwick_size/body_size), style = label.style_label_center, yloc=yloc.abovebar)
+// label.new(bar_index, low, text = str.tostring(bottomwick_size/body_size), style = label.style_label_center, yloc=yloc.belowbar)

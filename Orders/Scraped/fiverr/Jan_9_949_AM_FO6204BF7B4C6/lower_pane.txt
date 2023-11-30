@@ -1,0 +1,53 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Lower Labels", overlay = false)
+
+// sd length input
+sd_length = input.int(5, title = 'Length', group = 'Settings', inline = '1', minval = 3, maxval = 50)
+main_smybol = input.symbol('USDX', title = 'Calculating Symbol', group = 'Settings', inline = '2')
+color_candles = input.bool(true, title = 'Color Candles', group = 'Settings', inline = '3')
+dashboard_bull =  input.color(color.new(color.green,0), title='Bull', inline='4', group='Settings')
+dashboard_bear =  input.color(color.new(color.red,0), title='Bear', inline='4', group='Settings')
+dashboard_neutral =  input.color(color.new(color.yellow,0), title='Neutral', inline='4', group='Settings')
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+    // trend := (lh and high > psh) ? 0 : (hl and low < psl) ? 0 : ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    root = syminfo.root
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, root, last_signal]
+[sh_main, sl_main, psh_main, psl_main, csh_main, csl_main, hh_main, lh_main, ll_main, hl_main, trend_main, root_main, last_signal_main] = request.security(main_smybol, '', f_get_swing_values(sd_length), lookahead = barmerge.lookahead_on)
+
+[o,h,l,c] = request.security(main_smybol, '', [open, high, low, close], lookahead = barmerge.lookahead_on)
+
+candle_color = color_candles and trend_main == 1 ? dashboard_bull : color_candles and trend_main == -1 ? dashboard_bear : color_candles ? dashboard_neutral : c > o ? dashboard_bull : dashboard_bear
+
+plotcandle(o, h, l, c, title = 'Calcuting Symbol Candles', color = candle_color, wickcolor = candle_color, bordercolor = candle_color)
+
+plotshape(hl_main and sl_main ? l[sd_length] : na, text="HL", title="Higher Low", style=shape.labelup, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.absolute, offset = -sd_length)
+plotshape(ll_main and sl_main ? l[sd_length]  : na, text="LL", title="Lower Low", style=shape.labelup, color=dashboard_bear, textcolor=color.white, location=location.absolute, offset = -sd_length)
+plotshape(hh_main and sh_main ? h[sd_length]  : na, text="HH", title="Higher High", style=shape.labeldown, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.absolute, offset = -sd_length)
+plotshape(lh_main and sh_main ? h[sd_length]  : na, text="LH", title="Lower High", style=shape.labeldown, color=dashboard_bear, textcolor=color.white, location=location.absolute, offset = -sd_length)

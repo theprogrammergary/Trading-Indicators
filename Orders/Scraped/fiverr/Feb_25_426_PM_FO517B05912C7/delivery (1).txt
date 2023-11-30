@@ -1,0 +1,12 @@
+Same instructions as before to import and same disclaimer.
+
+This time you have additional settings to change. 
+
+1. AH_Data_On_Chart.
+Have this set to True when you have after hours applied to the chart. Have this set to False when you do not have after hours applied to the chart.
+
+2. StartTime
+This is based off the market open. However you may need to adjust it based on your timezone being different from the market open. If the default setting is not correct see how many hours it is off and adjust the setting.
+
+3. EndTime
+Same as starttime.

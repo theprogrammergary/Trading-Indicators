@@ -1,0 +1,1 @@
+1. So lines dont extend all the way to the right of the chart?2. The maximum amount of lines available in 1 script is 500. So nothing I can do there unless we split up into two scripts.

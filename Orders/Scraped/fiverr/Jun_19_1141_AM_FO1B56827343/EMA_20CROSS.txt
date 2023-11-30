@@ -1,0 +1,75 @@
+//@version=5
+indicator(title="EMA Crossover 8/15", overlay=true)
+
+// inputs
+matype = input.string("ema", options = ['ema', 'sma', 'rma', 'wma', 'vwma', 'swma', 'alma'],
+ title = 'MA Type', inline = '1')
+hidema = input.bool(false, title = 'Hide', inline = '1')
+source = input.source(close)
+
+fast = input.int(8)
+slow = input.int(15)
+
+
+use_session = input.bool(true, title = '', inline = '2')
+session_time = input.session("0930-1600", "Session Filter", inline = '2')
+
+// calc signal
+float ma1 = switch matype
+    "ema" => ta.ema(source, fast)
+    "sma" => ta.sma(source, fast)
+    "rma" => ta.rma(source, fast)
+    "wma" => ta.wma(source, fast)
+    "vwma" => ta.vwma(source, fast)
+    "swma" => ta.sma(ta.swma(source), fast) 
+    "alma" => ta.alma(source, fast, 0.85, 0)
+    => ta.sma(source, fast)
+
+float ma2 = switch matype
+    "ema" => ta.ema(source, slow)
+    "sma" => ta.sma(source, slow)
+    "rma" => ta.rma(source, slow)
+    "wma" => ta.wma(source, slow)
+    "vwma" => ta.vwma(source, slow)
+    "swma" => ta.sma(ta.swma(source), slow) 
+    "alma" => ta.alma(source, slow, 0.85, 0)
+    => ta.sma(source, slow)
+
+is_session = time(timeframe.period, session_time) or not use_session
+
+
+// signal logic
+signal = ta.cross(ma1, ma2) and is_session ? ma2 : na
+buy_signal = ta.crossover(ma1, ma2) and is_session and barstate.isconfirmed
+sell_signal = ta.crossunder(ma1, ma2) and is_session and barstate.isconfirmed
+
+
+// visual
+signalcolor = source > ma2 ? color.blue : color.red
+plot(hidema ? na : ma1, color=color.gray, linewidth=1)
+plot(hidema ? na : ma2, color=color.black, linewidth=1)
+plot(signal, style=plot.style_columns, color=signalcolor, linewidth=5)
+
+
+
+// alerts
+alertcondition(buy_signal, title='CALL', message='CALL')
+alertcondition(sell_signal, title='PUT', message='PUT')
+
+
+// labels
+show_entry_bubble = input.bool(true, title = 'Show Labels')
+if show_entry_bubble
+    if buy_signal
+        long_label = label.new(x = bar_index[1] ,y = low, text = 'CALL ' + str.tostring(close), color = color.green, style = label.style_label_up, yloc =  yloc.belowbar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+  
+        
+    if sell_signal
+        short_label = label.new(bar_index[1], y = high , text = 'PUT ' + str.tostring(close), color = color.red, style = label.style_label_down , yloc =  yloc.abovebar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+  
+
+
+
+
+
+

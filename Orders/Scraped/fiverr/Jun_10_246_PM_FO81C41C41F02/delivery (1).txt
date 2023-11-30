@@ -1,0 +1,1 @@
+Overlay is set to true. You must of done something wrong.Attached is the update to vwap defaults.

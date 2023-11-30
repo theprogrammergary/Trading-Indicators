@@ -1,0 +1,732 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("DX SPX VLT", overlay = true, max_labels_count = 500)
+
+
+// 
+// TREND BACKGROUND by DTT
+// 
+UseMATrendFilter = input.bool(true, 'Use MA Trend Filter')
+MAType = input.string("SMA","MA Type", options = ["SMA", "EMA", "VWMA", "RMA" , "Hull"])
+MASource = input.source(close,"MA Source")
+MATrendPeriod = input.int(200, 'MA Trend Filter Period', minval=1)
+UseMASlopeTrendFilter = input(true, 'Use SMA Slope Trend Filter')
+SMATrendLevel = input.int(5, 'Trend Level %', minval=0, maxval=100, step=5)
+
+UseAroonTrendFilter = input.bool(false, 'Use Aroon Trend Filter')
+AroonTFLen = input.int(50, 'Aroon Trend Filter Period', minval=1)
+AroonTFLevel = input.float(50.0, 'Aroon Trend Level', minval=1, maxval=100, step=5)
+
+
+// SMA Trend Function
+MATrend(MAType, Source, MALength, UseSlope, Percentile) =>
+    MAValue = MAType == "SMA" ? ta.sma(Source, MALength) : MAType == "EMA" ? ta.ema(Source, MALength) : MAType == "VWMA" ? ta.vwma(Source, MALength) : MAType == "RMA" ? ta.rma(Source, MALength) : MAType == "Hull" ? ta.wma(2*ta.wma(Source, MALength/2)-ta.wma(Source, MALength), math.floor(math.sqrt(MALength))) :na
+    
+    MASlope = ta.change(MAValue)
+    MAPercentRankOK = ta.percentrank(math.abs(MASlope), 200) > Percentile
+
+    MA_Uptrend = UseSlope ? MAPercentRankOK and MASlope > 0 : close > MAValue
+    MA_Downtrend = UseSlope ? MAPercentRankOK and MASlope < 0 : close < MAValue
+
+    if MA_Uptrend and MA_Downtrend
+        MA_Uptrend := false
+        MA_Downtrend := false
+        MA_Downtrend
+    [MA_Uptrend, MA_Downtrend,MAValue]
+
+[MAUptrend, MADowntrend,MAValue] = MATrend(MAType,MASource,MATrendPeriod, UseMASlopeTrendFilter, SMATrendLevel)
+
+// Aroon Trend Function
+AroonTrend(AroonLength, AroonTrendLevel) =>
+    upper = 100 * (ta.highestbars(high, AroonLength + 1) + AroonLength) / AroonLength
+    lower = 100 * (ta.lowestbars(low, AroonLength + 1) + AroonLength) / AroonLength
+
+    Aroon_Uptrend = upper >= AroonTrendLevel
+    Aroon_Downtrend = lower >= AroonTrendLevel
+
+    if Aroon_Uptrend and Aroon_Downtrend
+        Aroon_Uptrend := false
+        Aroon_Downtrend := false
+        Aroon_Downtrend
+    [Aroon_Uptrend, Aroon_Downtrend]
+
+[AroonUptrend, AroonDowntrend] = AroonTrend(AroonTFLen, AroonTFLevel)
+// Define Trend
+Uptrend = UseMATrendFilter and UseAroonTrendFilter ? AroonUptrend and MAUptrend : (AroonUptrend or not UseAroonTrendFilter) and (MAUptrend or not UseMATrendFilter)
+Downtrend = UseMATrendFilter and UseAroonTrendFilter ? AroonDowntrend and MADowntrend : (AroonDowntrend or not UseAroonTrendFilter) and (MADowntrend or not UseMATrendFilter)
+bgcolor(Uptrend ? color.new(color.green, 80) : na, title='Up Trend')
+bgcolor(Downtrend ? color.new(color.red, 80) : na, title='Down Trend')
+plot(UseMATrendFilter?MAValue:na)
+
+// 
+// TREND BACKGROUND by DTT
+// 
+
+number_of_days = input.int(20, title = 'Number of Days', minval = 5, maxval = 100)
+currentBoxLabel = input.bool(true, title = 'Current Box Label')
+timeLineOn = input.bool(true, title = 'Timeline')
+
+hourly_high = request.security(syminfo.tickerid, "60", high[1], lookahead = barmerge.lookahead_on)
+hourly_low = request.security(syminfo.tickerid, "60", low[1], lookahead = barmerge.lookahead_on)
+// plot(hourly_high, color = color.yellow, linewidth = 5, style = plot.style_stepline)
+// plot(hourly_low, color = color.yellow, linewidth  = 5, style = plot.style_stepline)
+
+// ##ADJUSTMENTS
+L1_adjustment = .77  //#cyan lines
+L2_adjustment = .88  //#inner band
+L3_adjustment = 1.00 //#outer band or nothing
+L4_adjustment = .69  //#targets
+
+
+is_hour0 = hour == 23
+is_hour1 = hour == 0
+is_hour2 = hour == 1
+is_hour3 = hour == 2
+is_hour4 = hour == 3
+is_hour5 = hour == 4
+is_hour6 = hour == 5
+is_hour7 = hour == 6
+is_hour8 = hour == 7
+is_hour9 = hour == 8
+is_hour10 = hour == 9
+is_hour11 = hour == 10
+is_hour12 = hour == 11
+is_hour13 = hour == 12
+is_hour14 = hour == 13
+is_hour15 = hour == 14
+is_hour16 = hour == 15
+is_hour17 = hour == 16
+is_hour18 = hour == 17
+is_hour19 = hour == 18
+is_hour20 = hour == 19
+is_hour21 = hour == 20
+is_hour22 = hour == 21
+is_hour23 = hour == 22
+
+
+bar_range = hourly_high - hourly_low
+// bgcolor(is_hour0[1] and not is_hour0 ? color.new(color.yellow,80) : na)
+// bgcolor(is_hour14 ? color.new(color.yellow,80) : is_hour13 ? color.new(color.blue,50) : na)
+//Set Bar Ranges
+var b0_range = array.new_float(number_of_days, 0.00)
+var b1_range = array.new_float(number_of_days, 0.00)
+var b2_range = array.new_float(number_of_days, 0.00)
+var b3_range = array.new_float(number_of_days, 0.00)
+var b4_range = array.new_float(number_of_days, 0.00)
+var b5_range = array.new_float(number_of_days, 0.00)
+var b6_range = array.new_float(number_of_days, 0.00)
+var b7_range = array.new_float(number_of_days, 0.00)
+var b8_range = array.new_float(number_of_days, 0.00)
+var b9_range = array.new_float(number_of_days, 0.00)
+var b10_range = array.new_float(number_of_days, 0.00)
+var b11_range = array.new_float(number_of_days, 0.00)
+var b12_range = array.new_float(number_of_days)
+var b13_range = array.new_float(number_of_days, 0.00)
+var b14_range = array.new_float(number_of_days)
+var b15_range = array.new_float(number_of_days)
+var b16_range = array.new_float(number_of_days)
+var b17_range = array.new_float(number_of_days)
+var b18_range = array.new_float(number_of_days, 0.00)
+var b19_range = array.new_float(number_of_days, 0.00)
+var b20_range = array.new_float(number_of_days, 0.00)
+var b21_range = array.new_float(number_of_days, 0.00)
+var b22_range = array.new_float(number_of_days, 0.00)
+var b23_range = array.new_float(number_of_days, 0.00)
+
+
+if is_hour0[1] and not is_hour0  
+    array.unshift(b0_range, bar_range[1])
+    array.remove(b0_range, number_of_days)        
+   
+else if is_hour1[1] and not is_hour1  
+    array.unshift(b1_range, bar_range[1])
+    array.remove(b1_range, number_of_days)        
+   
+else if is_hour2[1] and not is_hour2  
+    array.unshift(b2_range, bar_range[1])
+    array.remove(b2_range, number_of_days)        
+   
+else if is_hour3[1] and not is_hour3  
+    array.unshift(b3_range, bar_range[1])
+    array.remove(b3_range, number_of_days)        
+   
+else if is_hour4[1] and not is_hour4  
+    array.unshift(b4_range, bar_range[1])
+    array.remove(b4_range, number_of_days)        
+
+else if is_hour5[1] and not is_hour5
+    array.unshift(b5_range, bar_range[1])
+    array.remove(b5_range, number_of_days)
+
+else if is_hour6[1] and not is_hour6
+    array.unshift(b6_range, bar_range[1])
+    array.remove(b6_range, number_of_days)
+
+else if is_hour7[1] and not is_hour7
+    array.unshift(b7_range, bar_range[1])
+    array.remove(b7_range, number_of_days)
+
+else if is_hour8[1] and not is_hour8
+    array.unshift(b8_range, bar_range[1])
+    array.remove(b8_range, number_of_days)
+
+else if is_hour9[1] and not is_hour9
+    array.unshift(b9_range, bar_range[1])
+    array.remove(b9_range, number_of_days)
+
+else if is_hour10[1] and not is_hour10
+    array.unshift(b10_range, bar_range[1])
+    array.remove(b10_range, number_of_days)
+
+else if is_hour11[1] and not is_hour11
+    array.unshift(b11_range, bar_range[1])
+    array.remove(b11_range, number_of_days)
+
+else if is_hour12[1] and not is_hour12
+    array.unshift(b12_range, bar_range[1])
+    array.remove(b12_range, number_of_days)
+
+else if is_hour13[1] and not is_hour13
+    array.unshift(b13_range, bar_range[1])
+    array.remove(b13_range, number_of_days)
+
+else if is_hour14[1] and not is_hour14
+    array.unshift(b14_range, bar_range[1])
+    array.remove(b14_range, number_of_days)
+
+else if is_hour15[1] and not is_hour15
+    array.unshift(b15_range, bar_range[1])
+    array.remove(b15_range, number_of_days)
+
+else if is_hour16[1] and not is_hour16
+    array.unshift(b16_range, bar_range[1])
+    array.remove(b16_range, number_of_days)
+
+else if is_hour17[1] and not is_hour17
+    array.unshift(b17_range, bar_range[1])
+    array.remove(b17_range, number_of_days)
+
+else if is_hour18[1] and not is_hour18
+    array.unshift(b18_range, bar_range[1])
+    array.remove(b18_range, number_of_days)
+
+else if is_hour19[1] and not is_hour19
+    array.unshift(b19_range, bar_range[1])
+    array.remove(b19_range, number_of_days)
+
+else if is_hour20[1] and not is_hour20
+    array.unshift(b20_range, bar_range[1])
+    array.remove(b20_range, number_of_days)
+
+else if is_hour21[1] and not is_hour21
+    array.unshift(b21_range, bar_range[1])
+    array.remove(b21_range, number_of_days)
+
+else if is_hour22[1] and not is_hour22
+    array.unshift(b22_range, bar_range[1])
+    array.remove(b22_range, number_of_days)
+
+else if is_hour23[1] and not is_hour23
+    array.unshift(b23_range, bar_range[1])
+    array.remove(b23_range, number_of_days)
+
+
+var float hour0 = 0.00
+var float hour1 = 0.00 
+var float hour2 = 0.00 
+var float hour3 = 0.00 
+var float hour4 = 0.00 
+var float hour5 = 0.00 
+var float hour6 = 0.00 
+var float hour7 = 0.00 
+var float hour8 = 0.00 
+var float hour9 = 0.00 
+var float hour10 = 0.00
+var float hour11 = 0.00
+var float hour12 = 0.00
+var float hour13 = 0.00
+var float hour14 = 0.00
+var float hour15 = 0.00
+var float hour16 = 0.00
+var float hour17 = 0.00
+var float hour18 = 0.00
+var float hour19 = 0.00
+var float hour20 = 0.00
+var float hour21 = 0.00
+var float hour22 = 0.00
+var float hour23 = 0.00
+
+var float hourlyRHA = 0.00
+var float hourlyRHH = 0.00
+var float hourlyRLA = 0.00
+var float hourlyRLL = 0.00
+var float hourlyRHL = 0.00
+var float hourlyRLH = 0.00
+var float longT = 0.00
+var float shortT = 0.00
+
+
+if is_hour0
+    hour0 := array.avg(b0_range)
+    hourlyRHA := hourly_low + hour0 * L2_adjustment 
+    hourlyRHH := hourly_low + hour0 * L3_adjustment 
+    hourlyRLA := hourly_high - hour0 * L2_adjustment 
+    hourlyRLL := hourly_high - hour0 * L3_adjustment
+    hourlyRHL := hourly_low + hour0 * L1_adjustment
+    hourlyRLH := hourly_high - hour0 * L1_adjustment
+    longT :=  hourly_low + hour0 * L4_adjustment 
+    shortT := hourly_high - hour0 * L4_adjustment 
+else if is_hour1
+    hour1:= array.avg(b1_range)
+    hourlyRHA := hourly_low + hour1* L2_adjustment 
+    hourlyRHH := hourly_low + hour1* L3_adjustment 
+    hourlyRLA := hourly_high - hour1* L2_adjustment
+    hourlyRLL := hourly_high - hour1* L3_adjustment
+    hourlyRHL := hourly_low + hour1* L1_adjustment 
+    hourlyRLH := hourly_high - hour1* L1_adjustment
+    longT :=  hourly_low + hour1* L4_adjustment    
+    shortT := hourly_high - hour1* L4_adjustment   
+else if is_hour2
+    hour2:= array.avg(b2_range)
+    hourlyRHA := hourly_low + hour2* L2_adjustment
+    hourlyRHH := hourly_low + hour2* L3_adjustment
+    hourlyRLA := hourly_high - hour2* L2_adjustment
+    hourlyRLL := hourly_high - hour2* L3_adjustment
+    hourlyRHL := hourly_low + hour2* L1_adjustment
+    hourlyRLH := hourly_high - hour2* L1_adjustment
+    longT :=  hourly_low + hour2* L4_adjustment
+    shortT := hourly_high - hour2* L4_adjustment
+else if is_hour3
+    hour3:= array.avg(b3_range)
+    hourlyRHA := hourly_low + hour3* L2_adjustment
+    hourlyRHH := hourly_low + hour3* L3_adjustment
+    hourlyRLA := hourly_high - hour3* L2_adjustment
+    hourlyRLL := hourly_high - hour3* L3_adjustment
+    hourlyRHL := hourly_low + hour3* L1_adjustment
+    hourlyRLH := hourly_high - hour3* L1_adjustment
+    longT :=  hourly_low + hour3* L4_adjustment
+    shortT := hourly_high - hour3* L4_adjustment
+else if is_hour4
+    hour4:= array.avg(b4_range)
+    hourlyRHA := hourly_low + hour4* L2_adjustment
+    hourlyRHH := hourly_low + hour4* L3_adjustment
+    hourlyRLA := hourly_high - hour4* L2_adjustment
+    hourlyRLL := hourly_high - hour4* L3_adjustment
+    hourlyRHL := hourly_low + hour4* L1_adjustment
+    hourlyRLH := hourly_high - hour4* L1_adjustment
+    longT :=  hourly_low + hour4* L4_adjustment
+    shortT := hourly_high - hour4* L4_adjustment
+else if is_hour5
+    hour5:= array.avg(b5_range)
+    hourlyRHA := hourly_low + hour5* L2_adjustment
+    hourlyRHH := hourly_low + hour5* L3_adjustment
+    hourlyRLA := hourly_high - hour5* L2_adjustment
+    hourlyRLL := hourly_high - hour5* L3_adjustment
+    hourlyRHL := hourly_low + hour5* L1_adjustment
+    hourlyRLH := hourly_high - hour5* L1_adjustment
+    longT :=  hourly_low + hour5* L4_adjustment
+    shortT := hourly_high - hour5* L4_adjustment
+else if is_hour6
+    hour6:= array.avg(b6_range)
+    hourlyRHA := hourly_low + hour6* L2_adjustment
+    hourlyRHH := hourly_low + hour6* L3_adjustment
+    hourlyRLA := hourly_high - hour6* L2_adjustment
+    hourlyRLL := hourly_high - hour6* L3_adjustment
+    hourlyRHL := hourly_low + hour6* L1_adjustment
+    hourlyRLH := hourly_high - hour6* L1_adjustment
+    longT :=  hourly_low + hour6* L4_adjustment
+    shortT := hourly_high - hour6* L4_adjustment
+else if is_hour7
+    hour7:= array.avg(b7_range)
+    hourlyRHA := hourly_low + hour7* L2_adjustment
+    hourlyRHH := hourly_low + hour7* L3_adjustment
+    hourlyRLA := hourly_high - hour7* L2_adjustment
+    hourlyRLL := hourly_high - hour7* L3_adjustment
+    hourlyRHL := hourly_low + hour7* L1_adjustment
+    hourlyRLH := hourly_high - hour7* L1_adjustment
+    longT :=  hourly_low + hour7* L4_adjustment
+    shortT := hourly_high - hour7* L4_adjustment
+else if is_hour8
+    hour8:= array.avg(b8_range)
+    hourlyRHA := hourly_low + hour8* L2_adjustment
+    hourlyRHH := hourly_low + hour8* L3_adjustment
+    hourlyRLA := hourly_high - hour8* L2_adjustment
+    hourlyRLL := hourly_high - hour8* L3_adjustment
+    hourlyRHL := hourly_low + hour8* L1_adjustment
+    hourlyRLH := hourly_high - hour8* L1_adjustment
+    longT :=  hourly_low + hour8* L4_adjustment
+    shortT := hourly_high - hour8* L4_adjustment
+else if is_hour9
+    hour9:= array.avg(b9_range)
+    hourlyRHA := hourly_low + hour9* L2_adjustment
+    hourlyRHH := hourly_low + hour9* L3_adjustment
+    hourlyRLA := hourly_high - hour9* L2_adjustment
+    hourlyRLL := hourly_high - hour9* L3_adjustment
+    hourlyRHL := hourly_low + hour9* L1_adjustment
+    hourlyRLH := hourly_high - hour9* L1_adjustment
+    longT :=  hourly_low + hour9* L4_adjustment
+    shortT := hourly_high - hour9* L4_adjustment
+else if is_hour10
+    hour10:= array.avg(b10_range)
+    hourlyRHA := hourly_low + hour10* L2_adjustment
+    hourlyRHH := hourly_low + hour10* L3_adjustment
+    hourlyRLA := hourly_high - hour10* L2_adjustment
+    hourlyRLL := hourly_high - hour10* L3_adjustment
+    hourlyRHL := hourly_low + hour10* L1_adjustment
+    hourlyRLH := hourly_high - hour10* L1_adjustment
+    longT :=  hourly_low + hour10* L4_adjustment
+    shortT := hourly_high - hour10* L4_adjustment
+else if is_hour11
+    hour11:= array.avg(b11_range)
+    hourlyRHA := hourly_low + hour11* L2_adjustment
+    hourlyRHH := hourly_low + hour11* L3_adjustment
+    hourlyRLA := hourly_high - hour11* L2_adjustment
+    hourlyRLL := hourly_high - hour11* L3_adjustment
+    hourlyRHL := hourly_low + hour11* L1_adjustment
+    hourlyRLH := hourly_high - hour11* L1_adjustment
+    longT :=  hourly_low + hour11* L4_adjustment
+    shortT := hourly_high - hour11* L4_adjustment
+else if is_hour12
+    hour12:= array.avg(b12_range)
+    hourlyRHA := hourly_low + hour12* L2_adjustment
+    hourlyRHH := hourly_low + hour12* L3_adjustment
+    hourlyRLA := hourly_high - hour12* L2_adjustment
+    hourlyRLL := hourly_high - hour12* L3_adjustment
+    hourlyRHL := hourly_low + hour12* L1_adjustment
+    hourlyRLH := hourly_high - hour12* L1_adjustment
+    longT :=  hourly_low + hour12* L4_adjustment
+    shortT := hourly_high - hour12* L4_adjustment
+else if is_hour13
+    hour13:= array.avg(b13_range)
+    hourlyRHA := hourly_low + hour13* L2_adjustment
+    hourlyRHH := hourly_low + hour13* L3_adjustment
+    hourlyRLA := hourly_high - hour13* L2_adjustment
+    hourlyRLL := hourly_high - hour13* L3_adjustment
+    hourlyRHL := hourly_low + hour13* L1_adjustment
+    hourlyRLH := hourly_high - hour13* L1_adjustment
+    longT :=  hourly_low + hour13* L4_adjustment
+    shortT := hourly_high - hour13* L4_adjustment
+else if is_hour14
+    hour14:= array.avg(b14_range)
+    hourlyRHA := hourly_low + hour14* L2_adjustment
+    hourlyRHH := hourly_low + hour14* L3_adjustment
+    hourlyRLA := hourly_high - hour14* L2_adjustment
+    hourlyRLL := hourly_high - hour14* L3_adjustment
+    hourlyRHL := hourly_low + hour14* L1_adjustment
+    hourlyRLH := hourly_high - hour14* L1_adjustment
+    longT :=  hourly_low + hour14* L4_adjustment
+    shortT := hourly_high - hour14* L4_adjustment
+else if is_hour15
+    hour15:= array.avg(b15_range)
+    hourlyRHA := hourly_low + hour15* L2_adjustment
+    hourlyRHH := hourly_low + hour15* L3_adjustment
+    hourlyRLA := hourly_high - hour15* L2_adjustment
+    hourlyRLL := hourly_high - hour15* L3_adjustment
+    hourlyRHL := hourly_low + hour15* L1_adjustment
+    hourlyRLH := hourly_high - hour15* L1_adjustment
+    longT :=  hourly_low + hour15* L4_adjustment
+    shortT := hourly_high - hour15* L4_adjustment
+else if is_hour16
+    hour16:= array.avg(b16_range)
+    hourlyRHA := hourly_low + hour16* L2_adjustment
+    hourlyRHH := hourly_low + hour16* L3_adjustment
+    hourlyRLA := hourly_high - hour16* L2_adjustment
+    hourlyRLL := hourly_high - hour16* L3_adjustment
+    hourlyRHL := hourly_low + hour16* L1_adjustment
+    hourlyRLH := hourly_high - hour16* L1_adjustment
+    longT :=  hourly_low + hour16* L4_adjustment
+    shortT := hourly_high - hour16* L4_adjustment
+else if is_hour17
+    hour17:= array.avg(b17_range)
+    hourlyRHA := hourly_low + hour17* L2_adjustment
+    hourlyRHH := hourly_low + hour17* L3_adjustment
+    hourlyRLA := hourly_high - hour17* L2_adjustment
+    hourlyRLL := hourly_high - hour17* L3_adjustment
+    hourlyRHL := hourly_low + hour17* L1_adjustment
+    hourlyRLH := hourly_high - hour17* L1_adjustment
+    longT :=  hourly_low + hour17* L4_adjustment
+    shortT := hourly_high - hour17* L4_adjustment
+else if is_hour18
+    hour18:= array.avg(b18_range)
+    hourlyRHA := hourly_low + hour18* L2_adjustment
+    hourlyRHH := hourly_low + hour18* L3_adjustment
+    hourlyRLA := hourly_high - hour18* L2_adjustment
+    hourlyRLL := hourly_high - hour18* L3_adjustment
+    hourlyRHL := hourly_low + hour18* L1_adjustment
+    hourlyRLH := hourly_high - hour18* L1_adjustment
+    longT :=  hourly_low + hour18* L4_adjustment
+    shortT := hourly_high - hour18* L4_adjustment
+else if is_hour19
+    hour19:= array.avg(b19_range)
+    hourlyRHA := hourly_low + hour19* L2_adjustment
+    hourlyRHH := hourly_low + hour19* L3_adjustment
+    hourlyRLA := hourly_high - hour19* L2_adjustment
+    hourlyRLL := hourly_high - hour19* L3_adjustment
+    hourlyRHL := hourly_low + hour19* L1_adjustment
+    hourlyRLH := hourly_high - hour19* L1_adjustment
+    longT :=  hourly_low + hour19* L4_adjustment
+    shortT := hourly_high - hour19* L4_adjustment
+else if is_hour20
+    hour20:= array.avg(b20_range)
+    hourlyRHA := hourly_low + hour20* L2_adjustment
+    hourlyRHH := hourly_low + hour20* L3_adjustment
+    hourlyRLA := hourly_high - hour20* L2_adjustment
+    hourlyRLL := hourly_high - hour20* L3_adjustment
+    hourlyRHL := hourly_low + hour20* L1_adjustment
+    hourlyRLH := hourly_high - hour20* L1_adjustment
+    longT :=  hourly_low + hour20* L4_adjustment
+    shortT := hourly_high - hour20* L4_adjustment
+else if is_hour21
+    hour21:= array.avg(b21_range)
+    hourlyRHA := hourly_low + hour21* L2_adjustment
+    hourlyRHH := hourly_low + hour21* L3_adjustment
+    hourlyRLA := hourly_high - hour21* L2_adjustment
+    hourlyRLL := hourly_high - hour21* L3_adjustment
+    hourlyRHL := hourly_low + hour21* L1_adjustment
+    hourlyRLH := hourly_high - hour21* L1_adjustment
+    longT :=  hourly_low + hour21* L4_adjustment
+    shortT := hourly_high - hour21* L4_adjustment
+else if is_hour22
+    hour22:= array.avg(b22_range)
+    hourlyRHA := hourly_low + hour22* L2_adjustment
+    hourlyRHH := hourly_low + hour22* L3_adjustment
+    hourlyRLA := hourly_high - hour22* L2_adjustment
+    hourlyRLL := hourly_high - hour22* L3_adjustment
+    hourlyRHL := hourly_low + hour22* L1_adjustment
+    hourlyRLH := hourly_high - hour22* L1_adjustment
+    longT :=  hourly_low + hour22* L4_adjustment
+    shortT := hourly_high - hour22* L4_adjustment
+else if is_hour23
+    hour23:= array.avg(b23_range)
+    hourlyRHA := hourly_low + hour23* L2_adjustment
+    hourlyRHH := hourly_low + hour23* L3_adjustment
+    hourlyRLA := hourly_high - hour23* L2_adjustment
+    hourlyRLL := hourly_high - hour23* L3_adjustment
+    hourlyRHL := hourly_low + hour23* L1_adjustment
+    hourlyRLH := hourly_high - hour23* L1_adjustment
+    longT :=  hourly_low + hour23* L4_adjustment
+    shortT := hourly_high - hour23* L4_adjustment
+
+
+//
+//PLOT VBOX
+//
+plotST = plot(shortT, title = "plotST", color = color.gray, style = plot.style_circles, join = true)
+plotLT = plot(longT, title = "plotLT", color = color.gray, style = plot.style_circles, join = true)
+plotLR1 = plot(hourlyRHL, title = "plotLR1", color = color.aqua, style = plot.style_circles, join = true)
+plotLR2 = plot(hourlyRLH, title = "plotLR2", color = color.aqua, style = plot.style_circles, join = true)
+
+plothourlyRHA = plot(hourlyRHA, title = "hourlyRHA", color = color.green, style = plot.style_line, linewidth = 2)
+plothourlyRHH = plot(hourlyRHH, title = "hourlyRHH", color = color.green, style = plot.style_line, linewidth = 2)
+fill(plothourlyRHA,plothourlyRHH, title = 'Upper Band', color = color.new(color.green,60))
+
+plothourlyRLA = plot(hourlyRLA, title = "hourlyRLA", color = color.red, style = plot.style_line, linewidth = 2)
+plothourlyRLL = plot(hourlyRLL, title = "hourlyRLL", color = color.red, style = plot.style_line, linewidth = 2)
+fill(plothourlyRLA,plothourlyRLL, title = 'Lower Band', color = color.new(color.red,60))
+
+
+//
+//TIMELINES
+//
+var color_time_line = false
+if timeLineOn and is_hour10 and not is_hour10[1]
+    if syminfo.root == "ES" or syminfo.root == "MES" 
+     or syminfo.root == "NQ" or syminfo.root == "MNQ"
+     or syminfo.root == "RTY" or syminfo.root == "M2K"
+     or syminfo.root == "YM" or syminfo.root == "MYM"
+     or syminfo.root == "CL" or syminfo.root == "MCL"
+     or syminfo.root == "NG"
+        color_time_line := true
+else if timeLineOn and is_hour9 and not is_hour9[1]
+    if syminfo.root == "ZB"
+     or syminfo.root == "HG"
+     or syminfo.root == "GC" or syminfo.root == "MGC"
+     or syminfo.root == "SI" or syminfo.root == "SIL"
+        color_time_line := true
+else
+    color_time_line := false
+bgcolor(color_time_line ? color.new(color.orange, 80) : na)
+
+
+hourlyClose = request.security(syminfo.tickerid, "60", close, lookahead = barmerge.lookahead_on)
+trendingUp = hourly_high > hourlyRHH and hourlyClose > hourlyRHH and (is_hour7 or is_hour8 or is_hour9 or is_hour10) ? 1 : 0
+trendingDown = hourly_low < hourlyRLL and hourlyClose < hourlyRLL and (is_hour7 or is_hour8 or is_hour9 or is_hour10) ? 1 : 0
+
+
+// 
+
+
+
+// ################################EDGE SIGNALS#####################################################
+
+edge_length = 14 //default 14
+edge_price = close
+edge_Volatility_Band = 14 //default 14
+edge_STDEV_Multiplier = 2 //default 2
+RSI_Period = 20 //default 14
+edge_STDEV_Multiplier1 = 1 //default 1
+
+// ### Dynamic RSI Colored Candles ###
+NetChgAvg = ta.rma(edge_price - edge_price[1], edge_length)
+TotChgAvg = ta.rma(math.abs(edge_price - edge_price[1]), edge_length)
+ChgRatio =  TotChgAvg != 0 ? NetChgAvg / TotChgAvg : 0
+
+DYNRSI = ta.rsi(close, RSI_Period)
+SDBB = ta.stdev(DYNRSI, edge_Volatility_Band)
+
+RSI = 50 * (ChgRatio + 1)
+DYNAverage = ta.sma(DYNRSI, edge_Volatility_Band)
+
+// ### Bollinger Band Plots for Colored Candles
+UpperBollinger = DYNAverage + edge_STDEV_Multiplier * SDBB
+UpperBollinger1 = DYNAverage + edge_STDEV_Multiplier1 * SDBB
+LowerBollinger = DYNAverage - edge_STDEV_Multiplier * SDBB
+LowerBollinger1 = DYNAverage - edge_STDEV_Multiplier1 * SDBB
+
+////// Colored Candles
+SOS = RSI < LowerBollinger //darkred
+OS = RSI < LowerBollinger1 and RSI > LowerBollinger //red
+NEUTRALH = RSI > DYNAverage and RSI < UpperBollinger1 //yellow
+NEUTRALL = RSI < DYNAverage and RSI > LowerBollinger1 //orange
+OB = RSI < UpperBollinger and RSI > UpperBollinger1 //green
+SOB = RSI > UpperBollinger //darkgreen
+
+////// Waddah Attar Explosion Indicator //////
+sensitivity = 150 //"Sensitivity"
+fastLength = 20 //"FastEMA Length"
+slowLength = 40 //"SlowEMA Length"
+channelLength = 20 //"BB Channel Length"
+mult = 2.0 //"BB Stdev Multiplier"
+deadZone = 20 //"No trade zone threshold"
+
+t1 = ((ta.ema(close, fastLength) - ta.ema(close, slowLength)) - (ta.ema(close[1], fastLength) - ta.ema(close, slowLength))) * sensitivity
+t2 = ((ta.ema(close[2], fastLength) - ta.ema(close, slowLength)) - (ta.ema(close[3], fastLength) - ta.ema(close, slowLength))) * sensitivity
+
+e1 = ta.bbw(close, channelLength, mult)
+e2 = ta.bbw(close[1], channelLength, mult)
+
+trendUp = t1 >= 0 ? t1 : 0
+trendDown = t1 < 0 ? (-1 * t1) : 0
+tUp = trendUp //"UpTrend"
+tDn = trendDown //"DownTrend"
+
+// ### Trigger Signals ###
+bearishDynamicRSISum = math.sum(SOS or OS ? 1.00 : 0, 7) >= 5
+bullishDynamicRSIsum = math.sum(SOB or OB ? 1.00 : 0, 7) >= 5
+
+var bearishDynamicRSISumCarry = 0
+var bullishDynamicRSISumCarry = 0
+
+bearishDynamicRSISumCarry := bearishDynamicRSISum ? 1 : bullishDynamicRSIsum ? 0 : bearishDynamicRSISumCarry[1]
+bullishDynamicRSISumCarry :=  bullishDynamicRSIsum ? 1 : bearishDynamicRSISum ? 0 : bullishDynamicRSISumCarry[1]
+
+
+filter_with_vbox = input.bool(true, title = 'Filter with VBOX')
+vbox_bull_filter = (filter_with_vbox and low <= math.max(hourlyRLA,hourlyRLH))  or not filter_with_vbox
+vbox_bear_filter = (filter_with_vbox and high >= math.min(hourlyRHA,hourlyRHL)) or not filter_with_vbox
+
+
+
+
+// ################################ D TEK #####################################################
+
+
+
+
+//SUPERTREND
+dtek_ST_Atr_Mult = input.float(1.0, title = 'DTEK ST ATR Mult') 
+dtek_ST_Length = input.int(4, title = 'DTEK ST Length') 
+
+ATR = ta.hma(ta.tr(true), dtek_ST_Length)
+UP = hl2 + (dtek_ST_Atr_Mult* ATR)
+DN = hl2 + (-dtek_ST_Atr_Mult * ATR) 
+
+var ST = 0.00
+ST := close < ST[1] ? UP : DN 
+SuperTrend = ST 
+
+
+//CCI_ATR
+dtek_lengthCCI = input.int(50, title = "DTEK CCI Length")
+dtek_lengthATR = input.int(21, title = "DTEK CCI ATRLength")
+dtek_AtrFactor = input.float(1.00, title = "DTEK CCI ATR Factor")
+
+ATRcci = ta.sma(ta.tr(true), dtek_lengthATR) * dtek_AtrFactor
+price = close + low + high
+linDev = ta.dev(price, dtek_lengthCCI)
+
+// CCI = linDev == 0 ? 0 : (price - math.avg(price, dtek_lengthCCI)) / linDev / 0.015
+CCI = ta.cci(price, dtek_lengthCCI)
+
+var float MT1 = 0.00
+MT1 := CCI > 0 ? math.max(nz(MT1[1],0), hl2 - ATRcci) : math.min(nz(MT1[1],999999), hl2 + ATRcci)
+
+CCI_ATR_TREND = MT1
+ST_ATR_COMBO =  close> ST and close>CCI_ATR_TREND ? math.min(CCI_ATR_TREND, ST) : close< ST and close<CCI_ATR_TREND ? math.max(CCI_ATR_TREND, ST) : CCI_ATR_TREND
+
+color_dtek_candles = input.bool(true, title = "Color DTEK Candles")
+barcolor(color_dtek_candles and close < MT1 and close < ST ? color.red :  color_dtek_candles and close > MT1 and close > ST ? color.green : color_dtek_candles ? color.gray : na)
+
+filter_with_dtek = input.bool(true, title =  'Filter with DTEK')
+dtek_bull_filter = (filter_with_dtek and close > MT1 and close >ST) or not filter_with_dtek
+dtek_bear_filter = (filter_with_dtek and close < MT1 and close <ST) or not filter_with_dtek
+
+
+
+
+
+// ################################ STRATEGY #####################################################
+
+
+
+bullishTrigger =   vbox_bull_filter and dtek_bull_filter and bearishDynamicRSISumCarry and Downtrend and (tUp and not tUp[1]) ? 1 : 0
+bearishTrigger =   vbox_bear_filter and dtek_bear_filter and bullishDynamicRSISumCarry and Uptrend and (tDn and not tDn[1]) ? 1 : 0
+
+plotshape(bullishTrigger, title = 'Bullish Trigger', location = location.belowbar, style = shape.triangleup, color = color.green, size = size.small)
+plotshape(bearishTrigger, title = 'Bearish Trigger', location = location.abovebar, style = shape.triangledown, color = color.red, size = size.small)
+
+dtek_bull = close > MT1 and close > ST
+dtek_bear =  close < MT1 and close < ST
+
+var last_signal = 0
+last_signal :=  bullishTrigger ? 1 :  bearishTrigger ? -1 :  last_signal[1] == 1 and not dtek_bull ? 0 :  last_signal[1] == -1 and not dtek_bear ? 0 : last_signal[1]
+
+show_entry_bubble = input.bool(true, title = 'Show Entry Bubble')
+if show_entry_bubble and last_signal != 0
+    if last_signal == 1 and last_signal[1] != 1 and barstate.isconfirmed
+        long_label = label.new(x = bar_index[1] ,y = low, text = 'PUT ON SPX ' + str.tostring(close), color = color.red, style = label.style_label_up, yloc =  yloc.belowbar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+  
+        
+    if last_signal == -1 and last_signal[1] != -1 and barstate.isconfirmed
+        short_label = label.new(bar_index[1], y = high , text = 'CALL ON SPX ' + str.tostring(close), color = color.green, style = label.style_label_down , yloc =  yloc.abovebar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+  
+ 
+show_exit_bubble = input.bool(true, title = 'Show Exit Bubble')
+if show_exit_bubble and barstate.isconfirmed
+    if (dtek_bull[1] and not dtek_bull and last_signal[1] == 1)
+        exit_long = label.new(bar_index, y = close , text = 'Exit ' + str.tostring(close), color = color.white, style = label.style_label_down, yloc =  yloc.abovebar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+    if (dtek_bear[1] and not dtek_bear and last_signal[1] == -1)
+        exit_short = label.new(bar_index, y = close , text = 'Exit ' + str.tostring(close), color = color.white, style = label.style_label_up, yloc =  yloc.belowbar, textcolor = color.black, size = size.normal, textalign = text.align_left)
+       
+
+
+
+
+
+
+// TD ALERTS 
+
+//ALERTS
+if barstate.isconfirmed
+
+    if last_signal == 1 and last_signal[1] != 1
+        alert("CALL " + str.tostring(close), alert.freq_once_per_bar)
+    if last_signal == -1 and last_signal[1] != -1
+        alert("PUT " + str.tostring(close), alert.freq_once_per_bar)
+
+    // if (dtek_bull[1] and not dtek_bull and last_signal[1] == 1)
+    //     alert("EXIT CALL", alert.freq_once_per_bar)
+    // if (dtek_bear[1] and not dtek_bear and last_signal[1] == -1)
+    //     alert("EXIT PUT", alert.freq_once_per_bar)
+

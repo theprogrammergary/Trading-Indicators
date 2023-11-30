@@ -1,0 +1,76 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+indicator(title="ID50", overlay=true, max_bars_back = 5000)
+
+// indicator inputs
+ema_fast_per    =   input.int   (defval=13,     title='EMA Fast Period', minval=0, maxval=1000, step=1, tooltip='Period/Length of Fast Moving Average', inline='fast sma')
+ema_fast_source =   input.source(defval=close,  title='EMA Fast Source',                                                                                inline='fast sma')
+ema_slow_per    =   input.int   (defval=50,     title='EMA Slow Period', minval=0, maxval=1000, step=1, tooltip='Period/Length of Slow Moving Average', inline='slow sma')
+ema_slow_source =   input.source(defval=close,  title='EMA Slow Source',                                                                                inline='slow sma')
+pullback_min    =   input.float (defval=25,     title='Pullback pips minimum')
+max_bars        =   input.int(12, title = 'Max bars from Crossover')
+pips_multiplier =   input.int   (defval=10,  title='Pips multiplier', tooltip='Might have to adjust depending on the pair')
+
+pips = syminfo.mintick * pips_multiplier
+
+// indicator calculations
+float ema_fast = ta.ema(ema_fast_source,ema_fast_per)
+float ema_slow = ta.ema(ema_slow_source,ema_slow_per)
+
+p_emafast = plot(ema_fast, title='Fast EMA13', color=color.new(color.blue,30), linewidth=2, style=plot.style_line, display=display.all)
+p_emaslow = plot(ema_slow, title='Fast EMA13', color=color.new(color.fuchsia,30), linewidth=2, style=plot.style_line, display=display.all)
+fill(p_emafast, p_emaslow, title = 'EMA Cloud', color = ema_fast >= ema_slow ? color.new(color.teal, 70) : color.new(color.red,70))
+
+// last cross
+var bool crossover  = na
+var bool crossunder = na
+var int last_cross = 0
+
+crossover  := ta.crossover(ema_fast,ema_slow)
+crossunder := ta.crossunder(ema_fast,ema_slow)
+last_cross := crossover ? 1 : crossunder ? -1 : last_cross[1]
+
+var int last_bull_bn = 0
+var int last_bear_bn = 0
+
+last_bull_bn := crossover ? bar_index : last_bull_bn[1]
+last_bear_bn := crossunder ? bar_index : last_bear_bn[1]
+
+
+// only check for alerts if we touch 50ema
+var bool bull_alert = na
+var bool bear_alert = na
+var float bull_compare = 0.00
+var float bear_compare = 0.00
+var int bull_counter = 0
+var int bear_counter = 0
+bull_compare := crossover ? high : last_cross == 1 ? math.max(high, bull_compare[1]) : bull_compare[1]
+bear_compare := crossunder ? low : last_cross == -1 ? math.min(low, bear_compare[1]) : bear_compare[1]
+bull_counter := crossover ? 1 : bull_counter[1] + 1
+bear_counter := crossunder ? 1 : bear_counter[1] + 1
+
+if high >= ema_slow and low <= ema_slow
+    if last_cross == 1
+        bull_alert := (math.abs(bull_compare-low) / pips) >= pullback_min and bull_counter < max_bars and not crossover
+        bear_alert := false
+    else if last_cross == -1
+        bear_alert := (math.abs(high-bull_compare) / pips) >= pullback_min and bear_counter < max_bars and not crossunder
+        bull_alert := false
+else
+    bull_alert := false
+    bear_alert := false
+
+plot(bull_compare, color = color.red, display = display.none, title = 'Bull Compare')
+plot(bear_compare, color = color.green, display = display.none, title = 'Bear Compare')
+
+
+plotshape(bull_alert, title = 'Bull Alert', style= shape.triangleup, color = color.teal, location = location.belowbar, size = size.small)
+plotshape(bear_alert, title = 'Bear Alert', style= shape.triangledown, color = color.red, location = location.abovebar, size = size.small)
+
+
+alertcondition(condition=bull_alert, title='Bull Pullback', message='Bull Pullback')
+alertcondition(condition=bear_alert, title='Bear Pullback', message='Bear Pullback')
+alertcondition(condition=bull_alert or bear_alert, title='New Pullback', message='New Pullback')
+
+
+barcolor(last_cross == 1 ? color.teal : last_cross == -1 ? color.red : na)

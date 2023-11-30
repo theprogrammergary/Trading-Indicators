@@ -1,0 +1,5 @@
+For example this is feb 2nd. 
+
+The Low of day difference from afterhours to non-afterhours is more than a $1. That is going to throw off the calculations for the main pivot . 
+
+Pivot = (yh + yl + yc) / 3

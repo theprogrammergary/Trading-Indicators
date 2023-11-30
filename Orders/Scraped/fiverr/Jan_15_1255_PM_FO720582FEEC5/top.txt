@@ -1,0 +1,115 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_megatronx023", overlay = true)
+
+// tdi inputs
+rsiPeriod = input.int(11, minval = 1, title = "RSI Period", group = 'TDI Settings')
+bandLength = input.int(31, minval = 1, title = "Band Length", group = 'TDI Settings')
+lengthrsipl = input.int(1, minval = 0, title = "Fast MA on RSI", group = 'TDI Settings')
+lengthtradesl = input.int(9, minval = 1, title = "Slow MA on RSI", group = 'TDI Settings')
+
+
+// chart inputs
+use_chart_b1 = input.bool(true, title = 'Buy 1      ', group = 'Chart Settings', inline = '2')
+use_chart_b2 = input.bool(true, title = 'Buy 2      ', group = 'Chart Settings', inline = '3')
+
+use_chart_s1 = input.bool(true, title = 'Sell 1', group = 'Chart Settings', inline = '2')
+use_chart_s2 = input.bool(true, title = 'Sell 2', group = 'Chart Settings', inline = '3')
+
+
+// confirmation inputs
+use_confirmation1 = input.bool(true, title = 'Confirmation 1', group = 'Confirmation Settings', inline = '1')
+confirmation_1_closeness = input.float(2.00, title = '', step = 0.25, minval = 0.01, maxval = 20.00, group = 'Confirmation Settings', inline = '1')
+use_confirmation2 = input.bool(true, title = 'Confirmation 2', group = 'Confirmation Settings', inline = '2')
+confirmation_2_closeness = input.float(2.00, title = '', step = 0.25, minval = 0.01, maxval = 20.00, group = 'Confirmation Settings', inline = '2')
+confirmation_tf = input.timeframe('60', title = 'Confirmation TF    ', group = 'Confirmation Settings', inline = '3')
+
+
+
+// function to calculate tdi
+f_calculate_tdi(src) =>
+    
+    r = ta.rsi(src, rsiPeriod)                                                 
+    ma = ta.sma(r, bandLength)                                                 
+    offs = (1.6185 * ta.stdev(r, bandLength))
+    up = ma + offs                                                          
+    dn = ma - offs                                                          
+    mid = (up + dn) / 2                                                     
+    fastMA = ta.sma(r, lengthrsipl)                                            
+    slowMA = ta.sma(r, lengthtradesl)       
+
+    [up, dn, mid, slowMA, fastMA]
+
+
+[up1, dn1, mid1, slowMA1, fastMA1] = f_calculate_tdi(close)
+[up2, dn2, mid2, slowMA2, fastMA2] = request.security(syminfo.tickerid, confirmation_tf, f_calculate_tdi(close[1]), lookahead = barmerge.lookahead_on)
+
+// entry tf
+buy_cond1 = fastMA1 > slowMA1 and slowMA1 > mid1
+buy_cond2 = fastMA1 > mid1 and (math.abs(slowMA1-mid1) <= confirmation_1_closeness)
+
+sell_cond1 = fastMA1 < slowMA1 and slowMA1 < mid1
+sell_cond2 = fastMA1 < mid1 and (math.abs(slowMA1-mid1) <= confirmation_1_closeness)
+
+
+// confirmation tf
+confirmation_buy_cond1 = (fastMA2 > slowMA2 and slowMA2 > mid2 and use_confirmation1) or not use_confirmation1
+confirmation_buy_cond2 = (fastMA2 > mid2 and (math.abs(slowMA2-mid2) <= confirmation_2_closeness) and use_confirmation2) or not use_confirmation2
+
+confirmation_sell_cond1 = (fastMA2 < slowMA2 and slowMA2 < mid2 and use_confirmation1) or not use_confirmation1
+confirmation_sell_cond2 = (fastMA2 < mid2 and (math.abs(slowMA2-mid2) <= confirmation_2_closeness) and use_confirmation2) or not use_confirmation2
+
+plot(math.abs(slowMA2-mid2) )
+bgcolor(confirmation_buy_cond2 ? color.fuchsia : na)
+
+// create chart buy / sell
+b1 = barstate.isconfirmed and buy_cond1 and not buy_cond1[1] and (confirmation_buy_cond1 or confirmation_buy_cond2)
+b2 = barstate.isconfirmed and buy_cond2 and not buy_cond2[1] and (confirmation_buy_cond1 or confirmation_buy_cond2)
+
+s1 = barstate.isconfirmed and sell_cond1 and not sell_cond1[1] and (confirmation_sell_cond1 or confirmation_sell_cond2)
+s2 = barstate.isconfirmed and sell_cond2 and not sell_cond2[1] and (confirmation_sell_cond1 or confirmation_sell_cond2)
+
+
+// plot signals
+plotshape(use_chart_b2 and b2, title = 'Buy 2', style = shape.labelup, location = location.belowbar, color = color.green, text = 'B2', textcolor = color.white)
+plotshape(use_chart_s2 and s2, title = 'Sell 2', style = shape.labeldown, location = location.abovebar, color = color.red, text = 'S2', textcolor = color.white)
+
+plotshape(use_chart_s1 and s1, title = 'Sell 1', style = shape.labeldown, location = location.abovebar, color = color.red, text = 'S1', textcolor = color.white)
+plotshape(use_chart_b1 and b1, title = 'Buy 1', style = shape.labelup, location = location.belowbar, color = color.green, text = 'B1', textcolor = color.white)
+
+// alerts
+if b1
+    alert('Buy 1', alert.freq_once_per_bar_close)
+if b2
+    alert('Buy 2', alert.freq_once_per_bar_close)
+if s1
+    alert('Sell 1', alert.freq_once_per_bar_close)
+if s2
+    alert('Sell 2', alert.freq_once_per_bar_close)
+
+
+// alert conditions
+// alertcondition(condition, title, message)
+alertcondition(b1, "Buy 1", "Buy 1")
+alertcondition(b2, "Buy 2", "Buy 2")
+
+alertcondition(s1, "Sell 1", "Sell 1")
+alertcondition(s2, "Sell 2", "Sell 2")
+
+alertcondition(b1 or b2, "Any Buy", "Any Buy")
+alertcondition(s1 or s2, "Any Sell", "Any Sell")
+
+
+//TABLE
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline= '3', group='Dashboard Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+var table t = table.new(positioning, 3, 3, frame_color=color.new(color.black, 100), frame_width=1, border_color=color.new(color.white, 100), border_width=1)
+if barstate.islast
+    if use_confirmation1
+        table.cell(t, 0, 0, text='Confirmation 1', width=0, bgcolor=confirmation_buy_cond1 ? color.green : confirmation_sell_cond1 ? color.red : color.black, text_color=color.white, text_size=label_size, text_halign=text.align_center)
+
+    if use_confirmation2
+        table.cell(t, 0, 1, text='Confirmation 2', width=0, bgcolor=confirmation_buy_cond2 ? color.green : confirmation_sell_cond2 ? color.red : color.black, text_color=color.white, text_size=label_size, text_halign=text.align_center)

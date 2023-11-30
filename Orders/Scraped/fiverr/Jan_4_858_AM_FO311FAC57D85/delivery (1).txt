@@ -1,0 +1,1 @@
+So in TOS the blacks were appearing because of MOM. When in after hours the daily bar returns NAN. MOM uses daily bar data so it was messing with the labels. So I removed MOM completely from the labeling script.TOS LINKShttps://tos.mx/twZwIZDhttps://tos.mx/DDKrnOr

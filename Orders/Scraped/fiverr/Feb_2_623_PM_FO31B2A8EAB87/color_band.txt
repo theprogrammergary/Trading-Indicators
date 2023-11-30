@@ -1,0 +1,54 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("TraderTactics Directional Color Band", overlay = false)
+
+
+css_1 = input.color(color.new(#008000,0), title = 'Strong Up Trend⠀⠀', group = 'Color Settings', inline = '1')
+css_2 = input.color(color.new(#33CC33,0), title = 'Up Trend⠀⠀⠀⠀⠀⠀⠀', group = 'Color Settings', inline = '2')
+css_3 = input.color(color.new(#FFFF00,0), title = 'Neutral⠀⠀⠀⠀⠀⠀⠀⠀', group = 'Color Settings', inline = '3')
+css_4 = input.color(color.new(#FF0000,0), title = 'Down Trend⠀⠀⠀⠀⠀', group = 'Color Settings', inline = '4')
+css_5 = input.color(color.new(#C00000,0), title = 'Strong Down Trend', group = 'Color Settings', inline = '5')
+
+
+sma20 = ta.sma(close, 20)
+sma50 = ta.sma(close, 50)
+sma150 = ta.sma(close, 150)
+sma200 = ta.sma(close, 200)
+
+// plot(sma20, title = '20 SMA', display = display.all)
+// plot(sma50, title = '50 SMA', display = display.all)
+// plot(sma150, title = '150 SMA', display = display.all)
+// plot(sma200, title = '250 SMA', display = display.all)
+
+
+price = close
+color_1 = price > sma50 
+ and price > sma150 
+ and price > sma200 
+ and sma20 > sma50 
+ and sma50 > sma150 
+ and sma150 > sma200
+
+color_2 = price > sma50
+ and price > sma150
+ and price > sma200
+
+color_4 = price < sma20
+ and price < sma50
+
+color_5 = price < sma50 
+ and price < sma150 
+ and price < sma200 
+ and sma20 < sma50 
+ and sma50 < sma150 
+ and sma150 < sma200
+
+bgcolor(color_1 ? css_1
+ : color_5 ? css_5
+ : color_2 ? css_2
+ : color_4 ? css_4
+ : css_3, editable = false)
+
+

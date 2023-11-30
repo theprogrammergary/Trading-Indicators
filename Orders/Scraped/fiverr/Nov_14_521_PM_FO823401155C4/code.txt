@@ -1,0 +1,219 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_j1noobie", overlay = true, max_labels_count = 500)
+
+
+
+// inputs
+buySignals              = input.bool(true, title = 'Buy Signals', group = 'Settings', inline = 'buy')
+sellSignals             = input.bool(false, title = 'Sell Signals', group = 'Settings', inline = 'sell')
+sd_length               = input.int(3, title = 'Length', group = 'Settings', minval = 2, maxval = 50, inline = '0')
+percent_required        = input.float(0.50, step = 0.25, title = '% Required', group = 'Settings', inline = '1')
+max_signals_for_level   = input.int(5, title = 'Max Signals from Level', group = 'Settings', inline = '2', minval = 1)
+max_barsBack_for_level  = input.int(500, title = 'Max Bars Back from Level', group = 'Settings', inline = '3')
+
+
+// functions
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+
+
+
+// calc levels
+var swing_high_values = array.new_float(1, na)
+var swing_low_values  = array.new_float(1, na)
+ 
+swing_high = ta.pivothigh(high, sd_length, sd_length)
+swing_low = ta.pivotlow(low, sd_length, sd_length)
+
+if not na(swing_high)
+    f_array_add_pop(swing_high_values, swing_high)
+
+if not na(swing_low)
+    f_array_add_pop(swing_low_values, swing_low)
+
+
+plotchar(not na(swing_high), title = 'Swing High', char = 'X', location = location.abovebar, color = chart.fg_color,
+ offset = -sd_length, size = size.auto)
+
+plotchar(not na(swing_low), title = 'Swing Low', char = 'X', location = location.belowbar, color = chart.fg_color,
+ offset = -sd_length, size = size.auto)
+
+
+
+// calc breaks
+var bool haveBase               = false
+var bool baseExpired            = false
+var float currentBase           = 0.00
+var int currentBaseType         = 0
+
+var int lastBreak_numSignals    = 0
+var int lastBreak_BN            = 0
+
+var bool buySignal              = false
+var bool sellSignal             = false
+var bool retraceComplete        = false
+
+
+f_findHighBreaks(highLevels) =>
+    var bool newBase        = false
+    var float newBaseLevel  = 0.00
+    
+    array_size = array.size(highLevels)
+    if array_size > 0 and sellSignals
+        for i = 0 to array_size - 1
+            highLevel = array.get(highLevels, i)
+
+            if (high-highLevel)/highLevel*100 >= (percent_required)
+                newBase := true
+                newBaseLevel := highLevel
+                array.clear(highLevels)
+                break
+            else
+                newBase := false
+                newBaseLevel := 0.00
+
+    else
+        newBase := false
+        newBaseLevel := 0.00
+    
+    [newBase, newBaseLevel]
+            
+
+
+
+f_findLowBreaks(lowLevels) =>
+    var bool newBase        = false
+    var float newBaseLevel  = 0.00
+    
+    array_size = array.size(lowLevels)
+    if array_size > 0 and buySignals
+        for i = 0 to array_size - 1
+            lowLevel = array.get(lowLevels, i)
+
+            if (low-lowLevel)/lowLevel*100 <= (-percent_required)
+                newBase := true
+                newBaseLevel := lowLevel
+                array.clear(lowLevels)
+                break
+            else
+                newBase := false
+                newBaseLevel := 0.00
+
+    else
+        newBase := false
+        newBaseLevel := 0.00
+    
+    [newBase, newBaseLevel]
+
+
+
+f_invalidateHighs(highLevels) =>
+    array_size = array.size(highLevels)
+    if array_size > 0 and barstate.isconfirmed
+        for i = 0 to array_size - 1
+            highLevel = array.get(highLevels, i)
+            if low[1] > highLevel and low < highLevel
+                array.set(highLevels, i, na)
+
+
+
+f_invalidateLows(lowLevels) =>
+    array_size = array.size(lowLevels)
+    if array_size > 0 and barstate.isconfirmed
+        for i = 0 to array_size - 1
+            lowLevel = array.get(lowLevels, i)
+            if high[1] < lowLevel and high > lowLevel
+                array.set(lowLevels, i, na)
+
+
+
+// f_invalidateHighs(swing_high_values)
+f_invalidateLows(swing_low_values)
+[f_newSellBase, f_newSellBaseLevel] = f_findHighBreaks(swing_high_values)
+[f_newBuyBase, f_newBuyBaseLevel]   = f_findLowBreaks(swing_low_values)
+
+haveBase := not haveBase[1] and (f_newBuyBase or f_newSellBase) ? true : haveBase[1]
+baseExpired := haveBase[1] and (bar_index - lastBreak_BN >= max_barsBack_for_level)
+
+if haveBase
+
+    if not haveBase[1]
+        currentBase         := f_newBuyBase ? f_newBuyBaseLevel : f_newSellBaseLevel
+        currentBaseType     := f_newBuyBase ? 1 : -1
+        lastBreak_numSignals:= 2
+        lastBreak_BN        := bar_index
+        buySignal           := f_newBuyBase
+        sellSignal          := f_newSellBase
+        retraceComplete     := false
+
+    else if currentBaseType == 1
+        buySignal           := (low-currentBase)/currentBase*100 <= (-percent_required*lastBreak_numSignals) and lastBreak_numSignals <= max_signals_for_level
+        retraceComplete     := lastBreak_numSignals >= 2 and high >= currentBase
+        lastBreak_numSignals:= buySignal ? lastBreak_numSignals[1] + 1 : lastBreak_numSignals
+
+    else if currentBaseType == -1
+        sellSignal          := (high-currentBase)/currentBase*100 >= (percent_required*lastBreak_numSignals) and lastBreak_numSignals <= max_signals_for_level
+        retraceComplete     := lastBreak_numSignals >= 2 and low <= currentBase
+        lastBreak_numSignals:= sellSignal ? lastBreak_numSignals[1] + 1 : lastBreak_numSignals
+
+
+    if retraceComplete or baseExpired
+        currentBase     := na
+        currentBaseType := 0
+        haveBase        := false
+
+else
+    buySignal   := false
+    sellSignal  := false
+
+
+
+// visualize
+plot(currentBase, title = 'Current Base', color = color.blue, style = plot.style_circles)
+
+plot(currentBaseType == 1 ? currentBase - (currentBase*(percent_required*1/100))
+ : currentBase + (currentBase*(percent_required*1/100)), title = 'Entry 1',
+ color = currentBaseType == 1 ? color.green : color.red, style = plot.style_circles)
+
+plot(currentBaseType == 1 ? currentBase - (currentBase*(percent_required*2/100))
+ : currentBase + (currentBase*(percent_required*2/100)), title = 'Entry 2',
+ color = currentBaseType == 1 ? color.green : color.red, style = plot.style_circles)
+
+plot(currentBaseType == 1 ? currentBase - (currentBase*(percent_required*3/100))
+ : currentBase + (currentBase*(percent_required*3/100)), title = 'Entry 3',
+ color = currentBaseType == 1 ? color.green : color.red, style = plot.style_circles)
+
+plot(currentBaseType == 1 ? currentBase - (currentBase*(percent_required*4/100))
+ : currentBase + (currentBase*(percent_required*4/100)), title = 'Entry 4',
+ color = currentBaseType == 1 ? color.green : color.red, style = plot.style_circles)
+
+plot(currentBaseType == 1 ? currentBase - (currentBase*(percent_required*5/100))
+ : currentBase + (currentBase*(percent_required*5/100)), title = 'Entry 5',
+ color = currentBaseType == 1 ? color.green : color.red, style = plot.style_circles)
+
+
+bgcolor(currentBaseType == 1 ? color.new(color.green, 90) : currentBaseType == -1 ? color.new(color.red, 90) : na)
+// plot((low-currentBase)/currentBase*100, color = color.yellow)
+// plot(lastBreak_numSignals, color = color.yellow)
+
+
+plotshape(buySignal, style=shape.labelup, editable=true, title = 'Buy',
+ text= "BUY", textcolor=color.white, location= location.belowbar, color=color.new(color.green, 30), size=size.tiny)
+
+plotshape(sellSignal, style=shape.labeldown, editable=true, title = 'Sell',
+ text='SELL', textcolor=color.white, location=location.abovebar, color=color.new(color.red, 30), size=size.tiny)
+
+plotshape(retraceComplete and currentBaseType[1] == 1, style=shape.labeldown, editable=true, title = 'Long Exit',
+ text='EXIT', textcolor=color.white, location=location.abovebar, color=color.new(color.gray, 30), size=size.tiny)
+
+plotshape(retraceComplete and currentBaseType[1] == -1, style=shape.labelup, editable=true, title = 'Short Exit',
+ text='EXIT', textcolor=color.white, location=location.belowbar, color=color.new(color.gray, 30), size=size.tiny)
+
+plotshape(baseExpired and currentBaseType[1] == 1, style=shape.labeldown, editable=true, title = 'Long T_Exit',
+ text='T_Exit', textcolor=color.white, location=location.abovebar, color=color.new(color.gray, 30), size=size.tiny)
+
+plotshape(baseExpired and currentBaseType[1] == -1, style=shape.labelup, editable=true, title = 'Short T_Exit',
+ text='T_Exit', textcolor=color.white, location=location.belowbar, color=color.new(color.gray, 30), size=size.tiny)

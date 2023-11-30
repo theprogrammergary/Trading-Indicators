@@ -1,0 +1,202 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_Huefinnews", overlay = true)
+
+volumeemalength = input.int(30, title = 'Volume EMA Length')
+
+narrowspreadfactor = input.float(0.7, title = 'Narrow Spread Factor')
+widespreadfactor = input.float(1.5, title = 'Wide Spread Factor')
+aboveavgvolfactor = input.float(1.5, title = 'Above Avg Vol Factor')
+ultrahighvolfactor = input.float(2, title = 'Ultra High Vol Factor')
+highclosefactor = input.float(0.70, title = 'High Close Factor')
+lowclosefactor = input.float(0.25, title = 'Low Close Factor')
+
+f_linearregressionslope(price, length) =>
+    value =  6 * ( ta.wma(price, length) -  ta.sma(price, length) ) / (length - 1)
+
+spread = high - low
+median = low + spread/2
+avgvolume = ta.ema(volume, volumeemalength)[0]
+
+// # calculate volume moving average and it's standard deviation
+savgvolume = ta.sma(volume, volumeemalength)[0]
+savgvolumestd = ta.stdev(ta.sma(volume, volumeemalength), volumeemalength)
+
+// # check if the vloume has been decreasing in the past two days.
+istwodayslowvol = (volume < volume[1] and volume[0] < volume[2])
+
+// # calculate range information
+avgspread = (ta.rma(spread, volumeemalength)[0])
+iswidespreadbar = (spread > (widespreadfactor * avgspread))
+isnarrowspreadbar = (spread < (narrowspreadfactor * avgspread))
+
+// # price information
+isupbar = close > close[1]
+isdownbar = close < close[1]
+
+// # check if the close is in the highs/lows/middle of the bar.
+x1 = (close - low == 0.00) ? avgspread : (spread / (close - low))
+
+isupclosebar = (x1 < 2)
+isdownclosebar = (x1 > 2)
+ismidclosebar = (x1 < 2.2 and x1 > 1.8)
+isveryhighclosebar = (x1 < 1.35)
+
+// # trend definitions
+fivedayssma = ta.sma(close, 5)[0]
+longtermtrendslope = f_linearregressionslope(fivedayssma,40)[0]
+middletermtrendslope = f_linearregressionslope(fivedayssma,15)[0]
+shorttermtrendslope = f_linearregressionslope(fivedayssma, 5)[0]
+
+
+
+
+
+// #  VSA DEFINTIONS
+
+// # utbar
+isupthrustbar = iswidespreadbar and isdownclosebar and shorttermtrendslope > 0
+
+// # utcond1
+upthrustconditionone = (isupthrustbar[1] and isdownbar)
+
+// # utcond2
+upthrustconditiontwo = (isupthrustbar[1] and isdownbar[0] and volume > volume[1])
+
+// # utcond3
+upthrustconditionthree = (isupthrustbar[0] and volume > 2 * savgvolume[0])
+
+// # scond1
+isconfirmedupthrustbar = (upthrustconditionone or upthrustconditiontwo or upthrustconditionthree)
+
+// # scond
+isnewconfirmedupthrustbar = (isconfirmedupthrustbar[0] and not isconfirmedupthrustbar[1])
+
+// #  trbar
+reversallikelybar = (volume[1] > savgvolume[0] and isupbar[1] and iswidespreadbar[1] and isdownbar[0] and isdownclosebar and iswidespreadbar[0] and longtermtrendslope > 0 and high == ta.highest(high, 10)[0])
+    
+// # hutbar
+ispseudoupthrustbar = (isupbar[1] and (volume[1] > aboveavgvolfactor * savgvolume[0]) and isdownbar[0] and isdownclosebar and not iswidespreadbar[0] and not isupthrustbar[0])
+
+// # hutcond
+pseudoupthrustconfirmation = (ispseudoupthrustbar[1] and isdownbar[0] and isdownclosebar and not isupthrustbar[0])
+
+// # tcbar
+weaknessbar = (isupbar[1] and high[0] == ta.highest(high, 5)[0] and isdownbar[0] and (isdownclosebar or ismidclosebar) and volume[0] > savgvolume[0] and not iswidespreadbar[0] and not ispseudoupthrustbar[0])
+
+// # stdn, stdn0, stdn1, stdn2
+strengthindowntrend =  (volume[0] > volume[1] and isdownbar[1] and isupbar[0] and (isupclosebar or ismidclosebar) and shorttermtrendslope < 0 and middletermtrendslope < 0)
+strengthindowntrend0 = (volume[0] > volume[1] and isdownbar[1] and isupbar[0] and (isupclosebar or ismidclosebar) and shorttermtrendslope < 0 and middletermtrendslope < 0 and longtermtrendslope < 0)
+strengthindowntrend1 = (volume[0] > (savgvolume[0] * aboveavgvolfactor) and isdownbar[1] and isupbar[0] and (isupclosebar or ismidclosebar) and shorttermtrendslope < 0 and middletermtrendslope < 0 and longtermtrendslope < 0)
+strengthindowntrend2 = (volume[1] < savgvolume[0] and isupbar[0] and isveryhighclosebar and volume[0] > savgvolume[0] and shorttermtrendslope < 0)
+
+bycond1 = (strengthindowntrend or strengthindowntrend1)
+
+// # bycond
+isstrengthconfirmationbar = (isupbar[0] and bycond1[1])
+
+// # stvol
+stopvolbar = (low[0] == ta.lowest(low, 5)[0] and (isupclosebar or ismidclosebar) and volume[0] > aboveavgvolfactor * savgvolume[0] and longtermtrendslope < 0) ? 1 : 0
+ 
+// # ndbar, nsbar
+nodemandbar = (isupbar[0] and isnarrowspreadbar[0] and istwodayslowvol and isdownclosebar) 
+nosupplybar = (isdownbar[0] and isnarrowspreadbar[0] and istwodayslowvol and isdownclosebar)
+
+// # lvtbar, lvtbar1, lvtbar2
+supplytestbar = (istwodayslowvol and low[0] < low[1] and isupclosebar)
+supplytestinuptrendbar = (volume[0] < savgvolume[0] and low[0] < low[1] and isupclosebar and longtermtrendslope > 0 and middletermtrendslope > 0 and iswidespreadbar[0])
+successfulsupplytestbar = (supplytestbar[1] and isupbar[0] and isupclosebar)
+   
+// # dbar
+distributionbar = (volume[0] > ultrahighvolfactor * savgvolume[0] and isdownclosebar and isupbar[0] and shorttermtrendslope > 0 and middletermtrendslope > 0 and not isconfirmedupthrustbar[0] and not isupthrustbar[0])
+
+// # eftup, eftupfl, eftdn
+efforttomoveupbar = (high[0] > high[1] and low[0] > low[1] and close[0] > close[1] and close[0] >= ((high[0] - low[0]) * highclosefactor + low[0]) and spread[0] > avgspread and volume[0] > volume[1])
+failedeffortupmove = (efforttomoveupbar[1] and (isupthrustbar[0] or upthrustconditionone or upthrustconditiontwo or upthrustconditionthree))
+efforttomovedownbar = (high[0] < high[1] and low[0] < low[1] and close[0] < close[1] and close[0] <= ((high[0] - low[0]) * lowclosefactor + low[0]) and spread[0] > avgspread and volume[0] > volume[1])
+
+
+
+
+//
+//ABOVE BAR PLOTS
+//
+// # upthurst and not confirmed - red square on top
+plotshape(isupthrustbar[0] and not isnewconfirmedupthrustbar[0] ? (high + 2 * syminfo.mintick) : na, title = 'Up Thrust Bar', style = shape.square, color = color.red, location = location.absolute)
+
+// # reversal likely - blue diamond on top
+plotshape(reversallikelybar ? (high + 2 * syminfo.mintick) : na, title = 'Reversal Likely Bar', style = shape.circle, color = color.blue, location = location.absolute)
+
+// # new confirmed upthrust bar - red triangle down on top
+plotshape(isnewconfirmedupthrustbar ? (high + 2 * syminfo.mintick) : na, title = 'Is New Confirmed Up Thrust Bar', style = shape.triangledown, color = color.red, location = location.absolute)
+
+// # blue square
+plotshape(ispseudoupthrustbar ? (high + 2 * syminfo.mintick) : na, title = 'Is Pseudo Up Thrust Bar', style = shape.square, color = color.blue, location = location.absolute)
+
+// # blue triangle down
+plotshape(pseudoupthrustconfirmation ? (high + 2 * syminfo.mintick) : na, title = 'Pseudo Up Thrust Confirmation', style = shape.triangledown, color = color.blue, location = location.absolute)
+
+// # yellow triangle down
+plotshape(weaknessbar ? (high + 2 * syminfo.mintick) : na, title = 'Weakness Bar', style = shape.triangledown, color = color.yellow, location = location.absolute)
+
+// # blue square on top
+plotshape(distributionbar ? (high + 2 * syminfo.mintick) : na, title = 'Distribution Bar', style = shape.square, color = color.blue, location = location.absolute)
+
+// # no demand bar - blue squre on top
+plotshape(nodemandbar ? (high + 2 * syminfo.mintick) : na, title = 'No Demand Bar', style = shape.square, color = color.blue, location = location.absolute)
+
+// # effort to move up - turquoise diamond in the median of the bar
+plotshape(efforttomoveupbar ? median : na, title = 'Effort To Move Up Bar', style = shape.circle, color = color.new(#9575cd,0), location = location.absolute)
+
+//
+//BELOW BAR PLOTS
+//
+// # strength in down trend - lime square on bottom
+plotshape(strengthindowntrend ? (low - 2 * syminfo.mintick) : na, title = 'Strength In Downtrend', style = shape.square, color = color.green, location = location.absolute)
+
+// # strength in down trend - lime square on bottom
+plotshape(strengthindowntrend1 ? (low - 3 * syminfo.mintick) : na, title = 'Strength In Downtrend 1', style = shape.square, color = color.green, location = location.absolute)
+
+// # supply test in up trend - lime square on bottom of the bar
+plotshape(supplytestinuptrendbar ? (low - 4 * syminfo.mintick) : na, title = 'Supply Test In Up Trend Bar', style = shape.square, color = color.green, location = location.absolute)
+
+// # successful test for supply - yellow triangle up on bottom of the bar
+plotshape(successfulsupplytestbar ? (low - 2 * syminfo.mintick) : na, title = 'Successful Supply Test Bar', style = shape.triangleup, color = color.yellow, location = location.absolute)
+
+// # green diamond
+plotshape(stopvolbar ? (low - 2 * syminfo.mintick) : na, title = 'Stop Vol Bar', style = shape.circle, color = color.green, location = location.absolute)
+
+// # green triangle up
+plotshape(isstrengthconfirmationbar ? (low - 2 * syminfo.mintick) : na, title = 'Is Strength Confirmation Bar', style = shape.triangleup, color = color.yellow, location = location.absolute)
+
+// # aqua triangle up
+plotshape(strengthindowntrend2 ? (low - 2 * syminfo.mintick) : na, title = 'Strength In Downtrend 2', style = shape.triangleup, color = color.aqua, location = location.absolute)
+
+// # supply test bar - pink square on bottomp
+plotshape(supplytestbar ? (low - 2 * syminfo.mintick) : na, title = 'Supply Test Bar', style = shape.square, color = color.fuchsia, location = location.absolute)
+
+// # no supply bar - lime diamond on bottom
+plotshape(nosupplybar ? (low - 2 * syminfo.mintick) : na, title = 'No Supply Bar', style = shape.circle, color = color.green, location = location.absolute)
+
+// # effort to move up - turquoise diamond in the median of the bar
+plotshape(efforttomovedownbar ? median : na, title = 'Effort To Move Down Bar', style = shape.circle, color = color.yellow, location = location.absolute)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

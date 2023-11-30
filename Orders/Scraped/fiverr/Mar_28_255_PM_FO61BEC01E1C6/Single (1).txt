@@ -1,0 +1,113 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Simple Sentiment", overlay = true)
+
+//DASHBOARD
+panelbull_color = input.color(#27a69b, title='Bull Color', inline='1', group='Visual Settings')
+panelbear_color = input.color(#b63632, title='Bear Color', inline='1', group='Visual Settings')
+panelneutral_color = input.color(color.gray, title='Neutral Color', inline='1', group='Visual Settings')
+
+//INPUTS
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Visual Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Visual Settings')
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Visual Settings')
+dashboard_bull = color.new(panelbull_color,40)
+dashboard_bear = color.new(panelbear_color,40)
+// label_offset = input.int(25, minval = 1, title='Label Offset', inline='3', group='Visual Settings')
+
+use_symbol1 = input.bool(false, ' ', group='Scanner Settings', inline = '1')
+symbol1 = input.symbol("BTCUSD", title = 'Symbol 1', group='Scanner Settings', inline = '1')
+real_symbol1 = use_symbol1 ? symbol1 : syminfo.tickerid
+
+tf1 = "1"
+tf2 = "5"
+tf3 = "15"
+tf4 = "30"
+tf5 = "60"
+tf6 = "240"
+
+tf1_bars_back = 100
+tf2_bars_back = 12
+tf3_bars_back = 4
+tf4_bars_back = 2
+tf5_bars_back = 1
+tf6_bars_back = 1
+
+
+get_count_function(symbol, tf, bars_back) =>
+
+    bull_count = request.security(symbol, tf , math.sum(close >= open ? 1 : 0,bars_back), lookahead = barmerge.lookahead_on)
+    bear_count = bars_back - bull_count
+    
+    what_color = bull_count > bear_count ? panelbull_color : bear_count > bull_count ? panelbear_color : panelneutral_color
+
+    [bull_count, bear_count, what_color]
+    
+[sym1_tf1_bull, sym1_tf1_bear, color_sym1_tf1] = get_count_function(real_symbol1, tf1, tf1_bars_back)
+[sym1_tf2_bull, sym1_tf2_bear, color_sym1_tf2] = get_count_function(real_symbol1, tf2, tf2_bars_back)
+[sym1_tf3_bull, sym1_tf3_bear, color_sym1_tf3] = get_count_function(real_symbol1, tf3, tf3_bars_back)
+[sym1_tf4_bull, sym1_tf4_bear, color_sym1_tf4] = get_count_function(real_symbol1, tf4, tf4_bars_back)
+[sym1_tf5_bull, sym1_tf5_bear, color_sym1_tf5] = get_count_function(real_symbol1, tf5, tf5_bars_back)
+[sym1_tf6_bull, sym1_tf6_bear, color_sym1_tf6] = get_count_function(real_symbol1, tf6, tf6_bars_back)
+
+all_green = color_sym1_tf1 == panelbull_color and
+     color_sym1_tf2 == panelbull_color and
+     color_sym1_tf3 == panelbull_color and
+     color_sym1_tf4 == panelbull_color and
+     color_sym1_tf5 == panelbull_color and
+     color_sym1_tf6 == panelbull_color
+
+all_red = color_sym1_tf1 == panelbear_color and
+     color_sym1_tf2 == panelbear_color and
+     color_sym1_tf3 == panelbear_color and
+     color_sym1_tf4 == panelbear_color and
+     color_sym1_tf5 == panelbear_color and
+     color_sym1_tf6 == panelbear_color
+     
+if all_green and not all_green[1] 
+    alert('All Timeframes Green' , alert.freq_once_per_bar)
+    
+if all_red and not all_red[1] 
+    alert('All Timeframes Red' , alert.freq_once_per_bar)
+
+// show_signals = input.bool(true, title = 'Show Signals', inline='3', group='Visual Settings')
+// color_bg = input.bool(true, title = 'Color BG', inline='3', group='Visual Settings')
+
+// var last_signal = 0
+// last_signal := all_green and not all_green[1] ? 1 : all_red and not all_red[1] ? -1 : last_signal[1]
+// // bgcolor(not color_bg ? na : all_green ? color.new(panelbull_color,80) : all_red ? color.new(panelbear_color,80) : na)
+// bgcolor(not color_bg ? na : last_signal == 1 ? color.new(panelbull_color,80) : last_signal == -1 ? color.new(panelbear_color,80) : na)
+
+// plotshape(show_signals and last_signal == 1 and last_signal[1] != 1 and barstate.isconfirmed ? low - (syminfo.mintick * label_offset) : na, style=shape.labelup, editable=false, text= "Buy", textcolor=dashboard_text, location= location.absolute, color=color.new(panelbull_color, 30), size=size.tiny)
+// plotshape(show_signals and last_signal == -1 and last_signal[1] != -1 and barstate.isconfirmed ? high + (syminfo.mintick * label_offset) : na, style=shape.labeldown, editable=false, text='Sell', textcolor=dashboard_text, location=location.absolute, color=color.new(panelbear_color, 30), size=size.tiny)
+
+
+//TABLE
+var table t = table.new(positioning, 7, 3, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)
+if barstate.islast
+
+    //Column 1
+    table.cell(t, 0, 0, text='Simple Sentiment', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 1, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 2, text=str.substring(real_symbol1, str.pos(real_symbol1, ":") + 1), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.cell(t, 1, 1, text=tf1,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 1, text=tf2,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 3, 1, text=tf3,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 4, 1, text=tf4,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)       
+    table.cell(t, 5, 1, text=tf5,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 6, 1, text=tf6,width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)  
+    
+    table.cell(t, 1, 2, text= "   ",width=0, bgcolor=color_sym1_tf1, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 2, text= "   ",width=0, bgcolor=color_sym1_tf2, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)   
+    table.cell(t, 3, 2, text= "   ",width=0, bgcolor=color_sym1_tf3, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 4, 2, text= "   ",width=0, bgcolor=color_sym1_tf4, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 5, 2, text= "   ",width=0, bgcolor=color_sym1_tf5, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 6, 2, text= "   ",width=0, bgcolor=color_sym1_tf6, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.merge_cells(t, 0, 0, 6, 0)
+
+

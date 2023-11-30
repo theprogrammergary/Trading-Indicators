@@ -1,0 +1,109 @@
+#CHANGE THESE
+input number_true = 5;
+
+input market_open = 0930;
+input market_close = 1600;
+
+input min_gap = -2.97;
+input max_gap = -0.50;
+
+input min_candlesize = 1.96;
+input max_candlesize = 6.60;
+
+input cumulative_volume_end_time = 1010;
+input cumulative_volume_low = 10000;
+input cumulative_volume_high = 225000;
+
+input velocity_mult = 10000;
+input velocity_use_absvalue = yes;
+input min_velocity = -8.22;
+input max_velocity = 23.00;
+
+input rsi_comparepct_min = -44.00;
+input rsi_comparepct_max = -10.00;
+input rsi_price = close;
+input rsi_length = 14;
+input rsi_averagetype = averageType.WILDERS;
+
+
+#IGNORE BELOW
+
+
+def new_day = getday() != getday()[1];
+def past_market_open = secondsFromTime(market_open) >= 0;
+#def market_open_reset =  past_market_open and !past_market_open[1];
+def market_open_reset = secondsfromtime(market_open) == 0;
+def market_close_cond = secondsfromtime(market_close) == 0;
+#assignpriceColor(if market_open_reset then color.cyan else color.gray);
+
+##### OPENING GAP #####
+def gap_size = round((open(period = aggregationPeriod.DAY) - close(period = aggregationPeriod.DAY)[1]) / close(period = aggregationPeriod.DAY)[1] * 100,2);
+def opening_gap_cond = gap_size >= min_gap and gap_size <= max_gap;
+#addlabel(yes, "Opening Gap: " + gap_size + "%", if opening_gap_cond then color.cyan else color.gray);
+
+
+##### CANDLE SIZE #####
+def candle_size = if market_open_reset then (high - low) else candle_size[1];
+def candle_size_cond = candle_size >= min_gap and candle_size <= max_gap;
+#addlabel(yes, "Candle Size: " + candle_size, if candle_size then color.cyan else color.gray);
+
+
+##### CUMULATIVE VOLUME #####
+rec sumofvolume = compoundvalue(1, if new_day then volume else sumofvolume[1] + volume,0);
+def cumulative_volume = sumofvolume;
+def isEndTime = secondsFromTime(cumulative_volume_end_time) > 0;
+
+def cumulative_volume_at = if new_day then Double.NaN else if isEndTime and !isEndTime[1] then cumulative_volume[1] else cumulative_volume_at[1];
+def cumulative_volume_at_time = cumulative_volume_at;
+
+def cumulative_volume_cond = cumulative_volume_at_time >= cumulative_volume_low and cumulative_volume_at_time <= cumulative_volume_high;
+#addlabel(yes, "Cumulative Vol: " + cumulative_volume_at_time, if cumulative_volume_cond then color.cyan else color.gray);
+
+
+#### VELOCITY #####
+def todays_open =  if market_open_reset then round(open,2) else todays_open[1];
+def end_price =   if market_open_reset then round(close,2) else end_price[1];
+def price_velocity = if velocity_use_absvalue then absValue(((round(end_price,2) - todays_open) / todays_open)  * velocity_mult) else ((round(end_price,2) - todays_open) / todays_open)  * velocity_mult;
+
+def velocity_cond = price_velocity >= min_velocity and price_velocity <= max_velocity;
+#addlabel(yes, "Velocity: " + round(price_velocity,2), if velocity_cond then color.cyan else color.gray);
+
+
+### ATR AT TIME ###
+input min_atr_pct = 22.00;
+input max_atr_pct = 79.00;
+input atr_length = 14;
+
+def daily_h = high(period = aggregationPeriod.DAY)[1];
+def daily_l = high(period = aggregationPeriod.DAY)[1];
+def daily_c = high(period = aggregationPeriod.DAY)[1];
+
+def daily_atr = MovingAverage(averageType.WILDERS, TrueRange(daily_h, daily_l, daily_c), atr_length);
+
+def opening_high =  if market_open_reset then round(high,2) else opening_high[1];
+def opening_low =   if market_open_reset then round(low,2) else opening_low[1];
+def opening_range = opening_high - opening_low;
+def opening_range_pct = round(opening_range / daily_atr,2);
+
+def atr_cond = opening_range_pct * 100 >= min_atr_pct and opening_range_pct * 100 <= max_atr_pct;
+#addlabel(yes, "ATR%: " + aspercent(opening_range_pct), if atr_cond then color.cyan else color.gray);
+
+##### RSI COMPARE ####
+#IGNORE BELOW
+def NetChgAvg = MovingAverage(rsi_averagetype, rsi_price - rsi_price[1], rsi_length);
+def TotChgAvg = MovingAverage(rsi_averagetype, AbsValue(rsi_price - rsi_price[1]), rsi_length);
+def ChgRatio = if TotChgAvg != 0 then NetChgAvg / TotChgAvg else 0;
+
+def RSI = round(50 * (ChgRatio + 1),2);
+def rsi_at_time = if market_open_reset then rsi else rsi_at_time[1];
+def store_rsi_close = if market_close_cond then rsi[1] else store_rsi_close[1];
+def rsi_yesterday_close = if market_open_reset then store_rsi_close else rsi_yesterday_close[1];
+
+#we multiply by negative one
+def rsi_pct_change = (rsi_yesterday_close - rsi_at_time ) / rsi_yesterday_close * -1;
+def rsi_cond = rsi_pct_change * 100 >= rsi_comparepct_min and rsi_pct_change * 100 <= rsi_comparepct_max;
+#addlabel(yes, "RSI: " + aspercent(rsi_pct_change), if rsi_cond then color.cyan else color.gray);
+
+
+def calm_floaters_scan = opening_gap_cond + candle_size_cond + cumulative_volume_cond + velocity_cond + atr_cond + rsi_cond;
+addlabel(yes, if calm_floaters_scan >= number_true then "Calm Drop" else " ", color.cyan);

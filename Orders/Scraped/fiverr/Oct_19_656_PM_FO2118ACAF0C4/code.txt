@@ -1,0 +1,127 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_Luxoralcare_closes", overlay = true, max_labels_count = 500, max_lines_count = 500, max_bars_back = 5000)
+
+
+//--Resistance Support INPUTS--//
+sd_length = input.int(10, title = 'Length', group = 'Levels', minval = 3, maxval = 50, inline = '2')
+Resistance_color = input.color(color.new(#c30616,30), title = 'Resistance', group = 'Levels', inline = '3')
+Support_color = input.color(color.new(#05cd0e,30), title = 'Support', group = 'Levels', inline = '3')
+fullExtend = input.bool(false, title = 'Extend Across Entire Chart', group = 'Levels', inline = '4')
+//--Resistance Support INPUTS--//
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_sr(sd_length) =>
+
+    var bool sh = na
+    var bool sl = na
+
+    var float csh = na
+    var float csl = na
+    var float o = na
+    var float c = na
+    var int csh_time = na
+    var int csl_time = na
+    var string tf_text = na
+
+    // sh := high[1] == ta.highest(high[1], sd_length) and close < high[1] and close[1] > close[2] and high < high[1]
+    // sl := low[1] == ta.lowest(low[1], sd_length) and close > low[1] and close[1] < close[2] and low > low[1]
+
+    sh := math.max(high[1], high) == ta.highest(high, sd_length) and (close < close[1] and close[1] > close[2])
+    sl := math.min(low[1], low) == ta.lowest(low, sd_length) and (close > close[1] and close[1] < close[2])
+
+
+    csh := sh ? close[1] : na
+    csl := sl ? close[1] : na
+
+    csh_time := sh ? time[1] : na
+    csl_time := sl ? time[1] : na
+
+    [sh, sl, csh, csl, csh_time, csl_time, open, high, low, close, barstate.isconfirmed]
+
+
+//--FUNCTION TO DRAW Resistance OR Support ZONE--//
+f_Resistance_Support(line_array, line_type, line_left, level, Resistance_color, Support_color) =>
+
+    line_right = time
+
+    if line_type == 1 
+        line.delete( array.get(line_array, array.size(line_array) - 1) )
+        f_array_add_pop(line_array, line.new( x1 = line_left, y1 = level, x2 = line_right, y2 = level,
+             color = Resistance_color, extend = fullExtend ? extend.both : extend.right, xloc = xloc.bar_time))
+    
+    else if line_type == -1
+        line.delete( array.get(line_array, array.size(line_array) - 1) )
+        f_array_add_pop(line_array, line.new( x1 = line_left, y1 = level, x2 = line_right, y2 = level,
+             color = Support_color, extend = fullExtend ? extend.both : extend.right, xloc = xloc.bar_time))
+    
+
+
+//--FUNCTION TO CHANGE Resistance/Support TO A BOS IF BROKEN--// (THIS VERSION WE JUST DELETE)
+f_sd_to_bos(line_array, bos_array, zone_type, tf_close) =>
+    for i = 0 to array.size(line_array) - 1
+        level_to_break = line.get_y2(array.get(line_array,i))
+        if (zone_type == 1  and tf_close >= level_to_break) or (zone_type == -1  and tf_close <= level_to_break) 
+            line.delete(array.get(line_array, i))
+
+
+//--FUNCTION MANAGE CURRENT lineES BY CHANGING ENDPOINT--//
+f_extend_line_endpoint(line_array) =>
+    for i = 0 to array.size(line_array) - 1
+        line.set_x2(array.get(line_array, i), time + (timeframe.in_seconds() * 1000 * 100))
+
+//-----FUNCTIONS END-----//
+
+
+
+
+//-----DEFINE VARIABLES-----//
+
+//--ARRAYS FOR SWING H/L & BN--//
+var Resistance_line = array.new_line(100, na)
+var Support_line = array.new_line(100, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+//--ARRAYS FOR SWING H/L & BN--//
+var Resistance_bos = array.new_line(125, na)
+var Support_bos = array.new_line(125, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+
+//-----START CALCULATING-----//
+[sh, sl, csh, csl, csh_time, csl_time, tf_open, tf_high, tf_low, tf_close, tf_confirmed] = 
+ request.security(syminfo.tickerid, "60", f_get_sr(sd_length), lookahead = barmerge.lookahead_on )
+
+
+// draw Resistance/Supports
+if (timeframe.in_seconds() <= timeframe.in_seconds("60"))
+    if sh and not sh[1]
+        f_Resistance_Support(Resistance_line, 1, csh_time, csh, Resistance_color, Resistance_color)
+    if sl and not sl[1]
+        f_Resistance_Support(Support_line, -1, csl_time, csl, Resistance_color, Support_color)
+
+// delete old levels
+f_sd_to_bos(Resistance_line, Resistance_bos, 1, tf_close)
+f_sd_to_bos(Support_line, Support_bos, -1, tf_close)
+
+// extend lines
+if barstate.islast
+    f_extend_line_endpoint(Resistance_line)
+    f_extend_line_endpoint(Support_line)
+
+
+
+
+
+
+

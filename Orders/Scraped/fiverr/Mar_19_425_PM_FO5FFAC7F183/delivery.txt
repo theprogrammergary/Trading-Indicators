@@ -1,0 +1,9 @@
+Please read the disclaimer and see the pictures.
+
+1. Image.png
+Make sure you have historical bars loaded for this to work properly.
+
+2. Alert.png
+Make sure that you have alerts enabled as well.
+
+Let me know if you have any questions!

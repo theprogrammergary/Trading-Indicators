@@ -1,0 +1,1 @@
+Please read the disclaimer. You can change the channel size with the channel_size input in settings. Also if you get weird scaling you need to add more days to chart since it uses multi timeframes. So if it looks weird on 5d 5min try 30d 5min.

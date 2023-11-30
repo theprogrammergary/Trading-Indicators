@@ -1,0 +1,101 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_Donkeen", overlay = true)
+
+
+
+// ⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️
+// ema settings
+input_emasource     = input.source(close, title = 'EMA Source', group = 'EMA Settings')
+input_emalength1    = input.int(13, title = 'EMA Length 1', group = 'EMA Settings')
+input_emalength2    = input.int(50, title = 'EMA Length 2', group = 'EMA Settings')
+
+
+// tdi rsi settings
+rsiPeriod           = input.int(11, minval = 1, title = "RSI Period", group = 'TDI Settings')
+bandLength          = input.int(31, minval = 1, title = "Band Length", group = 'TDI Settings')
+lengthrsipl         = input.int(1, minval = 0, title = "Fast MA on RSI", group = 'TDI Settings')
+lengthtradesl       = input.int(9, minval = 1, title = "Slow MA on RSI", group = 'TDI Settings')
+// ⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️⚙️
+
+
+
+
+
+
+// 🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖
+// ema calculations
+ema_value1 = ta.ema(input_emasource, input_emalength1)
+ema_value2 = ta.ema(input_emasource, input_emalength2)
+
+p_ema1 = plot(ema_value1, title = 'EMA 1', color = color.new(color.yellow,40), display = display.none)
+p_ema2 = plot(ema_value2, title = 'EMA 2', color = color.new(color.orange,40), display = display.none)
+
+ema_bull = ta.crossover(close, ema_value1)
+ema_bear = ta.crossunder(close, ema_value1)
+
+emas_bull = ema_value1 >= ema_value2
+emas_bear = ema_value1 < ema_value2
+
+fill(p_ema1, p_ema2, color = emas_bull ? color.new(color.lime,85) : color.new(color.red,85), title = 'EMA Cloud', display = display.none)
+
+
+
+// tdi calculations
+f_calculate_tdi(src) =>
+    
+    r = ta.rsi(src, rsiPeriod)                                                 
+    ma = ta.sma(r, bandLength)                                                 
+    offs = (1.6185 * ta.stdev(r, bandLength))
+    up = ma + offs                                                          
+    dn = ma - offs                                                          
+    mid = (up + dn) / 2                                                     
+    fastMA = ta.sma(r, lengthrsipl)                                            
+    slowMA = ta.sma(r, lengthtradesl)       
+
+    [up, dn, mid, slowMA, fastMA]
+
+
+[up1, dn1, mid1, slowMA1, fastMA1] = f_calculate_tdi(close)
+
+
+tdi_crossabove_mid = ta.crossover(fastMA1, mid1)
+tdi_crossbelow_mid = ta.crossunder(fastMA1, mid1)
+
+tdi_crossedabove_slow = ta.crossover(fastMA1, slowMA1)
+tdi_crossedbelow_slow = ta.crossunder(fastMA1, slowMA1)
+
+
+
+// rsi calculations
+input_rsilength         = input.int(14, title = 'RSI Length', group = 'RSI Settings')
+input_rsisource         = input.source(close, title = 'RSI Source', group = 'RSI Settings')
+input_rsitriggerpct     = input.float(15.00, step = 1.00, title = 'RSI x %', group = 'RSI Settings')
+
+rsi_value = ta.rsi(input_rsisource, input_rsilength)
+
+rsi_bull = (rsi_value - rsi_value[1]) / rsi_value[1] * 100 >= input_rsitriggerpct
+rsi_bear = (rsi_value - rsi_value[1]) / rsi_value[1] * 100 <= -input_rsitriggerpct
+
+
+// candle size calculations
+input_candlesizelookback = input.int(50, title = 'Candle Size Avg. Lookback', group = 'Candle Size Settings')
+input_candlesizepercent  = input.float(150.00, title = 'Candle Size Trigger %', group = 'Candle Size Settings')
+
+avg_size = ta.sma(high[1]-low[1], input_candlesizelookback)
+candletrigger_percent = (high-low) / avg_size * 100 >= input_candlesizepercent
+// label.new(bar_index, close, text=str.tostring(math.round((high-low) / avg_size * 100,2)))
+
+// create signal conditions
+bull_cond1 = ema_bull and emas_bull and tdi_crossedabove_slow and rsi_bull and candletrigger_percent
+bull_cond2 = ema_bull and emas_bull and tdi_crossabove_mid and rsi_bull and candletrigger_percent
+
+bear_cond1 = ema_bear and emas_bear and tdi_crossedbelow_slow and rsi_bear and candletrigger_percent
+bear_cond2 = ema_bear and emas_bear and tdi_crossbelow_mid and rsi_bear and candletrigger_percent
+
+
+barcolor( (bull_cond1 or bull_cond2) ? color.new(#c0ff00,0) : (bear_cond1 or bear_cond2) ? color.new(#ffb500,0) : na)
+bgcolor( (bull_cond1 or bull_cond2) ? color.new(#c0ff00,60) : (bear_cond1 or bear_cond2) ? color.new(#ffb500,60) : na , display = display.none)
+// 🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖➗🟰➕➖

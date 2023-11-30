@@ -1,0 +1,124 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("For jacobdmoss 1", overlay=false)
+width     = input.int(50,step=10, group = 'Settings')
+spacing   = input.float(4.,minval=1, group = 'Settings')
+thickness = input.int(3, group = 'Settings')
+offset    = input.int(10, group = 'Settings')
+src       = input(close, group = 'Settings')
+
+gradient  = input(false,inline='gradient')
+grad_a    = input(#ff1100,'',inline='gradient')
+grad_b    = input(#2157f3,'',inline='gradient')
+grad_c    = input(#00bcd4,'',inline='gradient')
+
+overbought_color = input.color(color.new(#d32f2f,90), title = "Overbought Color")
+oversold_color = input.color(color.new(#26a69a,90), title = "Oversold Color")
+avg_color = input.color(color.new(color.white,0), title = "Average Color")
+//----
+rsi_len = input(14,'RSI     ',inline='inline1',group='Oscillators')
+rsi_col = input(#ff1100,'',inline='inline1',group='Oscillators')
+
+st_len = input(14,'%K     ',inline='inline1',group='Oscillators')
+st_col = input(#ff5d00,'',inline='inline1',group='Oscillators')
+
+r_len = input(14,'ROSC  ',inline='inline2',group='Oscillators')
+r_col = input(#0cb51a,'',inline='inline2',group='Oscillators')
+
+wpr_len = input(14,'WPR   ',inline='inline2',group='Oscillators')
+wpr_col = input(#2157f3,'',inline='inline2',group='Oscillators')
+
+pr_len = input(14,'%RANK',inline='inline3',group='Oscillators')
+pr_col = input(#673ab7,'',inline='inline3',group='Oscillators')
+
+mfi_len = input(14,'MFI    ',inline='inline3',group='Oscillators')
+mfi_col = input(#e91e63,'',inline='inline3',group='Oscillators')
+//------------------------------------------------------------------------------
+
+n = bar_index+width+offset
+//------------------------------------------------------------------------------
+rsi   = ta.rsi(src,rsi_len)
+angle_rsi = math.round(rsi/100*360)
+
+stoch = ta.stoch(src,src,src,st_len)
+angle_stoch = math.round(stoch/100*360)
+
+rosc = ta.correlation(src,n,r_len)
+angle_rosc  = math.round((.5*rosc+.5)*360)
+
+wpr = ta.wpr(wpr_len)
+angle_wpr   = math.round((wpr/100 + 1)*360)
+
+pr = ta.percentrank(src,pr_len)
+angle_pr = math.round(pr/100*360)
+
+mfi = ta.mfi(src,mfi_len)
+angle_mfi = math.round(mfi/100*360)
+
+avg = math.avg(angle_rsi,angle_stoch,angle_rosc,angle_wpr,angle_pr,angle_mfi)/3.6
+
+var tb = table.new(position.middle_right,2,7)
+if barstate.islast
+    // //Circular Plot
+    // l(rsi_lines,width,angle_rsi,rsi_col,color.gray,thickness,1)
+    // l(st_lines,width-spacing,angle_stoch,st_col,color.gray,thickness,1)
+    // l(r_lines,width-spacing*2,angle_rosc,r_col,color.gray,thickness,1)
+    // l(wpr_lines,width-spacing*3,angle_wpr,wpr_col,color.gray,thickness,1)
+    // l(pr_lines,width-spacing*4,angle_pr,pr_col,color.gray,thickness,1)
+    // l(mfi_lines,width-spacing*5,angle_mfi,mfi_col,color.gray,thickness,1)
+    
+    //Center Labels
+    avg = math.avg(angle_rsi,angle_stoch,angle_rosc,angle_wpr,angle_pr,angle_mfi)/3.6
+    
+    avg_css = gradient ? color.from_gradient(avg,50,100,color.from_gradient(avg,0,50,grad_a,grad_b),grad_c) : color.gray
+    
+    // label.delete(label.new(n,0,str.tostring(avg,'#.##')+'%',color=avg_css,
+    //   style=label.style_label_center,textcolor=color.white,textalign=text.align_center,size=size.normal)[1])
+    
+    //Table Cells
+    table.cell(tb,0,0,'1 - RSI',text_color=color.white,bgcolor=rsi_col,text_halign=text.align_left)
+    table.cell(tb,0,1,'2 - %K',text_color=color.white,bgcolor=st_col,text_halign=text.align_left)
+    table.cell(tb,0,2,'3 - ROSC',text_color=color.white,bgcolor=r_col,text_halign=text.align_left)
+    table.cell(tb,0,3,'4 - WPR',text_color=color.white,bgcolor=wpr_col,text_halign=text.align_left)
+    table.cell(tb,0,4,'5 - %RANK',text_color=color.white,bgcolor=pr_col,text_halign=text.align_left)
+    table.cell(tb,0,5,'6 - MFI',text_color=color.white,bgcolor=mfi_col,text_halign=text.align_left)
+    table.cell(tb,0,6,'    AVG',text_color=color.white,bgcolor=avg_css,text_halign=text.align_left)
+    
+    table.cell(tb,1,0,str.tostring(rsi,'#.##'),text_color=color.white,bgcolor=rsi_col)
+    table.cell(tb,1,1,str.tostring(stoch,'#.##'),text_color=color.white,bgcolor=st_col)
+    table.cell(tb,1,2,str.tostring(rosc,'#.##'),text_color=color.white,bgcolor=r_col)
+    table.cell(tb,1,3,str.tostring(wpr,'#.##'),text_color=color.white,bgcolor=wpr_col)
+    table.cell(tb,1,4,str.tostring(pr,'#.##'),text_color=color.white,bgcolor=pr_col)
+    table.cell(tb,1,5,str.tostring(mfi,'#.##'),text_color=color.white,bgcolor=mfi_col)
+    table.cell(tb,1,6,str.tostring(avg,'#.##'),text_color=color.white,bgcolor=avg_css)    
+    
+plot(avg, title = "AVG", color = avg_color, linewidth = 2, editable = true)
+
+midline = hline(50, "Mid Line", color = color.new(color.white,70), linestyle =  hline.style_dotted)
+strong_bull = hline(80, "Overbought", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+extreme_strong_bull = hline(100, "Xtreme Overbought", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+strong_bear = hline(20, "Oversold", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+extreme_strong_bear = hline(0, "Xtreme Oversold", color = color.new(color.white,70), linestyle =  hline.style_dashed)
+
+fill(strong_bull,extreme_strong_bull, color = overbought_color, title = "Overbought Area")
+fill(strong_bear,extreme_strong_bear, color = oversold_color, title = "Oversold Area")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

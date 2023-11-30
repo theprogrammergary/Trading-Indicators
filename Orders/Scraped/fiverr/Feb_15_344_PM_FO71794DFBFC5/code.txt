@@ -1,0 +1,54 @@
+declare lower;
+
+input fastLength = 12;
+input slowLength = 26;
+input MACDLength = 9;
+input averageType = AverageType.EXPONENTIAL;
+input showBreakoutSignals = yes;
+input showCustomSignals = yes;
+
+plot Value = MovingAverage(averageType, close, fastLength) - MovingAverage(averageType, close, slowLength);
+plot Avg = MovingAverage(averageType, Value, MACDLength);
+
+plot Diff = Value - Avg;
+plot ZeroLine = 0;
+
+def Value2 = MovingAverage(averageType, close, fastLength) - MovingAverage(averageType, close, slowLength - 2);
+def Avg2 = MovingAverage(averageType, Value, MACDLength - 2);
+def Diff2 = Value2 - Avg2;
+
+def usignal = Diff <= 0 and diff >= diff[1] and diff[1] >= diff[2] and diff[2] >= diff[3] and diff[3] >= diff[4];
+plot CustomUpSignal = if usignal and !usignal[1] then diff else double.nan;
+CustomUpSignal.setpaintingStrategy(paintingStrategy.Points);
+CustomUpSignal.setdefaultColor(color.light_green);
+CustomUpSignal.setlineWeight(3);
+CustomUpSignal.sethiding(!showCustomSignals);
+
+def dsignal = Diff >= 0 and diff <= diff[1] and diff[1] <= diff[2] and diff[2] <= diff[3] and diff[3] <= diff[4];
+plot CustomDownSignal = if dsignal and !dsignal[1] then diff else double.nan;
+CustomDownSignal.setpaintingStrategy(paintingStrategy.Points);
+CustomDownSignal.setdefaultColor(color.magenta);
+CustomDownSignal.setlineWeight(3);
+CustomDownSignal.sethiding(!showCustomSignals);
+
+plot UpSignal = if Diff crosses above zeroline then zeroline else double.nan;
+plot DownSignal = if Diff crosses below ZeroLine then ZeroLine else Double.NaN;
+
+UpSignal.SetHiding(!showBreakoutSignals);
+DownSignal.SetHiding(!showBreakoutSignals);
+
+Value.SetDefaultColor(GetColor(1));
+Avg.SetDefaultColor(GetColor(8));
+Diff.SetDefaultColor(GetColor(5));
+Diff.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+Diff.SetLineWeight(3);
+Diff.DefineColor("Positive and Up", Color.GREEN);
+Diff.DefineColor("Positive and Down", Color.DARK_GREEN);
+Diff.DefineColor("Negative and Down", Color.RED);
+Diff.DefineColor("Negative and Up", Color.DARK_RED);
+Diff.AssignValueColor(if Diff >= 0 then if Diff > Diff[1] then Diff.color("Positive and Up") else Diff.color("Positive and Down") else if Diff < Diff[1] then Diff.color("Negative and Down") else Diff.color("Negative and Up"));
+ZeroLine.SetDefaultColor(GetColor(0));
+UpSignal.SetDefaultColor(Color.UPTICK);
+UpSignal.SetPaintingStrategy(PaintingStrategy.ARROW_UP);
+DownSignal.SetDefaultColor(Color.DOWNTICK);
+DownSignal.SetPaintingStrategy(PaintingStrategy.ARROW_DOWN);

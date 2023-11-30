@@ -1,0 +1,52 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_optiontrader123", overlay = true)
+
+// trade settings
+_bars_between = input.int(10, title = 'Bars Between Signals', group = 'Signal Settings', minval = 0)
+_signal_waiting = input.int(3, title = 'Signal Waiting', group = 'Signal Settings', minval = 0)
+
+// rsi_settings
+rsi_ob = input.int(65, title = 'RSI Sell Above', group = 'RSI Settings')
+rsi_os = input.int(35, title = 'RSI Buy Below', group = 'RSI Settings')
+rsi_source = input.source(close, title = 'RSI Source', group = 'RSI Settings')
+rsi_length = input.int(14, title = 'RSI Length', group = 'RSI Settings')
+
+// macd settings
+fast_length = input(title="Fast Length", defval=12, group = 'MACD Settings')
+slow_length = input(title="Slow Length", defval=26, group = 'MACD Settings')
+src = input(title="Source", defval=close, group = 'MACD Settings')
+signal_length = input.int(title="Signal Smoothing",  minval = 1, maxval = 50, defval = 9, group = 'MACD Settings')
+
+
+// calculate values
+rsi_value = ta.rsi(rsi_source, rsi_length)
+[macdLine, signalLine, histLine] = ta.macd(src, fast_length, slow_length, signal_length)
+
+var int last_bsignal = 100
+var int last_ssignal = 100
+var bool buy_signal = false
+var bool sell_signal = false
+
+buy_signal := ta.barssince(rsi_value <= rsi_os) <= _signal_waiting and rsi_value <= 50
+ and ta.crossover(macdLine, signalLine) 
+ and last_bsignal > _bars_between
+
+sell_signal := ta.barssince(rsi_value >= rsi_ob) <= _signal_waiting  and rsi_value >= 50 
+ and ta.crossunder(macdLine, signalLine) 
+ and last_ssignal > _bars_between
+
+last_bsignal := buy_signal ? 0 : nz(last_bsignal[1],0) + 1
+last_ssignal := sell_signal ? 0 : nz(last_ssignal[1],0) + 1
+
+plotshape(buy_signal, title = 'Buy Signal', color = color.lime, textcolor = color.black,
+ style = shape.labelup, text = 'BUY', location = location.belowbar)
+
+plotshape(sell_signal, title = 'Sell Signal', color = color.red, textcolor = color.black,
+ style = shape.labeldown, text = 'SELL', location = location.abovebar)
+
+
+alertcondition(buy_signal, "Buy Signal", "Buy Signal")
+alertcondition(sell_signal, "Sell Signal", "Sell Signal")

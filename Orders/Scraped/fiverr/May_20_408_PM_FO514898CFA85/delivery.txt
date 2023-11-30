@@ -1,0 +1,1 @@
+Import the attached file and make sure that you have settings (inputs) that match his in the video. Specifically the mycounter, testphase, etc.

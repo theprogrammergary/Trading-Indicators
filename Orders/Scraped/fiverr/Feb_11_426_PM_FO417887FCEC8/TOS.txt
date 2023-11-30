@@ -1,0 +1,47 @@
+input SMA1_Length = 9;
+input SMA2_Length = 50;
+input sma3_Length = 180;
+input EMA1_Length = 20;
+
+input Buy_Sell_Swing = 3;
+input Color_Bar = no;
+input Color_Background = no;
+input show_Text = yes;
+
+plot SMA1 = MovingAverage(AverageType.SIMPLE, close, SMA1_Length);
+plot SMA2 = MovingAverage(AverageType.SIMPLE, close, SMA2_Length);
+plot SMA3 = MovingAverage(AverageType.SIMPLE, close, sma3_Length);
+plot EMA1 = MovingAverage(AverageType.EXPONENTIAL, close, SMA1_Length);
+
+SMA1.SetDefaultColor(Color.RED);
+SMA2.SetDefaultColor(Color.CYAN);
+SMA3.SetDefaultColor(Color.WHITE);
+EMA1.SetDefaultColor(Color.YELLOW);
+
+def res = Highest(high, Buy_Sell_Swing);
+def sup = Lowest(low, Buy_Sell_Swing);
+
+def avd = if close > res[1] then 1 else if close < sup[1] then -1 else 0;
+def avn = if avd != 0 then avd else avn[1];
+plot tsl = if avn == 1 then sup else res;
+
+def Trend = close >= tsl;
+tsl.DefineColor("Above", color.uptick);
+tsl.DefineColor("Below", color.downtick);
+tsl.AssignValueColor(if Trend then tsl.color("Above") else tsl.color("Below"));
+
+plot buy = close crosses above tsl;
+buy.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_UP);
+buy.SetDefaultColor(Color.UPTICK);
+
+plot sell = close crosses below tsl;
+sell.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_DOWN);
+sell.SetDefaultColor(Color.DOWNTICK);
+
+addcloud(if color_background and trend then double.POSITIVE_INFINITY else if color_background and !trend then double.negATIVE_INFINITY else double.nan,if color_background and trend then double.NEGATIVE_INFINITY else if color_background and !trend then double.POSITIVE_INFINITY else double.nan , tsl.color("Above"), tsl.color("Below"));;
+
+assignpricecolor(if color_bar and trend then tsl.color("Above") else if color_bar and !trend then tsl.color("Below") else color.current);
+
+addchartBubble(buy and show_Text,low, "Buy", tsl.color("Above"));
+addchartBubble(sell and show_Text,high, "Sell", tsl.color("Below"));
+

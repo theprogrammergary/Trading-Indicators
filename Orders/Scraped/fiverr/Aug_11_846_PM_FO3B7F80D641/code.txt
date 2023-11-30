@@ -1,0 +1,37 @@
+declare lower;
+
+input alpha = 0.70;
+input highlightCrossovers = yes;
+input applyFractalsEnergy = yes;
+input feLength = 13;
+input applyNormalization = no;
+input src = close;
+
+def oc = (open + close[1]) / 2;
+def hc = max(high, close[1]);
+def lc = min(low, close[1]);
+
+def feSrc = (OC + HC + LC + close) / 4;
+def feAlpha = log(sum((HC - LC) / (highest(high, feLength) - lowest(low, feLength)), feLength)) / log(feLength);
+def lrsiAlpha = if applyFractalsEnergy then feAlpha else alpha;
+
+def l0 = lrsiAlpha * (if applyFractalsEnergy then feSrc else src) + (1 - lrsiAlpha) * L0[1];
+def l1 = -(1 - lrsiAlpha) * L0 + L0[1] + (1 - lrsiAlpha) * L1[1];
+def l2 = -(1 - lrsiAlpha) * L1 + L1[1] + (1 - lrsiAlpha) * L2[1];
+def l3 = -(1 - lrsiAlpha) * L2 + L2[1] + (1 - lrsiAlpha) * L3[1];
+def cu = (if L0 >= L1 then L0 - L1 else 0) + (if L1 >= L2 then L1 - L2 else 0) + (if L2 >= L3 then L2 - L3 else 0);
+def cd = (if L0 >= L1 then 0 else L1 - L0) + (if L1 >= L2 then 0 else L2 - L1) + (if L2 >= L3 then 0 else L3 - L2);
+
+def lrsi = if cu + cd != 0 then (if applyNormalization then 100 * CU / (CU + CD) else CU / (CU + CD)) else 0;
+def mult = if applyNormalization then 100 else 1;
+
+def ob = 0.8 * mult;
+def middle = 0.5 * mult;
+def os = 0.2 * mult;
+
+plot SCAN_green_dot = lrsi crosses above os;
+plot SCAN_red_dot = lrsi crosses below ob;
+SCAN_green_dot.hide();
+SCAN_red_dot.hide();
+
+

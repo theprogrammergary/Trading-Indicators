@@ -1,0 +1,77 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+
+//@version=5
+strategy("for_jlirano", overlay=true)
+
+//INPUTS
+
+//timeframes
+tf1 = input.timeframe("1", title = 'Timeframe 1', group = 'Strategy Settings', inline = '1')
+tf2 = input.timeframe("30", title = 'Timeframe 2', group = 'Strategy Settings', inline = '2')
+tf3 = input.timeframe("60", title = 'Timeframe 3', group = 'Strategy Settings', inline = '3')
+tf4 = input.timeframe("240", title = 'Timeframe 4', group = 'Strategy Settings', inline = '4')
+
+//cci
+cci_length = input.int(200, minval=1, title = 'CCI Length', group = 'Strategy Settings', inline = '5')
+cci_src = input(hlc3, title="CCI Source", group = 'Strategy Settings', inline = '6')
+
+cci_1 = request.security(syminfo.tickerid, tf1, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_2 = request.security(syminfo.tickerid, tf2, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_3 = request.security(syminfo.tickerid, tf3, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_4 = request.security(syminfo.tickerid, tf4, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+
+// sar
+sar_start = input(0.02, title = 'SAR Start', group = 'Strategy Settings', inline = '7')
+sar_increment = input(0.02, title = 'SAR Increment', group = 'Strategy Settings', inline = '8')
+sar_maximum = input(0.2, title = 'SAR Maximum', group = 'Strategy Settings', inline = '9')
+
+sar_1 = request.security(syminfo.tickerid, tf1, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_2 = request.security(syminfo.tickerid, tf2, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_3 = request.security(syminfo.tickerid, tf3, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_4 = request.security(syminfo.tickerid, tf4, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+
+//ORDERS
+cci_entry_value = input.int(175,  title = 'CCI Entry Level', group = 'Strategy Settings', inline = '10')
+cci_exit_value = input.int(-50, title = 'CCI Exit Level', group = 'Strategy Settings', inline = '11')
+
+entry_price = strategy.position_avg_price
+pt_amount = input.float(1.00, title = 'Profit Target', group = 'Strategy Settings', inline = '12')
+
+//LONG
+// var long_cond = false
+// var long_entry = false
+// long_cond := (cci_1 > cci_entry_value) and (cci_2 > cci_entry_value) and (cci_3 > cci_entry_value) and (cci_4 > cci_entry_value) 
+//      and (close < sar_1) and (close < sar_2) and (close < sar_3) and (close < sar_4) ? true : false
+// long_entry := long_cond and not long_cond[1] ? true : false
+
+// var long_exit = false
+// long_exit := cci_1 < cci_exit_value and close < sar_1
+
+// long_profitTarget = (strategy.position_size > 0) ? entry_price + ((pt_amount/100) * entry_price) : 9999999
+// strategy.entry("LE", strategy.long,when = long_entry) 
+// // strategy.exit(id="LE", limit = long_profitTarget, comment = "Tgt")
+// strategy.close("LE",when = long_exit, comment = "LX")
+
+
+//SHORT
+var short_cond = false
+var short_entry = false
+short_cond := (cci_1 > cci_entry_value) and (cci_2 > cci_entry_value) and (cci_3 > cci_entry_value) and (cci_4 > cci_entry_value) 
+     and (close < sar_1) and (close < sar_2) and (close < sar_3) and (close < sar_4) ? true : false
+short_entry := short_cond and not short_cond[1] ? true : false
+
+var short_exit = false
+short_exit := cci_1 < cci_exit_value and close < sar_1
+
+short_profitTarget = (strategy.position_size < 0) ? entry_price - ((pt_amount/100) * entry_price) : 0
+strategy.entry("SS_E", strategy.short, when = short_entry) 
+strategy.exit(id="SS_E", limit = short_profitTarget, comment = "Tgt")
+strategy.close("SS_E",when = short_exit, comment = "SS_X")
+
+
+// plot(entry_price, color = color.white)
+// plot(long_profitTarget)
+// plot(short_profitTarget)
+
+

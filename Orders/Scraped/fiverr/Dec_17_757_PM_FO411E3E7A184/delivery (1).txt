@@ -1,0 +1,1 @@
+Yes because on the default TOS watchlist for DMI it appears they use a length of 14. In the custom study I gave you it is set to 10. You can either change the length from 10 to 14 from the image or re-import using the link below.https://tos.mx/SvpfPaA

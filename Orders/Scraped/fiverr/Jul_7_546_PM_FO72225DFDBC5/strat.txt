@@ -1,0 +1,410 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_ecasazone strategy", overlay = true)
+
+color_candles = input.bool(true, title = 'Color Candles', group = 'Settings')
+bull_color = input.color(color.green, title = 'Bull', group = 'Settings')
+bear_color = input.color(color.red, title = 'Bear', group = 'Settings')
+neutral_color = input.color(color.orange, title = 'Neutral', group = 'Settings')
+
+// hull suite
+//INPUT
+src = input(close, title='Source', group = 'Hull Settings')
+modeSwitch = input.string('Hma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'], group = 'Hull Settings')
+length = input(20, title='Length(180-200 for floating S/R , 55 for swing entry)', group = 'Hull Settings')
+lengthMult = input(1.0, title='Length multiplier (Used to view higher timeframes with straight band)', group = 'Hull Settings')
+
+useHtf = input(false, title='Show Hull MA from X timeframe? (good for scalping)', group = 'Hull Settings')
+htf = input.timeframe('240', title='Higher timeframe', group = 'Hull Settings')
+
+switchColor = input(true, 'Color Hull according to trend?', group = 'Hull Settings')
+visualSwitch = input(true, title='Show as a Band?', group = 'Hull Settings')
+thicknesSwitch = input(1, title='Line Thickness', group = 'Hull Settings')
+transpSwitch = input.int(40, title='Band Transparency', step=5, group = 'Hull Settings')
+
+//FUNCTIONS
+//HMA
+HMA(_src, _length) =>
+    ta.wma(2 * ta.wma(_src, _length / 2) - ta.wma(_src, _length), math.round(math.sqrt(_length)))
+//EHMA    
+EHMA(_src, _length) =>
+    ta.ema(2 * ta.ema(_src, _length / 2) - ta.ema(_src, _length), math.round(math.sqrt(_length)))
+//THMA    
+THMA(_src, _length) =>
+    ta.wma(ta.wma(_src, _length / 3) * 3 - ta.wma(_src, _length / 2) - ta.wma(_src, _length), _length)
+
+//SWITCH
+Mode(modeSwitch, src, len) =>
+    modeSwitch == 'Hma' ? HMA(src, len) : modeSwitch == 'Ehma' ? EHMA(src, len) : modeSwitch == 'Thma' ? THMA(src, len / 2) : na
+
+//OUT
+_hull = Mode(modeSwitch, src, int(length * lengthMult))
+HULL = useHtf ? request.security(syminfo.ticker, htf, _hull) : _hull
+MHULL = HULL[0]
+SHULL = HULL[2]
+
+//COLOR
+hullColor = switchColor ? HULL > HULL[2] ? #00ff00 : #ff0000 : #ff9800
+
+var int hull_trend = 0
+var int hull_count = 0
+hull_trend := HULL > HULL[2]  ? 1 : -1
+hull_count := hull_trend != hull_trend[1] ? 1 : hull_count[1] + 1 
+
+
+//PLOT
+Fi1 = plot(MHULL, title='MHULL', color=color.new(hullColor,50), linewidth=thicknesSwitch)
+Fi2 = plot(visualSwitch ? SHULL : na, title='SHULL', color=color.new(hullColor,50) , linewidth=thicknesSwitch)
+alertcondition(ta.crossover(MHULL, SHULL), title='Hull trending up.', message='Hull trending up.')
+alertcondition(ta.crossover(SHULL, MHULL), title='Hull trending down.', message='Hull trending down.')
+fill(Fi1, Fi2, title='Band Filler', color=hullColor)
+
+
+
+
+// OBV MACD
+src1 = close
+window_len = 28
+
+v_len = 14
+price_spread = ta.stdev(high - low, window_len)
+
+v = ta.cum(math.sign(ta.change(src1)) * volume)
+smooth = ta.sma(v, v_len)
+v_spread = ta.stdev(v - smooth, window_len)
+shadow = (v - smooth) / v_spread * price_spread
+out = shadow > 0 ? high + shadow : low + shadow
+
+len10 = input(7, title='OBV Length ', group = 'OBV MACD Settings')
+obvema = ta.ema(out, len10)
+
+obv_macd_src = obvema
+obv_macd_type = input.string(defval='DEMA', title='MA Type', 
+ options=['TDEMA', 'TTEMA', 'TEMA', 'DEMA', 'EMA', 'AVG', 'THMA', 'ZLEMA', 'ZLDEMA', 'ZLTEMA', 'DZLEMA', 'TZLEMA', 'LLEMA', 'NMA'],
+ group = 'OBV MACD Settings')
+showma = true
+len = input(9, title='MA Length ', group = 'OBV MACD Settings')
+showma1 = false
+len1 = 26
+showma2 = false
+len2 = 52
+
+nma(obv_macd_src, length1, length2) =>
+    lambda = length1 / length2
+    alpha = lambda * (length1 - 1) / (length1 - lambda)
+    ma1 = ta.ema(obv_macd_src, length1)
+    ma2 = ta.ema(ma1, length2)
+    nma = (1 + alpha) * ma1 - alpha * ma2
+    nma
+
+dema(obv_macd_src, len) =>
+    ma1 = ta.ema(obv_macd_src, len)
+    ma2 = ta.ema(ma1, len)
+    2 * ma1 - ma2
+
+tema(obv_macd_src, len) =>
+    ma1 = ta.ema(obv_macd_src, len)
+    ma2 = ta.ema(ma1, len)
+    ma3 = ta.ema(ma2, len)
+    3 * (ma1 - ma2) + ma3
+
+tdema(obv_macd_src, len) =>
+    ma1 = dema(obv_macd_src, len)
+    ma2 = dema(ma1, len)
+    ma3 = dema(ma2, len)
+    3 * (ma1 - ma2) + ma3
+
+ttema(obv_macd_src, len) =>
+    ma1 = tema(obv_macd_src, len)
+    ma2 = tema(ma1, len)
+    ma3 = tema(ma2, len)
+    3 * (ma1 - ma2) + ma3
+
+tnma(obv_macd_src, len) =>
+    ma1 = nma(obv_macd_src, len, 3)
+    ma2 = nma(ma1, len, 3)
+    ma3 = nma(ma2, len, 3)
+    3 * (ma1 - ma2) + ma3
+
+f_hma(obv_macd_src, len) =>
+    ta.wma(2 * ta.wma(obv_macd_src, len / 2) - ta.wma(obv_macd_src, len), math.round(math.sqrt(len)))
+
+thma(obv_macd_src, len) =>
+    ma1 = ta.hma(obv_macd_src, len)
+    ma2 = ta.hma(ma1, len)
+    ma3 = ta.hma(ma2, len)
+    3 * (ma1 - ma2) + ma3
+
+zlema(obv_macd_src, len) =>
+    lag = math.round((len - 1) / 2)
+    zlsrc = obv_macd_src + obv_macd_src - obv_macd_src[lag]
+    ta.ema(zlsrc, len)
+
+zldema(obv_macd_src, len) =>
+    lag = math.round((len - 1) / 2)
+    zlsrc = obv_macd_src + obv_macd_src - obv_macd_src[lag]
+    dema(zlsrc, len)
+
+zltema(obv_macd_src, len) =>
+    lag = math.round((len - 1) / 2)
+    zlsrc = obv_macd_src + obv_macd_src - obv_macd_src[lag]
+    tema(zlsrc, len)
+
+dzlema(obv_macd_src, len) =>
+    ma1 = zlema(obv_macd_src, len)
+    ma2 = zlema(ma1, len)
+    2 * ma1 - ma2
+
+tzlema(obv_macd_src, len) =>
+    ma1 = zlema(obv_macd_src, len)
+    ma2 = zlema(ma1, len)
+    ma3 = zlema(ma2, len)
+    3 * (ma1 - ma2) + ma3
+
+llema(obv_macd_src, len) =>
+    srcnew = 0.25 * obv_macd_src + 0.5 * obv_macd_src[1] + 0.25 * obv_macd_src[2]
+    ta.ema(srcnew, len)
+
+lltema(obv_macd_src, len) =>
+    srcnew = 0.25 * obv_macd_src + 0.5 * obv_macd_src[1] + 0.25 * obv_macd_src[2]
+    tema(srcnew, len)
+
+myma(obv_macd_src, len) =>
+    if obv_macd_type == 'EMA'
+        ta.ema(obv_macd_src, len)
+    else
+        if obv_macd_type == 'DEMA'
+            dema(obv_macd_src, len)
+        else
+            if obv_macd_type == 'TEMA'
+                tema(obv_macd_src, len)
+            else
+                if obv_macd_type == 'TDEMA'
+                    tdema(obv_macd_src, len)
+                else
+                    if obv_macd_type == 'TTEMA'
+                        ttema(obv_macd_src, len)
+                    else
+                        if obv_macd_type == 'THMA'
+                            thma(obv_macd_src, len)
+                        else
+                            if obv_macd_type == 'ZLEMA'
+                                zlema(obv_macd_src, len)
+                            else
+                                if obv_macd_type == 'ZLDEMA'
+                                    zldema(obv_macd_src, len)
+                                else
+                                    if obv_macd_type == 'ZLTEMA'
+                                        zltema(obv_macd_src, len)
+                                    else
+                                        if obv_macd_type == 'DZLEMA'
+                                            dzlema(obv_macd_src, len)
+                                        else
+                                            if obv_macd_type == 'TZLEMA'
+                                                tzlema(obv_macd_src, len)
+                                            else
+                                                if obv_macd_type == 'LLEMA'
+                                                    llema(obv_macd_src, len)
+                                                else
+                                                    if obv_macd_type == 'NMA'
+                                                        nma(obv_macd_src, len, len1)
+                                                    else
+                                                        math.avg(ttema(obv_macd_src, len), tdema(obv_macd_src, len))
+
+ma = showma ? myma(obv_macd_src, len) : na
+slow_length = input(title='MACD Slow Length', defval=26, group = 'OBV MACD Settings')
+src12 = close
+
+// Calculating MACD
+slow_ma = ta.ema(src12, slow_length)
+macd = ma - slow_ma
+src5 = macd
+len5 = input(2, group = 'OBV MACD Settings')
+offset = 0
+
+calcSlope(src5, len5) =>
+    sumX = 0.0
+    sumY = 0.0
+    sumXSqr = 0.0
+    sumXY = 0.0
+    for i = 1 to len5 by 1
+        val = src5[len5 - i]
+        per = i + 1.0
+        sumX += per
+        sumY += val
+        sumXSqr += per * per
+        sumXY += val * per
+        sumXY
+
+    slope = (len5 * sumXY - sumX * sumY) / (len5 * sumXSqr - sumX * sumX)
+    average = sumY / len5
+    intercept = average - slope * sumX / len5 + slope
+    [slope, average, intercept]
+
+var float tmp = na
+[s, a5, i] = calcSlope(src5, len5)
+
+tt1 = i + s * (len5 - offset)
+
+p = 1
+src15 = tt1
+b5 = 0.
+dev5 = 0.
+oc = 0
+n5 = ta.cum(1) - 1
+a15 = ta.cum(math.abs(src15 - nz(b5[1], src15))) / n5 * p
+b5 := src15 > nz(b5[1], src15) + a15 ? src15 : src15 < nz(b5[1], src15) - a15 ? src15 : nz(b5[1], src15)
+dev5 := ta.change(b5) ? a15 : nz(dev5[1], a15)
+
+oc := ta.change(b5) > 0 ? 1 : ta.change(b5) < 0 ? -1 : nz(oc[1])
+
+var int obv_trend = 0
+var int obv_count = 0
+obv_trend := oc == 1 ? 1 : -1
+obv_count := obv_trend != obv_trend[1] ? 1 : obv_count[1] + 1 
+
+
+
+
+// KDJ
+ilong = input.int(9, title="period", group = 'KDJ Settings')
+isig = input.int(3, title="signal", group = 'KDJ Settings')
+
+bcwsma(s,l,m) =>
+    var float _bcwsma = 0.00 
+    _s = s
+    _l = l
+    _m = m
+    _bcwsma := (_m*_s+(_l-_m)*nz(_bcwsma[1]))/_l
+    _bcwsma
+
+c = close
+h = ta.highest(high, ilong)
+l = ta.lowest(low,ilong)
+RSV = 100*((c-l)/(h-l))
+pK = bcwsma(RSV, isig, 1)
+pD = bcwsma(pK, isig, 1)
+pJ = 3 * pK-2 * pD
+
+var int kdj_trend = 0
+var int kdj_count = 0
+kdj_trend := pJ>pD ? 1 : -1
+kdj_count := kdj_trend != kdj_trend[1] ? 1 : kdj_count[1] + 1 
+
+
+// TMO
+tmo_length = input(14, title='Length', group = 'TMO Settings')
+calcLength = input(5, title='Calc Length', group = 'TMO Settings')
+smoothLength = input(3, title='Smooth Length', group = 'TMO Settings')
+lengthType = input.string('EMA', title='Length moving average type', options=['EMA', 'SMA', 'RMA'], group = 'TMO Settings')
+calcLengthType = input.string('EMA', title='Calc Length moving average type', options=['EMA', 'SMA', 'RMA'], group = 'TMO Settings')
+smoothLengthType = input.string('EMA', title='Smooth Length moving average type', options=['EMA', 'SMA', 'RMA'], group = 'TMO Settings')
+max_buy = input.int(5, title = 'Max Buy', group = 'TMO Settings')
+min_sell = input.int(5, title = 'Min Sell', group = 'TMO Settings')
+
+
+f_ma(type, tmo_src, len) =>
+    float result = 0
+    if type == 'EMA'
+        result := ta.ema(tmo_src, len)
+        result
+    if type == 'SMA'
+        result := ta.sma(tmo_src, len)
+        result
+    if type == 'RMA'
+        result := ta.rma(tmo_src, len)
+        result
+    result
+
+var float tmo_o = na
+var float tmo_c = na
+var float tmo_s = na
+
+tmo_o := open
+tmo_c := close
+tmo_s := 0
+for iter = 0 to tmo_length by 1
+    tmo_s += (tmo_c > tmo_o[iter] ? 1 : tmo_c < tmo_o[iter] ? -1 : 0)
+data = tmo_s
+
+MA = f_ma(lengthType, data, calcLength)
+main = f_ma(calcLengthType, MA, smoothLength)
+signal = f_ma(smoothLengthType, main, smoothLength)
+
+var int tmo_trend = 0
+var int tmo_count = 0
+tmo_trend := main > signal ? 1 : main < signal ? -1 : 0
+tmo_count := tmo_trend != tmo_trend[1] ? 1 : tmo_count[1] + 1 
+
+
+
+// create signals
+var bool all_buy = false
+var bool all_sell = false
+
+var int min_count = na
+var int max_count = na
+
+var bool buy = false
+var bool sell = false
+
+var int last_signal = 0
+var int pos = 0
+
+var bool buy_signal = false
+var bool sell_signal = false
+
+all_buy := obv_trend == 1 and tmo_trend == 1 and hull_trend == 1 and kdj_trend == 1
+all_sell := obv_trend == -1 and tmo_trend == -1 and hull_trend == -1 and kdj_trend == -1
+
+min_count := math.min(obv_count, math.min(tmo_count, math.min(hull_count, kdj_count)))
+max_count :=  math.max(obv_count, math.max(tmo_count, math.max(hull_count, kdj_count)))
+
+buy := all_buy and not all_buy[1] and max_count < 20 and main < max_buy
+sell := all_sell and not all_sell[1] and max_count < 20 and main > min_sell
+
+last_signal := buy ? 1 : sell ? -1 : last_signal[1]
+
+buy_signal := buy and last_signal[1] == -1
+sell_signal := sell and last_signal[1] == 1
+pos := buy_signal ? 1 : sell_signal ? -1 : pos[1]
+
+barcolor(not color_candles ? na 
+ : pos == 1 ? bull_color
+ : pos == -1 ? bear_color
+ : neutral_color)
+
+plotshape(buy_signal, title = 'Buy Signal', color = bull_color, style = shape.triangleup, location = location.belowbar, size = size.small)
+plotshape(sell_signal, title = 'Sell Signal', color = bear_color, style = shape.triangledown, location = location.abovebar, size = size.small)
+
+// bgcolor = kdj_trend == 1 ? bull_color : kdj_trend == -1 ? bear_color : neutral_color
+// bgcolor(color.new(bgcolor,70))
+
+
+// strategy orders
+if buy_signal
+    strategy.entry('LE', strategy.long)
+
+if sell_signal
+    strategy.entry('SS_E', strategy.short)
+
+
+// table
+var table = table.new(position = position.bottom_left, columns = 5, rows = 1, bgcolor = color.black, border_width = 1)
+if barstate.islast
+    table.clear(table, 0,0,4,0)
+    table.cell(table_id = table, column = 0, row = 0, text = "OBV", text_color = color.white, bgcolor = obv_trend == 1 ? bull_color : obv_trend == -1 ? bear_color : neutral_color)
+    table.cell(table_id = table, column = 1, row = 0, text = "TMO", text_color = color.white, bgcolor = tmo_trend == 1 ? bull_color : tmo_trend == -1 ? bear_color : neutral_color)
+    table.cell(table_id = table, column = 2, row = 0, text = "HULL", text_color = color.white, bgcolor = hull_trend == 1 ? bull_color : hull_trend == -1 ? bear_color : neutral_color)
+    table.cell(table_id = table, column = 3, row = 0, text = "KDJ", text_color = color.white, bgcolor = kdj_trend == 1 ? bull_color : kdj_trend == -1 ? bear_color : neutral_color)
+
+    // label.new(bar_index+5, 4450, text = ( str.tostring(obv_count) + 
+    //  '  ' + str.tostring(tmo_count) + 
+    //  '  ' + str.tostring(hull_count) + 
+    //  '  ' + str.tostring(kdj_count) +
+    //  ' | ' + str.tostring(max_count) +
+    //  '  ' + str.tostring(min_count) 
+    //  ),
+    //  textcolor = color.white)

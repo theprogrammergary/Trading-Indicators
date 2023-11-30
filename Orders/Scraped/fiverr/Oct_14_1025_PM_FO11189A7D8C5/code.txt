@@ -1,0 +1,87 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_anandvenkate", overlay = false)
+
+price = input.source(close, title = 'Price')
+
+nHoMA = input.int(8)
+nHo1 = input.int(17)
+nHo2 = input.int(34)
+nHoSm = input.int(8)
+
+hoTypeMA = input.string("EMA", options = ["EMA", "SMA", "HMA", "WMA"])
+hoType1 = input.string("EMA", options = ["EMA", "SMA", "HMA", "WMA"])
+hoType2 = input.string("EMA", options = ["EMA", "SMA", "HMA", "WMA"])
+hoTypeSM = input.string("EMA", options = ["EMA", "SMA", "HMA", "WMA"])
+
+
+bbKcLength = input.int(20)
+bbDevUp = input.float(2.0)
+kcFactor = input.float(1.5)
+bbKcAvgType = input.string("SMA", options = ["EMA", "SMA", "HMA", "WMA"])
+
+
+ma(source, maType, maLength) =>
+    float ma = switch maType
+        "EMA" => ta.ema(source, maLength)
+        "SMA" => ta.sma(source, maLength)
+        "HMA" => ta.hma(source, maLength)
+        "WMA" => ta.wma(source, maLength)
+        => ta.wma(source, maLength)
+
+
+atr = ta.atr(bbKcLength)
+
+sDev = ta.stdev(price, bbKcLength)
+ma = ma(price, bbKcAvgType, bbKcLength)
+bbUB = ma + bbDevUp * sDev
+kcUB = ma + (kcFactor * atr)
+squeezed = bbUB < kcUB
+
+p = ((nHoMA - 1)  * ma(price, hoTypeMA, nHoMA)[1] + price) / nHoMA
+pr1 = price
+pr2 = price
+
+var float rHo1 = 0.00
+rHo1_src = ma(pr1, hoType1, math.abs(nHo1)) 
+rHo1 := rHo1_src
+var float rHo2 = 0.00
+rHo2_src = ma(pr2, hoType2, math.abs(nHo2)) 
+rHo2 := rHo2_src
+
+p1_repaint = math.abs((-nHo1 / 2) + 1)
+p2_repaint = math.abs((-nHo2 / 2) + 1)
+
+historicalP1 = p[p1_repaint]
+historicalP2 = p[p2_repaint]
+
+osc2 = ma(rHo2-historicalP2, hoTypeSM, nHoSm)
+plot(osc2, style = plot.style_columns, linewidth = 1, offset = -0,
+     color = osc2 > 0 and osc2 > osc2[1] ? color.rgb(34, 39, 199) : osc2 > 0 ? color.rgb(23, 161, 207)
+     : osc2 < osc2[1] ? color.rgb(224, 174, 213) : color.rgb(233, 23, 201))
+
+osc1 = ma(rHo1-historicalP1, hoTypeSM, nHoSm)
+plot(osc1, style = plot.style_columns, linewidth = 1, offset = -0,
+     color = osc1 > 0 and osc1 > osc1[1] ? color.green : osc1 > 0 ? color.rgb(48, 82, 49)
+     : osc1 < osc1[1] ? color.red : color.rgb(146, 39, 39))
+
+plot(0, style = plot.style_circles, color = squeezed ? color.red : color.new(#000000,0), linewidth = 2)
+
+
+crossOver = ta.crossover(osc2, 0)
+crossUnder = ta.crossunder(osc2, 0)
+cr1 = crossOver ? 1 : crossUnder ? -1 : 0
+
+
+u1 = osc1 > 0 and cr1 > 0 and not squeezed ? -5 : na
+d1 = osc1 < 0 and cr1 < 0 and not squeezed ? 5 : na
+plotshape(u1, title = 'u1', style = shape.triangleup, color = color.rgb(0, 185, 213), location = location.bottom, size = size.tiny)
+plotshape(d1, title = 'd1', style = shape.triangledown, color = color.rgb(198, 0, 165), location = location.top, size = size.tiny)
+
+
+u2 = osc1 > 0 and cr1 > 0 and squeezed ? -5 : na
+d2 = osc1 < 0 and cr1 < 0 and squeezed ? 5 : na
+plotshape(u2, title = 'u2', style = shape.triangleup, color = color.green, location = location.bottom, size = size.tiny)
+plotshape(d2, title = 'd2', style = shape.triangledown, color = color.red, location = location.top, size = size.tiny)

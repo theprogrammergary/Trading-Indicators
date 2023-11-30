@@ -1,0 +1,53 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_tomaszpanek990", overlay = false, precision = 4)
+
+SYMBOL_TYPE = str.contains(syminfo.ticker, 'PERP') and str.contains(syminfo.ticker, 'USDT') ? 1 : str.contains(syminfo.ticker, 'USDT') ? 2 : 0
+PREFIX = "BINANCE"
+
+var string chart_root = na 
+var string perp_symbol = na
+var string usdt_symbol = na
+var float perp = na
+var float usdt = na
+var float spread = na
+
+
+if SYMBOL_TYPE != 0
+    if SYMBOL_TYPE == 1
+        chart_root := str.substring(syminfo.ticker, 0, str.length(syminfo.ticker) - 8)
+    else
+        chart_root :=  str.substring(syminfo.ticker, 0, str.length(syminfo.ticker) - 4)
+    perp_symbol := PREFIX + ":" + chart_root + "USDTPERP"
+    usdt_symbol := PREFIX + ":" + chart_root + "USDT"
+
+perp := request.security(perp_symbol, "", close, ignore_invalid_symbol = false, lookahead = barmerge.lookahead_on)
+usdt := request.security(usdt_symbol, "", close, ignore_invalid_symbol = false, lookahead = barmerge.lookahead_on)
+spread := (usdt - perp)/perp * 100
+plot(spread, title = 'SPREAD', color = color.white, linewidth = 3)
+plot(perp, title = 'PERP', display = display.none)
+plot(usdt, title = 'USDT', display = display.none)
+hline(0, title='Zero', color = color.gray, linestyle = hline.style_dashed)
+
+
+// DYNAMIC ZONES
+[middle, upper, lower] = ta.bb(spread, 100, 2)
+[middle2, upper2, lower2] = ta.bb(spread, 100, 2.5)
+
+p_upper1 = plot(upper, title = 'Upper 1', color = color.red)
+p_upper2 = plot(upper2, title = 'Upper 2', color = color.red)
+p_lower1 = plot(lower, title = 'Lower 1', color = color.teal)
+p_lower2 = plot(lower2, title = 'Lower 2', color = color.teal)
+
+fill(p_upper1, p_upper2, color = color.new(color.red, 70), title = 'Upper Fill')
+fill(p_lower1, p_lower2, color = color.new(color.teal, 70), title = 'Lower Fill')
+
+
+// // testing
+// if barstate.islast
+//     label.new(bar_index+10, 0, text = str.tostring(syminfo.ticker))
+//     label.new(bar_index+20, 0, text = str.tostring(perp_symbol))
+//     label.new(bar_index+30, 0, text = str.tostring(usdt_symbol))
+// bgcolor(SYMBOL_TYPE == 1 ? color.new(color.yellow,80) : na)

@@ -1,0 +1,363 @@
+//@version=5
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+
+indicator(title="Market Rhythm Adaptive Trading Algo V1", overlay=true)
+
+gr5='Strategy Settings'
+adxlvl = input(24,"ADX Level(aboveX:setting1,belowX:setting2)",group=gr5)
+rsilen = input(2,"RSI Length",group=gr5)
+buyrsilvl = input(65, "Buy RSI Below Level",group=gr5)
+sellrsilvl = input(10, "Sell RSI Above Level",group=gr5)
+buychoplvl = input(68, "Buy CHOP Below Level",group=gr5)
+sellchoplvl = input(5, "Sell CHOP Above Level",group=gr5)
+choplength = input.int(5, minval=1)
+lengthROCbuylvl = input(.02)
+lengthROCselllvl = input(-.02)
+lengthROC = input.int(5, minval=01)
+sourceROC = input(close, "Rate Of Change")
+mingreencnt = input.int(10,"Minimum MA in Green",0,25,group=gr5)
+
+gr6='Settings1'
+s1k1length=input.int(1,"Market Length", minval=1,group=gr6)
+s1k1Fast = input(2,"Fast Price Multiplier",group=gr6)
+s1k1Slow = input(30,"Slow Price Multiplier",group=gr6)
+s1k2length=input.int(7,"Adaptive Average Length", minval=1,group=gr6)
+s1k2Fast = input(5,"Adaptive Average Fastend",group=gr6)
+s1k2Slow = input(50,"Adaptive Average Slowend",group=gr6)
+
+gr7='Settings2'
+s2k1length=input.int(1,"Market Length", minval=1,group=gr7)
+s2k1Fast = input(2,"Fast Price Multiplier",group=gr7)
+s2k1Slow = input(30,"Slow Price Multiplier",group=gr7)
+s2k2length=input.int(2,"Adaptive Average Length", minval=1,group=gr7)
+s2k2Fast = input(2,"Adaptive Average Fastend",group=gr7)
+s2k2Slow = input(30,"Adaptive Average Slowend",group=gr7)
+
+
+//gr1='KAMA1'
+// Length = input.int(10,"Length 1", minval=1,group=gr1)
+//clr =input.color(color.yellow,"Color KAMA 1",group=gr1)
+// Fastend = input(4,group=gr1)
+// Slowend = input(30,group=gr1)
+
+gr2='KAMA2'
+// Length2 = input.int(30,"Length 1", minval=1,group=gr2)
+clr2 =input.color(color.green,"Color KAMA 1",group=gr2)
+iskama2clr=input(true,"Color KAMA2 based trend",group=gr5)
+// Fastend2 = input(4,group=gr2)
+// Slowend2 = input(30,group=gr2)
+
+
+gr4="ADX"
+
+adxlen = input(14, title="ADX Smoothing",group=gr4)
+dilen = input(14, title="DI Length",group=gr4)
+
+//ADX========================================================
+
+dirmov(len) =>
+	up = ta.change(high)
+	down = -ta.change(low)
+	plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+	minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+	truerange = ta.rma(ta.tr, len)
+	plus = fixnan(100 * ta.rma(plusDM, len) / truerange)
+	minus = fixnan(100 * ta.rma(minusDM, len) / truerange)
+	[plus, minus]
+adx(dilen, adxlen) =>
+	[plus, minus] = dirmov(dilen)
+	sum = plus + minus
+	adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+sig = adx(dilen, adxlen)
+// plot(sig, color=color.red, title="ADX")
+
+
+//ADX========================================================
+
+//Chop & ROC====================================================================================
+
+ci = 100 * math.log10(math.sum(ta.atr(1), choplength) / (ta.highest(choplength) - ta.lowest(choplength))) / math.log10(choplength)
+// offset = input.int(0, "Offset", minval = -500, maxval = 500)
+// plot(ci, "CHOP", color=#2962FF, offset = offset)
+// band1 = hline(61.8, "Upper Band", color=#787B86, linestyle=hline.style_dashed)
+// band0 = hline(38.2, "Lower Band", color=#787B86, linestyle=hline.style_dashed)
+// fill(band1, band0, color = color.rgb(33, 150, 243, 90), title = "Background")
+
+
+
+roc = 100 * (sourceROC - sourceROC[lengthROC])/sourceROC[lengthROC]
+//plot(roc, color=#2962FF, title="ROC")
+//hline(0, color=#787B86, title="Zero Line")
+
+
+// MA Ribbon ================================================================
+
+gr3='MA Ribbon'
+ishwmarbn=input(true,"Show MA Ribbon",group=gr3)
+source = input(close, 'Source',group=gr3)
+ma = input.string(title='Type', options=['SMA', 'EMA', 'WMA'], defval='SMA',group=gr3)
+Theme = input.string(title='Theme', options=['Theme 1', 'Theme 2', 'Theme 3'], defval='Theme 2',group=gr3)
+length = input.int(defval=1, minval=1, title='Length',group=gr3)
+start = input.int(defval=5, minval=1, title='Start',group=gr3)
+maNumber = input.int(defval=25, minval=1, maxval=25, title='No. of MAs',group=gr3)
+colourFrom = input(defval=false, title='Colour option',group=gr3)
+
+colour1 = color.new(color.green, 25)
+colour2 = color.new(color.red, 25)
+colour3 = color.new(color.teal, 25)
+colour4 = color.new(color.purple, 25)
+colour5 = color.new(color.silver, 50)
+colour6 = color.new(#353535, 25)
+
+c1 = Theme == 'Theme 1' ? colour1 : Theme == 'Theme 2' ? colour3 : Theme == 'Theme 3' ? colour5 : na
+c2 = Theme == 'Theme 1' ? colour2 : Theme == 'Theme 2' ? colour4 : Theme == 'Theme 3' ? colour6 : na
+
+count = length * start
+
+getMa(c) =>
+    l = count + length * c
+    if ma == 'SMA'
+        ta.sma(source, l)
+    else
+        if ma == 'EMA'
+            ta.ema(source, l)
+        else
+            if ma == 'WMA'
+                ta.wma(source, l)
+
+sma1 = maNumber >= 1 ? getMa(0) : na
+sma2 = maNumber >= 2 ? getMa(1) : na
+sma3 = maNumber >= 3 ? getMa(2) : na
+sma4 = maNumber >= 4 ? getMa(3) : na
+sma5 = maNumber >= 5 ? getMa(4) : na
+sma6 = maNumber >= 6 ? getMa(5) : na
+sma7 = maNumber >= 7 ? getMa(6) : na
+sma8 = maNumber >= 8 ? getMa(7) : na
+sma9 = maNumber >= 9 ? getMa(8) : na
+sma10 = maNumber >= 10 ? getMa(9) : na
+sma11 = maNumber >= 11 ? getMa(10) : na
+sma12 = maNumber >= 12 ? getMa(11) : na
+sma13 = maNumber >= 13 ? getMa(12) : na
+sma14 = maNumber >= 14 ? getMa(13) : na
+sma15 = maNumber >= 15 ? getMa(14) : na
+sma16 = maNumber >= 16 ? getMa(15) : na
+sma17 = maNumber >= 17 ? getMa(16) : na
+sma18 = maNumber >= 18 ? getMa(17) : na
+sma19 = maNumber >= 19 ? getMa(18) : na
+sma20 = maNumber >= 20 ? getMa(19) : na
+sma21 = maNumber >= 21 ? getMa(20) : na
+sma22 = maNumber >= 22 ? getMa(21) : na
+sma23 = maNumber >= 23 ? getMa(22) : na
+sma24 = maNumber >= 24 ? getMa(23) : na
+sma25 = maNumber >= 25 ? getMa(24) : na
+//sma26 = maNumber >= 26 ? getMa(25) : na
+//sma27 = maNumber >= 27 ? getMa(26) : na
+//sma28 = maNumber >= 28 ? getMa(27) : na
+//sma29 = maNumber >= 29 ? getMa(28) : na
+// sma30 = maNumber >= 30 ? getMa(29) : na
+// sma31 = maNumber >= 31 ? getMa(30) : na
+// sma32 = maNumber >= 32 ? getMa(31) : na
+
+// plot(sma32, color=not colourFrom and sma32 <= source or colourFrom and sma32 <= sma31 ? c1 : c2, title='plot 32', linewidth=1, style=plot.style_line, transp=0)
+// plot(sma31, color=not colourFrom and sma31 <= source or colourFrom and sma31 <= sma30 ? c1 : c2, title='plot 31', linewidth=1, style=plot.style_line, transp=0)
+// plot(ishwmarbn?sma30:na, color=not colourFrom and sma30 <= source or colourFrom and sma30 <= sma29 ? c1 : c2, title='plot 30', linewidth=1, style=plot.style_line, transp=0)
+//plot(ishwmarbn?sma29:na, color=not colourFrom and sma29 <= source or colourFrom and sma29 <= sma28 ? c1 : c2, title='plot 29', linewidth=1, style=plot.style_line)
+//plot(ishwmarbn?sma28:na, color=not colourFrom and sma28 <= source or colourFrom and sma28 <= sma27 ? c1 : c2, title='plot 28', linewidth=1, style=plot.style_line)
+//plot(ishwmarbn?sma27:na, color=not colourFrom and sma27 <= source or colourFrom and sma27 <= sma26 ? c1 : c2, title='plot 27', linewidth=1, style=plot.style_line)
+//plot(ishwmarbn?sma26:na, color=not colourFrom and sma26 <= source or colourFrom and sma26 <= sma25 ? c1 : c2, title='plot 26', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma25:na, color=not colourFrom and sma25 <= source or colourFrom and sma25 <= sma24 ? c1 : c2, title='plot 25', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma24:na, color=not colourFrom and sma24 <= source or colourFrom and sma24 <= sma23 ? c1 : c2, title='plot 24', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma23:na, color=not colourFrom and sma23 <= source or colourFrom and sma23 <= sma22 ? c1 : c2, title='plot 23', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma22:na, color=not colourFrom and sma22 <= source or colourFrom and sma22 <= sma21 ? c1 : c2, title='plot 22', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma21:na, color=not colourFrom and sma21 <= source or colourFrom and sma21 <= sma20 ? c1 : c2, title='plot 21', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma20:na, color=not colourFrom and sma20 <= source or colourFrom and sma20 <= sma19 ? c1 : c2, title='plot 20', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma19:na, color=not colourFrom and sma19 <= source or colourFrom and sma19 <= sma18 ? c1 : c2, title='plot 19', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma18:na, color=not colourFrom and sma18 <= source or colourFrom and sma18 <= sma17 ? c1 : c2, title='plot 18', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma17:na, color=not colourFrom and sma17 <= source or colourFrom and sma17 <= sma16 ? c1 : c2, title='plot 17', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma16:na, color=not colourFrom and sma16 <= source or colourFrom and sma16 <= sma15 ? c1 : c2, title='plot 16', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma15:na, color=not colourFrom and sma15 <= source or colourFrom and sma15 <= sma14 ? c1 : c2, title='plot 15', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma14:na, color=not colourFrom and sma14 <= source or colourFrom and sma14 <= sma13 ? c1 : c2, title='plot 14', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma13:na, color=not colourFrom and sma13 <= source or colourFrom and sma13 <= sma12 ? c1 : c2, title='plot 13', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma12:na, color=not colourFrom and sma12 <= source or colourFrom and sma12 <= sma11 ? c1 : c2, title='plot 12', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma11:na, color=not colourFrom and sma11 <= source or colourFrom and sma11 <= sma10 ? c1 : c2, title='plot 11', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma10:na, color=not colourFrom and sma10 <= source or colourFrom and sma10 <= sma9 ? c1 : c2, title='plot 10', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma9:na, color=not colourFrom and sma9 <= source or colourFrom and sma9 <= sma8 ? c1 : c2, title='plot 9', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma8:na, color=not colourFrom and sma8 <= source or colourFrom and sma8 <= sma7 ? c1 : c2, title='plot 8', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma7:na, color=not colourFrom and sma7 <= source or colourFrom and sma7 <= sma6 ? c1 : c2, title='plot 7', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma6:na, color=not colourFrom and sma6 <= source or colourFrom and sma6 <= sma5 ? c1 : c2, title='plot 6', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma5:na, color=not colourFrom and sma5 <= source or colourFrom and sma5 <= sma4 ? c1 : c2, title='plot 5', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma4:na, color=not colourFrom and sma4 <= source or colourFrom and sma4 <= sma3 ? c1 : c2, title='plot 4', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma3:na, color=not colourFrom and sma3 <= source or colourFrom and sma3 <= sma2 ? c1 : c2, title='plot 3', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma2:na, color=not colourFrom and sma2 <= source or colourFrom and sma2 <= sma1 ? c1 : c2, title='plot 2', linewidth=1, style=plot.style_line)
+plot(ishwmarbn?sma1:na, color=not colourFrom and sma1 <= source or colourFrom and sma1 <= source ? c1 : c2, title='plot 1', linewidth=1, style=plot.style_line)
+
+// MA Ribbon ====================================================================
+//Function==================================================
+
+
+    
+getgreenmacount()=>
+    greencount=0
+    if not colourFrom and sma25 <= source or colourFrom and sma25 <= sma24
+        greencount := greencount + 1
+    if not colourFrom and sma24 <= source or colourFrom and sma24 <= sma23
+        greencount := greencount + 1
+    if not colourFrom and sma23 <= source or colourFrom and sma23 <= sma22
+        greencount := greencount + 1
+    if not colourFrom and sma22 <= source or colourFrom and sma22 <= sma21
+        greencount := greencount + 1
+    if not colourFrom and sma21 <= source or colourFrom and sma21 <= sma20
+        greencount := greencount + 1
+    if not colourFrom and sma20 <= source or colourFrom and sma20 <= sma19
+        greencount := greencount + 1
+    if not colourFrom and sma19 <= source or colourFrom and sma19 <= sma18
+        greencount := greencount + 1
+    if not colourFrom and sma18 <= source or colourFrom and sma18 <= sma17
+        greencount := greencount + 1
+    if not colourFrom and sma17 <= source or colourFrom and sma17 <= sma16
+        greencount := greencount + 1
+    if not colourFrom and sma16 <= source or colourFrom and sma16 <= sma15
+        greencount := greencount + 1
+    if not colourFrom and sma15 <= source or colourFrom and sma15 <= sma14
+        greencount := greencount + 1
+    if not colourFrom and sma14 <= source or colourFrom and sma14 <= sma13
+        greencount := greencount + 1
+    if not colourFrom and sma13 <= source or colourFrom and sma13 <= sma12
+        greencount := greencount + 1
+    if not colourFrom and sma12 <= source or colourFrom and sma12 <= sma11
+        greencount := greencount + 1
+    if not colourFrom and sma11 <= source or colourFrom and sma11 <= sma10
+        greencount := greencount + 1
+    if not colourFrom and sma10 <= source or colourFrom and sma10 <= sma9 
+        greencount := greencount + 1
+    if not colourFrom and sma9 <= source or colourFrom and sma9 <= sma8  
+        greencount := greencount + 1
+    if not colourFrom and sma8 <= source or colourFrom and sma8 <= sma7  
+        greencount := greencount + 1
+    if not colourFrom and sma7 <= source or colourFrom and sma7 <= sma6  
+        greencount := greencount + 1
+    if not colourFrom and sma6 <= source or colourFrom and sma6 <= sma5  
+        greencount := greencount + 1
+    if not colourFrom and sma5 <= source or colourFrom and sma5 <= sma4  
+        greencount := greencount + 1
+    if not colourFrom and sma4 <= source or colourFrom and sma4 <= sma3  
+        greencount := greencount + 1
+    if not colourFrom and sma3 <= source or colourFrom and sma3 <= sma2  
+        greencount := greencount + 1
+    if not colourFrom and sma2 <= source or colourFrom and sma2 <= sma1  
+        greencount := greencount + 1
+    if not colourFrom and sma1 <= source or colourFrom and sma1 <= source 
+        greencount := greencount + 1
+    greencount
+
+//Function===========================================================
+// ADX Level =============================================================================================
+
+adxabovelvl= sig > adxlvl
+adxbelowlvl= sig < adxlvl
+
+
+xPrice = close
+xvnoise = math.abs(xPrice - xPrice[1])
+
+//KAMA1 =====================================
+Length = adxabovelvl ? s1k1length : s2k1length
+Fastend = adxabovelvl ? s1k1Fast : s2k1Fast
+Slowend = adxabovelvl ? s1k1Slow : s2k1Slow
+
+nfastend = 2 / (Fastend + 1)
+nslowend = 2 / (Slowend + 1)
+nsignal = math.abs(xPrice - xPrice[Length])
+nnoise = math.sum(xvnoise, Length)
+nefratio = nnoise != 0 ? nsignal / nnoise : 0
+nsmooth = math.pow(nefratio * (nfastend - nslowend) + nslowend, 2)
+nAMA = 0.0
+nAMA := nz(nAMA[1]) + nsmooth * (xPrice - nz(nAMA[1]))
+//plot(nAMA, color=clr, title='KAMA1')
+
+//KAMA2 =====================================
+Length2 = adxabovelvl ? s1k2length : s2k2length
+Fastend2 = adxabovelvl ? s1k2Fast : s2k2Fast
+Slowend2 = adxabovelvl ? s1k2Slow : s2k2Slow
+
+nfastend2 = 2 / (Fastend2 + 1)
+nslowend2 = 2 / (Slowend2 + 1)
+nsignal2 = math.abs(xPrice - xPrice[Length2])
+nnoise2 = math.sum(xvnoise, Length2)
+nefratio2 = nnoise2 != 0 ? nsignal2 / nnoise2 : 0
+nsmooth2 = math.pow(nefratio2 * (nfastend2 - nslowend2) + nslowend2, 2)
+nAMA2 = 0.0
+nAMA2 := nz(nAMA2[1]) + nsmooth2 * (xPrice - nz(nAMA2[1]))
+kama2clr = iskama2clr ? (close>nAMA2 ? color.green : color.red) : (clr2)
+
+plot(nAMA2, color=kama2clr, title='KAMA2')
+
+//====================================================================================
+rsi = ta.rsi((open + high + low + close/4),rsilen)
+
+chopbuycdn = ci < buychoplvl
+chopsellcdn = ci > sellchoplvl
+rocbuycdn = roc < lengthROCbuylvl
+rocsellcdn = roc > lengthROCselllvl
+smacdnNObuy = sma1 < sma2 //and sma2 < sma3
+smacdnNOsell = sma1 > sma2 //and sma2 > sma3
+//rsiValue = ta.rsi(close, 50)
+bgcolor(ta.crossover(sig,adxlvl)? color.new(color.lime,50):na,title="ADX Above Level")
+bgcolor(ta.crossunder(sig,adxlvl)? color.new(color.purple,50):na,title="ADX Below Level")
+
+//buycdn=ta.crossover(nAMA,nAMA2) and rsi < buyrsilvl 
+//sellcdn=ta.crossunder(nAMA,nAMA2) and rsi > sellrsilvl 
+
+//SIGNALS
+only_super_signals = input.bool(false, "Only Super Signals")
+
+signals_type = input.string("All", title = "Signal Options", options = ["All", "Regular Only", "Super Only"])
+num_required_for_super = input.int(3, minval = 1, title = "# For Super Signals")
+num_of_bars_for_super = input.int(5, minval = 1, title = "Bars to Look For Super Signals")
+
+var buy_signal_count = 0.00
+var sell_signal_count = 0.00
+
+var buy_regular = false
+var buy_super = false
+
+var sell_regular = false
+var sell_super = false
+
+var show_regular = false
+var show_super = false
+
+if signals_type == "All"
+    show_regular := true
+    show_super := true
+else if signals_type == "Regular Only"
+    show_regular := true
+    show_super := false
+else if signals_type == "Super Only"
+    show_regular := false
+    show_super := true    
+
+buy_regular := close > nAMA and rsi < buyrsilvl and chopbuycdn and rocbuycdn and not smacdnNObuy and getgreenmacount() >= mingreencnt and barstate.isconfirmed
+sell_regular := close < nAMA and rsi > sellrsilvl and chopsellcdn and rocsellcdn and not smacdnNOsell and getgreenmacount() >= mingreencnt and barstate.isconfirmed
+
+buy_signal_count := math.sum(buy_regular ? 1.00 : 0.00, num_of_bars_for_super)
+sell_signal_count := math.sum(sell_regular ? 1.00 : 0.00, num_of_bars_for_super)
+
+buy_super := buy_signal_count >= num_required_for_super and barstate.isconfirmed and not (math.sum(buy_super[1] ? 1.00 : 0.00, num_of_bars_for_super) > 0)
+sell_super := sell_signal_count >= num_required_for_super and barstate.isconfirmed  and not (math.sum(sell_super[1] ? 1.00 : 0.00, num_of_bars_for_super) > 0)
+
+plotshape(buy_regular and show_regular,"Buy",shape.triangleup,location.belowbar,color.green,size=size.tiny)
+plotshape(sell_regular and show_regular,"Sell",shape.triangledown,location.abovebar,color.red,size=size.tiny)
+
+plotshape(buy_super and show_super,"Strong Buy",shape.triangleup,location.belowbar,color.green,size=size.small)
+plotshape(sell_super and show_super,"Strong Sell",shape.triangledown,location.abovebar,color.red,size=size.small)
+
+//if buycdn
+  //  strategy.entry("buy",strategy.long)
+
+//if sellcdn
+  //  strategy.entry("sell",strategy.short)
+
+
+

@@ -1,0 +1,82 @@
+//@version=5
+indicator('Price Action Labels', overlay = true, max_bars_back = 5000)
+
+
+_sd_length = input.int(5, title = 'Swing Length', group = 'Settings', inline = '1', minval = 3, maxval = 50)
+_trigger_distance = input.float(1.618, title = 'Trigger Distance', minval = 0.01, group = 'Settings', inline = '2')
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    sh_bn = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), bar_index[sd_length], 0)
+    sl_bn = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), bar_index[sd_length], 0)
+
+    hh = sh > psh
+    lh = sh < psh
+    ll = sl < psl
+    hl = sl > psl
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, last_signal, sh_bn, sl_bn]
+
+
+
+// get swing values and plot
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, last_signal, sh_bn, sl_bn] = f_get_swing_values(_sd_length)
+plotshape(ll and sl, text="LL", title="Lower Low", style=shape.labelup, color=color.red, textcolor=color.white, location=location.belowbar, offset = -_sd_length)
+plotshape(hh and sh, text="HH", title="Higher High", style=shape.labeldown, color=color.green, textcolor=color.white, location=location.abovebar, offset = -_sd_length)
+// plotshape(lh and sh, text="LH", title="Lower High", style=shape.labeldown, color=dashboard_bear, textcolor=color.white, location=location.abovebar, offset = -sd_length)
+// plotshape(hl and sl, text="HL", title="Higher Low", style=shape.labelup, color=dashboard_bull, textcolor=color.new(#000000,0), location=location.belowbar, offset = -sd_length)
+
+
+
+
+// declare vars
+var int side = 0
+var int side_bn = 0
+var float hh_compare_price = 0.00
+var float ll_compare_price = 0.00
+
+var float hh_trigger_price = 0.00
+var float ll_trigger_price = 0.00
+
+side := barstate.isconfirmed and hh ? 1 : barstate.isconfirmed and ll ? -1 : side[1]
+side_bn := barstate.isconfirmed and hh ? sh_bn : barstate.isconfirmed and sl_bn ? -1 : side_bn[1]
+barcolor(side == 1 ? color.green : side == -1 ? color.red : na, title = 'Current Side', display = display.none)
+// bgcolor(hh? color.new(color.green, 70) : ll ? color.new(color.red, 70) : na)
+
+track_highs = ta.highest(high, _sd_length) 
+track_lows = ta.lowest(low, _sd_length) 
+
+hh_compare_price := hh ? track_lows : math.min(low, hh_compare_price[1]) 
+ll_compare_price := ll ? track_highs : math.max(high, ll_compare_price[1])
+
+hh_trigger_price := side == 1 ? hh_compare_price + (_trigger_distance * math.abs(hh_compare_price-csh)) : side == -1 ? na : hh_trigger_price[1]
+ll_trigger_price := side == -1 ? ll_compare_price - (_trigger_distance * math.abs(ll_compare_price-csl)) : side == 1 ? na : ll_trigger_price[1]
+
+plot(side == -1 ? ll_compare_price : na , color = color.red, style = plot.style_cross, linewidth = 3, title = 'High During LL', display = display.none)
+plot(side == -1 ? ll_trigger_price : na, color = color.fuchsia, style = plot.style_cross, linewidth = 3, title = 'LL Trigger', display = display.none)
+
+plot(side == 1 ? hh_compare_price : na , color = color.green, style = plot.style_cross, linewidth = 3, title = 'Low During HH', display = display.none)
+plot(side == 1 ? hh_trigger_price : na, color = color.blue, style = plot.style_cross, linewidth = 3, title = 'HH Trigger', display = display.none)
+
+
+
+// alerts
+high_break = side == 1 and ta.crossover(high, hh_trigger_price)
+low_break = side == -1 and ta.crossunder(low, ll_trigger_price)
+bgcolor(high_break ? color.new(color.green, 70) : low_break ? color.new(color.red, 70) : na, title = 'Alert Breaks')
+
+alertcondition(high_break, "High Break", "High Break")
+alertcondition(low_break, "Low Break", "Low Break")

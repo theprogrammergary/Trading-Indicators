@@ -1,0 +1,148 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_nakefoster v5 strategy", overlay=true, margin_long=100, margin_short=100)
+
+// inputs
+_rr = input.float(2.0, title = 'Risk-to-Reward', step = 0.5)
+_lookback = input.int(5, title = 'Lookback for Swing High/Low', minval = 1, maxval = 100)
+
+// create signals
+a = 3
+c = 5
+h = false
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+src =  close
+xATRTrailingStop = 0.0
+iff_1 = src > nz(xATRTrailingStop[1], 0) ? src - nLoss : src + nLoss
+iff_2 = src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0) 
+ ? math.min(nz(xATRTrailingStop[1]), src + nLoss) 
+ : iff_1
+
+xATRTrailingStop := src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0) ? math.max(nz(xATRTrailingStop[1]), src - nLoss) : iff_2
+
+pos = 0
+iff_3 = src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+pos := src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0) ? 1 : iff_3
+
+xcolor = pos == -1 ? color.red : pos == 1 ? color.green : color.blue
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossover(xATRTrailingStop, ema)
+
+buy = src > xATRTrailingStop and above
+sell = src < xATRTrailingStop and below
+barbuy = src > xATRTrailingStop
+barsell = src < xATRTrailingStop
+
+dchannel(len)=>
+    float dchannel_hh = ta.highest(len)
+    float dchannel_ll = ta.lowest(len)
+    
+    int dchannel_trend = 0
+    dchannel_trend := close > dchannel_hh[1] ? 1 : close < dchannel_ll[1] ? -1 : nz(dchannel_trend[1])
+    
+dchannelalt(len, maintrend)=>
+    float dchannelalt_hh = ta.highest(len)
+    float dchannelalt_ll = ta.lowest(len)
+    
+    int dchannelalt_trend = 0
+    dchannelalt_trend := close > dchannelalt_hh[1] ? 1 : close < dchannelalt_ll[1] ? -1 : nz(dchannelalt_trend[1])
+
+    maintrend == 1  ? dchannelalt_trend == 1  ? #00FF00ff :  #00FF009f :
+     maintrend == -1 ? dchannelalt_trend == -1 ? #FF0000ff :  #FF00009f :
+     na
+
+dlen = 20
+maintrend = dchannel(dlen)
+
+[superTrend, direction] = ta.supertrend(4, 10)
+
+
+// calculate signals
+var in_trade = false
+var trade_side = 0
+
+var bool long_entry = na
+var bool short_entry = na
+
+var float long_stop = 0.00
+var float long_tgt = 0.00
+var float short_stop = 0.00
+var float short_tgt = 0.00
+
+var tgt_hit = false
+var stop_hit = false
+
+var long_exit = false
+var short_exit = false
+
+
+var bool main_trend_flipped4_buy = na
+var bool main_trend_flipped4_sell = na
+
+main_trend_flipped4_buy := long_entry ? false : maintrend == -1 ? true : main_trend_flipped4_buy[1]
+main_trend_flipped4_sell := short_entry ? false : maintrend == 1 ? true : main_trend_flipped4_sell[1]
+
+long_entry := barstate.isconfirmed and buy and maintrend == 1 and main_trend_flipped4_buy and direction == -1 
+ and trade_side != 1
+short_entry := barstate.isconfirmed and sell and maintrend == - 1 and main_trend_flipped4_sell and direction == 1
+ and trade_side != -1
+
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]
+
+lookback_high = ta.highest(high, _lookback)
+lookback_low = ta.lowest(low, _lookback)
+
+long_stop := long_entry ? lookback_low : trade_side == 1 and in_trade ? long_stop[1] : na
+short_stop := short_entry ? lookback_high : trade_side == -1 and in_trade ? short_stop[1] : na
+
+long_tgt := long_entry ? close + _rr*math.abs(close - long_stop) : trade_side == 1 and in_trade ? long_tgt[1] : na
+short_tgt := short_entry ? close - _rr*math.abs(close - short_stop) : trade_side == -1 and in_trade ? short_tgt[1] : na
+
+tgt_hit := trade_side == 1 and high >= long_tgt or trade_side == -1 and low <= short_tgt
+stop_hit := trade_side == 1 and low <= long_stop or trade_side == -1 and high >= short_stop
+
+long_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == 1
+short_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == -1   
+
+in_trade := long_entry or short_entry ? true : long_exit or short_exit ?  false : in_trade[1]
+// barcolor(trade_side == 1 ? color.lime : trade_side == -1 ? color.red : na)
+// bgcolor(high >= long_tgt ? color.new(color.red,80)
+//  : short_exit ? color.new(color.green, 80)
+//  : in_trade ? color.new(color.white,100) : na)
+
+
+
+// display entry, target, stop lines
+p_entry = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+
+p_tgt = plot(strategy.position_size > 0 ? long_tgt 
+ : strategy.position_size < 0 ? short_tgt : na,
+ title = 'TGT', color = color.lime, style = plot.style_circles)
+
+p_sl = plot(strategy.position_size > 0 ? long_stop
+ : strategy.position_size < 0 ? short_stop : na,
+ title = 'SL', color = color.fuchsia, style = plot.style_circles)
+
+fill(p_entry, p_tgt, title = 'Profit BG', color = color.new(color.green,90))
+fill(p_entry, p_sl, title = 'Loss BG', color = color.new(color.red,90))
+
+
+
+// send orders
+if long_entry
+    strategy.entry("LE", strategy.long)
+
+if short_entry
+    strategy.entry("SS_E", strategy.short)
+
+if long_entry or strategy.position_avg_price > 0
+    strategy.exit('LX', 'LE', limit = long_tgt, stop = long_stop)
+
+if short_entry or strategy.position_avg_price < 0
+    strategy.exit('SS_X', 'SS_E', limit = short_tgt, stop = short_stop)

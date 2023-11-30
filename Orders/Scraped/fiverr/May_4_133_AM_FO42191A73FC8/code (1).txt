@@ -1,0 +1,263 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_nakefoster_mtf", overlay = true)
+
+// ma settings
+ma_length1  = 50
+ma_type1    = 'EMA'
+ma_tf1      = '15'
+
+ma_length2  = 50
+ma_type2    = 'EMA'
+ma_tf2      = '60'
+
+
+// macd settings
+swing_length_compare = 10
+macd_source = close
+macd_fast   = 12 
+macd_slow   = 26
+macd_signal = 9
+
+
+
+// error catching
+if timeframe.in_seconds() > timeframe.in_seconds(ma_tf1)
+    runtime.error("The max timeframe allowed is 15 minutes.")
+
+
+
+
+
+
+
+// functions
+f_ma_calculation(ma_length, ma_type) =>
+    float ma_value = switch ma_type
+        "EMA" => ta.ema(close[1], ma_length)
+        "SMA" => ta.sma(close[1], ma_length)
+        "RMA" => ta.rma(close[1], ma_length)
+        "HMA" => ta.hma(close[1], ma_length)
+        => ta.sma(close[1], ma_length) 
+
+
+f_get_swing_values(sd_length) =>
+
+
+    // price action
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+
+    // macd
+    [macdLine, signalLine, histLine] = ta.macd(macd_source, macd_fast, macd_slow, macd_signal)
+
+    macd_csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), macdLine[sd_length], 0)
+    macd_csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), macdLine[sd_length], 0)
+
+    macd_psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), macdLine[sd_length], 1)
+    macd_psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), macdLine[sd_length], 1)
+
+    macd_hh = macd_csh >= macd_psh
+    macd_lh = macd_csh < macd_psh
+    macd_ll = macd_csl <= macd_psl
+    macd_hl = macd_csl > macd_psl
+
+    var int macd_trend = na
+    macd_trend := ((macd_hh and macdLine >= macd_psh) or macdLine > macd_csh) ? 1 
+     : ((macd_ll and macdLine <= macd_psl) or macdLine < macd_csl) ? -1 
+     : macd_lh or macd_hl ? 0 : macd_trend[1]
+
+    var int macd_last_signal = na
+    macd_last_signal := macd_hh ? 2 : macd_lh ? -1 : macd_ll ? -2 : macd_hl ? 1 : macd_last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal,
+     macd_psh, macd_psl, macd_csh, macd_csl, macd_hh, macd_lh, macd_ll, macd_hl, macd_trend, macd_last_signal]
+
+
+
+// ma calculations
+ma_value1 = request.security(syminfo.tickerid, ma_tf1, f_ma_calculation(ma_length1, ma_type1), lookahead = barmerge.lookahead_on)
+ma_value2 = request.security(syminfo.tickerid, ma_tf2, f_ma_calculation(ma_length2, ma_type2), lookahead = barmerge.lookahead_on)
+
+ma_bull = ma_value1 >= ma_value2
+ma_bear = ma_value1 < ma_value2
+
+p_ma1 = plot(ma_value1, title = 'MA 1', color = ma_bull ? color.new(color.teal,40) : ma_bear ? color.new(color.red, 40) : na, editable = false)
+p_ma2 = plot(ma_value2, title = 'MA 2', color = ma_bull ? color.new(color.teal,40) : ma_bear ? color.new(color.red, 40) : na, editable = false)
+
+fill(p_ma1, p_ma2, color = ma_bull ? color.new(color.teal,90) : ma_bear ? color.new(color.red, 90) : na, editable = false)
+
+
+// macd calculations
+[macdLine, signalLine, histLine] = ta.macd(macd_source, macd_fast, macd_slow, macd_signal)
+
+
+// macd logic with price action to find divergence
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_ts,
+ macd_psh, macd_psl, macd_csh, macd_csl, macd_hh, macd_lh, macd_ll, macd_hl, macd_trend, macd_last_signal] = f_get_swing_values(swing_length_compare)
+
+// barcolor(trend == 1 ? color.lime
+//  : trend == -1 ? color.rgb(255, 0, 0)
+//  : color.yellow)
+
+// bgcolor(macd_trend == 1 ? color.new(color.lime,90)
+//  : macd_trend == -1 ? color.new(color.rgb(255, 0, 0),90)
+//  : color.new(color.yellow, 90))
+
+
+var bool macd_divergence_bull = na
+var bool macd_divergence_bear = na
+
+pa_color = color.white
+f_sh_sl_labels(sh, sl, hh, lh, ll, hl) =>
+
+    var string label_text = na
+    if sh
+        if hh
+            label_text := 'HH'
+        else
+            label_text := 'LH'
+        label.new(bar_index[swing_length_compare], high[swing_length_compare], text = label_text, style=label.style_label_down,
+         textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+    
+    else if sl
+        if hl
+            label_text := 'HL'
+        else
+            label_text := 'LL'
+        label.new(bar_index[swing_length_compare], low[swing_length_compare], text = label_text, style=label.style_label_up,
+         textcolor = pa_color, color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+// f_sh_sl_labels(sh, sl, hh, lh, ll, hl)
+
+
+macd_divergence_bull := (macd_trend == 1 and trend == -1) and macdLine < 0
+macd_divergence_bear := (macd_trend == -1 and trend == 1) and macdLine > 0
+
+signal_wait = 3
+var int bars_since_bull_div = 0
+var int bars_since_bear_div = 0
+bars_since_bull_div := macd_divergence_bull ? 0 : bars_since_bull_div[1] + 1
+bars_since_bear_div := macd_divergence_bear ? 0 : bars_since_bear_div[1] + 1
+
+macd_buy = bars_since_bull_div <= signal_wait and ta.crossover(histLine,0)
+macd_sell = bars_since_bear_div <= signal_wait and ta.crossunder(histLine,0)
+
+// bgcolor(bars_since_bull_div <= signal_wait ? color.new(color.green, 85)
+//  : bars_since_bear_div <= signal_wait  ? color.new(color.red, 85)
+//  : na)
+// bgcolor(trend == 1 ? color.new(color.lime, 85)
+//  : trend == -1 ? color.new(color.rgb(255, 0, 0),85)
+//  : color.new(color.yellow, 70))
+
+
+// generate signals
+var bool in_trade = false
+var int trade_side = 0
+var int last_trade = na
+
+var float target = 99999999.99
+var float stop = 0.000000
+var float entry_price = 0.00
+
+var bool long_entry = false
+var bool short_entry = false
+
+var bool tgt_hit = false
+var bool stop_hit = false
+
+var bool long_exit = false
+var bool short_exit = false
+
+
+long_entry := ma_bull and macd_buy and trade_side[1] <= 0 and barstate.isconfirmed
+short_entry := ma_bear and macd_sell and trade_side[1] >= 0 and barstate.isconfirmed
+
+
+// define position
+entry_price := long_entry[1] or short_entry[1] ? open :  in_trade == true ? entry_price[1] : na
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]
+last_trade := (trade_side != 0 and trade_side != trade_side[1]) ? trade_side : last_trade[1]
+
+
+// define targets and stops
+var float stop_distance = 0.00
+var float calc_shortstop = 0.00
+var float calc_longstop = 0.00
+
+calc_shortstop := math.max(csh, ta.highest(high, swing_length_compare))
+calc_longstop := math.min(csl, ta.lowest(low, swing_length_compare))
+
+stop_distance := long_entry[1] ? math.abs(open - calc_longstop)
+ : short_entry ? math.abs(open-calc_shortstop)
+ : stop_distance[1]
+
+target := trade_side == 1 ? (entry_price + (stop_distance * 2.00))
+ : trade_side == -1 ? (entry_price - (stop_distance * 2.00))
+ : na
+
+stop := long_entry[1] ? calc_longstop
+ : short_entry[1] ? calc_shortstop
+ : trade_side != 0 ? stop[1]
+ : na
+
+tgt_hit := trade_side == 1 and high >= target or trade_side == -1 and low <= target
+stop_hit := trade_side == 1 and low <= stop or trade_side == -1 and high >= stop
+
+long_exit := (tgt_hit or stop_hit) and in_trade[1] == true and trade_side[1] == 1
+short_exit := (tgt_hit or stop_hit) and in_trade[1] == true and trade_side[1] == -1   
+
+in_trade := long_entry or short_entry ? true : long_exit or short_exit ?  false : in_trade[1]
+
+// bgcolor(trade_side == 1 and low <= stop ? color.new(color.white, 70) : na)
+// bgcolor(trade_side == 1 ? color.new(color.lime,80) : trade_side == -1 ? color.new(color.red, 80) : na)
+
+// plot signals
+plotshape(long_entry ? low - (syminfo.mintick * 20) : na,
+ style=shape.labelup, editable=false, text= "BUY", textcolor=color.white,
+ location= location.belowbar, color=color.new(#2e847c, 0), size=size.tiny)
+
+plotshape(short_entry ? high + (syminfo.mintick * 20) : na,
+ style=shape.labeldown, editable=false, text='SELL', textcolor=color.white,
+ location=location.abovebar, color=color.new(#ff0000, 0), size=size.tiny)
+
+plotshape(long_exit ? high + (syminfo.mintick * 20) : na,
+ style=shape.labeldown, editable=false, text='Exit', textcolor=color.white,
+ location=location.abovebar, color=color.new(#434651, 40), size=size.tiny)
+
+plotshape(short_exit ? low - (syminfo.mintick * 20) : na,
+ style=shape.labelup, editable=false, text= "Exit", textcolor=color.white,
+ location= location.belowbar, color=color.new(#434651, 40), size=size.tiny)
+
+
+p_entry = plot(in_trade ? entry_price : na, title = 'Entry', color = color.blue, style = plot.style_circles, editable = false)
+p_tgt = plot(in_trade ? target : na, title = 'Target', color = color.lime, style = plot.style_circles, editable = false)
+p_stop = plot(in_trade ? stop : na, title = 'Stop', color = color.rgb(255, 0, 0), style = plot.style_circles, editable = false)
+
+fill(p_entry, p_tgt, title = 'Profit Zone', color = color.new(color.green, 90))
+fill(p_entry, p_stop, title = 'Loss Zone', color = color.new(color.red, 90))
+
+// alerts
+alertcondition(long_entry, "Buy Signal", "Buy Signal")
+alertcondition(short_entry, "Sell Signal", "Sell Signal")
+alertcondition(long_exit, "Long Exit Signal", "Long Exit Signal")
+alertcondition(short_exit, "Short Exit Signal", "Short Exit Signal")

@@ -1,0 +1,20 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_millerboy123", overlay = true)
+
+money_line = ta.sma(close, 105)
+buy_signal = ta.crossover(open, money_line)
+sell_signal = ta.crossunder(open, money_line)
+
+plotshape(buy_signal, title = 'BUY', style = shape.labelup, location = location.belowbar, 
+ color = color.teal, textcolor = color.white, size = size.small, text = 'BUY')
+
+plotshape(sell_signal, title = 'SELL', style = shape.labeldown, location = location.abovebar, 
+ color = color.red, textcolor = color.white, size = size.small, text = 'SELL')
+
+
+
+
+

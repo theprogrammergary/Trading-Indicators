@@ -1,0 +1,25 @@
+input AverageType = AverageType.SIMPLE;
+input Length = 9;
+input Price = close;
+input ShowText = yes;
+input UpText = "Up";
+input DownText = "Down";
+
+plot MA = MovingAverage(AverageType, Price, Length);
+
+plot Up = close crosses above MA;
+Up.Hide();
+Up.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_UP);
+Up.definecolor("Up Color", color.red);
+Up.setdefaultColor(Up.color("Up Color"));
+
+plot Down = close crosses below MA;
+Down.Hide();
+Down.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_DOWN);
+Down.definecolor("Down Color", color.red);
+Down.setdefaultColor(Down.color("Down Color"));
+
+#Plot the vertical line
+AddVerticalLine(Up, if ShowText then UpText else "", Up.color("Up Color"), Curve.FIRM);
+
+AddVerticalLine(Down, if ShowText then DownText else "", Down.color("Down Color"), Curve.FIRM);

@@ -1,0 +1,61 @@
+When using as a scanner have the plot set to increased and to is true.
+
+
+declare lower;
+
+input Days = 1;
+input Periods = 1;
+input Expansion = 1.25;
+input Compression = .65;
+input AvgPeriods = 10;
+input AvgPeriods2 = 5;
+input PaintBars = yes;
+input MaxDifference = 0.00001;
+input increase_pct = 10;
+
+def fRange = Highest(high, Days) - Lowest(low,Days);
+def fAVGRange = Average(fRange,Periods);
+def fAVGRange2 = Average(fRange,AvgPeriods);
+def fAVGRange3 = Average(fRange,AvgPeriods2);
+def ADRPercent = ((fAVGRange / fAVGRange2) * 100);
+
+plot Wide = (fAVGRange2 * Expansion);
+plot Narrow = (fAVGRange2 * Compression);
+plot AvgRange= fAVGRange2;
+plot AvgRange2= fAVGRange3;
+plot AdvancedADR = fAVGRange;
+AdvancedADR.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+AdvancedADR.setDefaultColor(GetColor(3));
+def difference = absValue(fAVGRange-fAVGRange[1]);
+plot increased = advancedADR >= advancedADR[1] * (1 + (increase_pct / 100));
+increased.hide();
+AdvancedADR.AssignValueColor(if increased then color.cyan else if difference<=MaxDifference then Color.Yellow
+    else (if AdvancedADR <= Narrow then Color.MAGENTA
+    else if AdvancedADR >= Wide then Color.BLUE
+    else Color.GRAY));
+Wide.setDefaultColor(GetColor(5));
+Narrow.setDefaultColor(GetColor(5));
+Wide.SetStyle(Curve.POINTS);
+Narrow.SetStyle(Curve.POINTS);
+
+DefineGlobalColor("Compression", Color.MAGENTA);
+DefineGlobalColor("Expansion", Color.BLUE);
+
+AddLabel(yes, "ADR%: " + ADRPercent +"%", if AdvancedADR <= Narrow then Color.MAGENTA
+    else if AdvancedADR >= Wide then Color.BLUE
+    else Color.GRAY) ;
+AddLabel(yes, "ADR: " + fAVGRange, if AdvancedADR <= Narrow then Color.MAGENTA
+    else if AdvancedADR >= Wide then Color.BLUE
+    else Color.GRAY) ;
+AddLabel(yes, "ADR10: " + fAVGRange2, Color.GRAY) ;
+AddLabel(yes, "ADR5: " + fAVGRange3, Color.YELLOW) ;
+
+DefineGlobalColor("Greater Than Last x", color.cyan);
+input Bars_Back = 20;
+plot Greater_than = if AdvancedADR > highest(AdvancedADR[1],Bars_Back) then AdvancedADR else double.nan;
+greater_than.setpaintingStrategy(paintingStrategy.sQUARES);
+greater_than.setlineWeight(1);
+greater_than.setdefaultColor(globalcolor("Greater Than Last x"));
+
+def Greater_than_signal = AdvancedADR > highest(AdvancedADR[1],Bars_Back);
+alert(Greater_than_signal, "ADR Signal", alert.bar);

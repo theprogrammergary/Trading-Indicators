@@ -1,0 +1,510 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_jiv789_v3", overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500, max_bars_back = 1000)
+
+//
+//SETTINGS
+//
+
+// INDICATOR SETTINGS
+swing_length = input.int(10, title = 'Swing High/Low Length ', minval = 1, maxval = 50,  group = 'Swing High/Low Settings', inline = '1')
+boxes_location = input.string('On Candle', title = 'Box Location          ', options = ['On Candle', 'On Wick'],  group = 'Swing High/Low Settings', inline = '2')
+boxes_width = input.float(7.5, title = 'Width                ', minval = 1, maxval = 15, step = 0.5,  group = 'Swing High/Low Settings', inline = '3')
+history_of_demand_to_keep = 50
+
+
+
+// THEME SETTINGS
+theme_type = input.string('Dark', title = 'Theme', options = ['Dark', 'Light'], group = 'Settings', inline = '1')
+line_type = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Settings', inline = '1')
+box_style = line_type == 'Solid' ?  line.style_solid : line_type == 'Dotted' ? line.style_dotted : line.style_dashed
+
+
+// SETTINGS
+use_sd = input.bool(true, title = 'Supply & Demand Zones', group = 'Settings', inline = '2')
+
+use_poi = input.bool(true, title = 'POI', group = 'Settings', inline = '3')
+
+use_bos = input.bool(true, title = 'BOS', group = 'Settings', inline = '4')
+use_choch = input.bool(true, title = 'CHoCH', group = 'Settings', inline = '5')
+
+use_eqhl = input.bool(true, title = 'EQH & EQL', group = 'Settings', inline = '6')
+use_zigzag = input.bool(false, title = 'Zigzag', group = 'Settings', inline = '7')
+use_pa_labels = input.bool(false, title = 'Price-Action Labels', group = 'Settings', inline = '8')
+
+
+// COLORS
+css_text = theme_type == 'Dark' ? color.new(#ffffff,0) : color.new(#000000,0)
+
+css_supply = not use_sd ? color.new(#000000,100) : theme_type == 'Dark' ? color.new(#EDEDED,70) : color.new(#808080,40)
+css_demand = not use_sd ? color.new(#000000,100) : theme_type == 'Dark' ? color.new(#00FFFF,70) : color.new(#00FFFF,50)
+
+css_poi = not use_poi ? color.new(#000000,100) : theme_type == 'Dark' ? color.new(#ffffff,85) : color.new(#000000,85)
+
+css_bos = not use_bos ? color.new(#000000,100) : theme_type == 'Dark' ? color.new(#ffffff,70) : color.new(#000000,70)
+css_choch = not use_bos ? color.new(#000000,100) : theme_type == 'Dark' ? color.new(#ffffff,70) : color.new(#000000,70)
+
+css_eqh = color.new(#e00000, 0)
+css_eql = color.new(#0ad13f, 0)
+
+css_zigzag = theme_type == 'Dark' ? color.new(#ffffff,0) : color.new(#000000,0)
+css_pa_labels = theme_type == 'Dark' ?  color.new(#ffffff,30) : color.new(#000000,20) 
+//
+//END SETTINGS
+//
+
+
+
+//
+//FUNCTIONS
+//
+
+// FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+    // trend := (lh and high > psh) ? 0 : (hl and low < psl) ? 0 : ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    if use_pa_labels
+        if sh
+            label.new(time[swing_length], csh, text = hh ? 'HH' : 'LH', style=label.style_label_down, textcolor = css_pa_labels, color = color.new(css_pa_labels, 100), size = size.tiny, xloc = xloc.bar_time)
+        if sl
+            label.new(time[swing_length], csl, text = ll ? 'LL' : 'HL', style=label.style_label_up, textcolor = css_pa_labels, color = color.new(css_pa_labels, 100), size = size.tiny, xloc = xloc.bar_time)
+
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal]
+
+
+
+
+// FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING
+f_check_overlapping(new_poi, box_array, atr) =>
+
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+
+
+// FUNCTION TO DRAW SUPPLY OR DEMAND ZONE
+f_supply_demand(box_array, label_array, box_type, atr) =>
+
+    atr_buffer = atr * (boxes_width / 10)
+    box_left = time[swing_length]
+    box_right = time
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+    var bool new_supply_or_demand = false
+
+    if box_type == 1
+        box_top := boxes_location == 'On Candle' ? math.max(close[swing_length], open[swing_length]) : high[swing_length]
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := boxes_location == 'On Candle' ? math.min(close[swing_length], open[swing_length]) : low[swing_length]
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    //delete oldest box, and then create a new box and add it to the array
+    if box_type == 1 and okay_to_draw
+        new_supply_or_demand := true
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_supply,
+             bgcolor = css_supply, extend = extend.right, text = 'SUPPLY', text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = not use_sd ? color.new(css_text,100) : css_text, text_size = size.small, xloc = xloc.bar_time, border_style = box_style))
+        
+        box.delete( array.get(label_array, array.size(label_array) - 1) )
+        f_array_add_pop(label_array, box.new( left = box_left, top = poi, right = box_right, bottom = poi, border_color = css_poi,
+             bgcolor = css_poi, extend = extend.right, text = 'POI', text_halign = text.align_left, text_valign = text.align_center,
+             text_color =  not use_poi ? color.new(css_text,100) : css_text, text_size = size.small, xloc = xloc.bar_time, border_style = box_style))
+
+    else if box_type == -1 and okay_to_draw
+        new_supply_or_demand := true
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_demand,
+             bgcolor = css_demand, extend = extend.right,  text = 'DEMAND', text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = not use_sd ? color.new(css_text,100) : css_text, text_size = size.small, xloc = xloc.bar_time, border_style = box_style))
+        
+        box.delete( array.get(label_array, array.size(label_array) - 1) )
+        f_array_add_pop(label_array, box.new( left = box_left, top = poi, right = box_right, bottom = poi, border_color = css_poi,
+             bgcolor = css_poi, extend = extend.right,  text = 'POI', text_halign = text.align_left, text_valign = text.align_center,
+             text_color =  not use_poi ? color.new(css_text,100) : css_text, text_size = size.small, xloc = xloc.bar_time, border_style = box_style))
+
+    new_supply_or_demand
+
+// FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN
+f_sd_to_bos_choch(box_array, bos_array, choch_array, can_choch, label_array, zone_type) =>
+
+    choch_count = 0
+    bos_count = 0
+
+    // supply
+    if zone_type == 1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_top(array.get(box_array,i))
+            if close >= level_to_break
+                // choch supply
+                if can_choch
+                    if use_choch
+                        copied_box = box.copy(array.get(box_array,i))
+                        f_array_add_pop(choch_array, copied_box)
+                        mid = (box.get_top(array.get(box_array,i)) + box.get_bottom(array.get(box_array,i))) / 2
+                        box.set_top(array.get(choch_array,0), mid)
+                        box.set_bottom(array.get(choch_array,0), mid)
+                        box.set_extend( array.get(choch_array,0), extend.none)
+                        box.set_right( array.get(choch_array,0), time)
+                        box.set_text( array.get(choch_array,0), 'CHoCH' )
+                        box.set_bgcolor( array.get(choch_array,0), css_choch)
+                        box.set_border_color( array.get(choch_array,0), css_choch)
+                        box.set_text_color( array.get(choch_array,0), color.new(css_text,30))
+                        box.set_text_size( array.get(choch_array,0), size.small)
+                        box.set_text_halign( array.get(choch_array,0), text.align_center)
+                        box.set_text_valign( array.get(choch_array,0), text.align_center)
+                    choch_count += 1
+
+                else
+
+                    //  bos supply
+                    if use_bos
+                        copied_box = box.copy(array.get(box_array,i))
+                        f_array_add_pop(bos_array, copied_box)
+                        mid = (box.get_top(array.get(box_array,i)) + box.get_bottom(array.get(box_array,i))) / 2
+                        box.set_top(array.get(bos_array,0), mid)
+                        box.set_bottom(array.get(bos_array,0), mid)
+                        box.set_extend( array.get(bos_array,0), extend.none)
+                        box.set_right( array.get(bos_array,0), time)
+                        box.set_text( array.get(bos_array,0), 'BOS' )
+                        box.set_bgcolor( array.get(bos_array,0), css_bos)
+                        box.set_border_color( array.get(bos_array,0), css_bos)
+                        box.set_text_color( array.get(bos_array,0), color.new(css_text,30))
+                        box.set_text_size( array.get(bos_array,0), size.small)
+                        box.set_text_halign( array.get(bos_array,0), text.align_center)
+                        box.set_text_valign( array.get(bos_array,0), text.align_center)
+                    bos_count += 1
+
+                box.delete(array.get(box_array, i))
+                box.delete(array.get(label_array, i))
+        
+
+
+    // demand
+    if zone_type == -1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_bottom(array.get(box_array,i))
+            if close <= level_to_break
+                // choch demand
+                if can_choch
+                    if use_choch 
+                        copied_box = box.copy(array.get(box_array,i))
+                        f_array_add_pop(choch_array, copied_box)
+                        mid = (box.get_top(array.get(box_array,i)) + box.get_bottom(array.get(box_array,i))) / 2
+                        box.set_top(array.get(choch_array,0), mid)
+                        box.set_bottom(array.get(choch_array,0), mid)
+                        box.set_extend( array.get(choch_array,0), extend.none)
+                        box.set_right( array.get(choch_array,0), time)
+                        box.set_text( array.get(choch_array,0), 'CHoCH' )
+                        box.set_bgcolor( array.get(choch_array,0), css_choch)
+                        box.set_border_color( array.get(choch_array,0), css_choch)
+                        box.set_text_color( array.get(choch_array,0), color.new(css_text,30))
+                        box.set_text_size( array.get(choch_array,0), size.small)
+                        box.set_text_halign( array.get(choch_array,0), text.align_center)
+                        box.set_text_valign( array.get(choch_array,0), text.align_center)
+                    choch_count += 1
+                else
+                    // bos demand
+                    if use_bos
+                        copied_box = box.copy(array.get(box_array,i))
+                        f_array_add_pop(bos_array, copied_box)
+                        mid = (box.get_top(array.get(box_array,i)) + box.get_bottom(array.get(box_array,i))) / 2
+                        box.set_top(array.get(bos_array,0), mid)
+                        box.set_bottom(array.get(bos_array,0), mid)
+                        box.set_extend( array.get(bos_array,0), extend.none)
+                        box.set_right( array.get(bos_array,0), time)
+                        box.set_text( array.get(bos_array,0), 'BOS' )
+                        box.set_bgcolor( array.get(bos_array,0), css_bos)
+                        box.set_border_color( array.get(bos_array,0), css_bos)
+                        box.set_text_color( array.get(bos_array,0), color.new(css_text,30))
+                        box.set_text_size( array.get(bos_array,0), size.small)
+                        box.set_text_halign( array.get(bos_array,0), text.align_center)
+                        box.set_text_valign( array.get(bos_array,0), text.align_center)
+                    bos_count += 1
+
+
+
+                box.delete(array.get(box_array, i))
+                box.delete(array.get(label_array, i))
+
+    [bos_count, choch_count]
+
+
+// FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT
+f_extend_box_endpoint(box_array) =>
+
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), time + (timeframe.in_seconds() * 1000 * 100))
+
+
+// function to loop and see if we touch poi
+f_inside_zone(box_array) =>
+
+    inside_count = 0
+    for i = 0 to array.size(box_array) - 1
+        level_to_test = box.get_bottom(array.get(box_array,i))
+        if high > level_to_test and low < level_to_test
+            inside_count += 1
+            break
+    inside_count
+
+//
+//END FUNCTIONS
+//  
+
+
+//
+//CALCULATIONS
+//
+
+atr = ta.atr(50)
+
+// swing_high = ta.pivothigh(high, swing_length, swing_length)
+// swing_low = ta.pivotlow(low, swing_length, swing_length)
+//
+//END CALCULATIONS
+//
+
+
+
+// ARRAYS FOR SUPPLY / DEMAND
+var current_supply_box = array.new_box(history_of_demand_to_keep, na)
+var current_demand_box = array.new_box(history_of_demand_to_keep, na)
+
+// ARRAYS FOR SUPPLY / DEMAND POI LABELS
+var current_supply_poi = array.new_box(history_of_demand_to_keep, na)
+var current_demand_poi = array.new_box(history_of_demand_to_keep, na)
+
+// ARRAYS FOR BOS
+var arr_supply_bos = array.new_box(10, na)
+var arr_demand_bos = array.new_box(10, na)
+
+// ARRAYS FOR CHOCH
+var arr_supply_choch = array.new_box(10, na)
+var arr_demand_choch = array.new_box(10, na)
+
+
+var bool new_demand = false
+var bool new_supply = false
+
+
+
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal] = f_get_swing_values(swing_length)
+// barcolor(trend == 1 ? color.green : trend == -1 ? color.red : color.yellow , title = 'Trend Bar Color')
+// NEW SWING HIGH
+if not na(sh)
+
+    // draw supply zone
+    new_demand := f_supply_demand(current_supply_box, current_supply_poi, 1, atr)
+
+// NEW SWING LOW
+else if not na(sl)
+
+    // draw demand zone
+    new_supply := f_supply_demand(current_demand_box, current_demand_poi, -1, atr)
+
+else
+    new_demand := false
+    new_supply := false
+
+
+var bool can_choch_supply = true
+var bool can_choch_demand = true
+
+[supply_bos, supply_choch] =  f_sd_to_bos_choch(current_supply_box, arr_supply_bos, arr_supply_choch,  can_choch_supply[1], current_supply_poi, 1)
+[demand_bos, demand_choch] =  f_sd_to_bos_choch(current_demand_box, arr_demand_bos, arr_demand_choch, can_choch_demand[1], current_demand_poi, -1) 
+
+can_choch_supply :=  supply_choch > 0 ? false : lh ? true : can_choch_supply[1]
+can_choch_demand := demand_choch > 0 ? false : hl ? true : can_choch_demand[1]
+
+f_extend_box_endpoint(current_supply_box)
+f_extend_box_endpoint(current_demand_box)
+
+inside_supply = f_inside_zone(current_supply_poi) > 0 ? true : false
+inside_demand = f_inside_zone(current_demand_poi) > 0 ? true : false
+
+
+
+// function for eqh eql
+f_eqh_eql(eq_length, eq_threshold) =>
+    var eq_prev_top = 0.
+    var eq_top_x = 0
+
+    var eq_prev_btm = 0.
+    var eq_btm_x = 0
+
+    // eqh_alert = false 
+    // eql_alert = false 
+
+    if use_eqhl
+        eq_top = ta.pivothigh(eq_length, eq_length)
+        eq_btm = ta.pivotlow(eq_length, eq_length)
+
+        if eq_top 
+            max = math.max(eq_top, eq_prev_top)
+            min = math.min(eq_top, eq_prev_top)
+            
+            if max < min + atr * eq_threshold
+                eqh_line = line.new(eq_top_x, eq_prev_top, bar_index-eq_length, eq_top, color = css_eqh, style = box_style)
+                eqh_lbl = label.new(int(math.avg(bar_index-eq_length, eq_top_x)), eq_top, 'EQH', color = #00000000, textcolor = css_eqh, style = label.style_label_down, size = size.tiny)
+                // eqh_alert := true
+
+            eq_prev_top := eq_top
+            eq_top_x := bar_index-eq_length
+
+        if eq_btm 
+            max = math.max(eq_btm, eq_prev_btm)
+            min = math.min(eq_btm, eq_prev_btm)
+            
+            if min > max - atr * eq_threshold
+                eql_line = line.new(eq_btm_x, eq_prev_btm, bar_index-eq_length, eq_btm, color = css_eql, style = box_style)
+                eql_lbl = label.new(int(math.avg(bar_index-eq_length, eq_btm_x)), eq_btm, 'EQL', color = #00000000, textcolor = css_eql, style = label.style_label_up, size = size.tiny)
+                // eql_alert := true
+
+            eq_prev_btm := eq_btm
+            eq_btm_x := bar_index-eq_length
+
+
+f_eqh_eql(200, 0.4)
+f_eqh_eql(100, 0.4)
+f_eqh_eql(50, 0.4)
+f_eqh_eql(20, 0.2)
+f_eqh_eql(10, 0.1)
+
+
+
+
+
+
+
+
+//ZIG ZAG
+h = ta.highest(high, swing_length * 2 + 1)
+l = ta.lowest(low, swing_length * 2 + 1)
+f_isMin(len) =>
+    l == low[len]
+f_isMax(len) =>
+    h == high[len]
+
+var dirUp = false
+var lastLow = high * 100
+var lastHigh = 0.0
+var timeLow = time
+var timeHigh = time
+var line li = na
+
+f_drawLine() =>
+    _li_color = use_zigzag ? css_zigzag : color.new(#ffffff,100)
+    line.new(timeHigh - swing_length, lastHigh, timeLow - swing_length, lastLow, xloc.bar_time, color=_li_color, width=2)
+
+if dirUp
+    if f_isMin(swing_length) and low[swing_length] < lastLow
+        lastLow := low[swing_length]
+        timeLow := time
+        line.delete(li)
+        li := f_drawLine()
+        li
+
+    if f_isMax(swing_length) and high[swing_length] > lastLow
+        lastHigh := high[swing_length]
+        timeHigh := time
+        dirUp := false
+        li := f_drawLine()
+        li
+
+if not dirUp
+    if f_isMax(swing_length) and high[swing_length] > lastHigh
+        lastHigh := high[swing_length]
+        timeHigh := time
+        line.delete(li)
+        li := f_drawLine()
+        li
+    if f_isMin(swing_length) and low[swing_length] < lastHigh
+        lastLow := low[swing_length]
+        timeLow := time
+        dirUp := true
+        li := f_drawLine()
+        if f_isMax(swing_length) and high[swing_length] > lastLow
+            lastHigh := high[swing_length]
+            timeHigh := time
+            dirUp := false
+            li := f_drawLine()
+            li
+
+
+
+
+// ALERTS
+
+// new supply & demand zone
+alertcondition(new_supply, 'New Supply Zone', 'New Supply Zone')
+alertcondition(new_demand, 'New Demand Zone', 'New Demand Zone')
+
+// touch poi
+alertcondition(inside_supply, 'Touch Supply POI', 'Touch Supply POI')
+alertcondition(inside_demand, 'Touch Demand POI', 'Touch Demand POI')
+
+// bos alerts
+alertcondition(supply_bos > 0, 'Bullish BOS', 'Bullish BOS')
+alertcondition(demand_bos > 0 , 'Bearish BOS', 'Bearish BOS')
+
+// choch alerts
+alertcondition(supply_choch > 0, 'Bullish CHoCH', 'Bullish CHoCH')
+alertcondition(demand_choch > 0 , 'Bearish CHoCH', 'Bearish CHoCH')
+
+// price action alerts
+alertcondition(hh and not hh[1], 'Higher High', 'Higher High')
+alertcondition(lh and not lh[1], 'Lower High', 'Lower High')
+
+alertcondition(hl and not hl[1], 'Higher Low', 'Higher Low')
+alertcondition(ll and not ll[1], 'Lower Low', 'Lower Low')

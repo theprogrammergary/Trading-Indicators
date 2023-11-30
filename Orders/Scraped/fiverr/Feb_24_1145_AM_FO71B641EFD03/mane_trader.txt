@@ -1,0 +1,160 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_manetrader", overlay = true)
+
+ma5 = ta.sma(close, 5)
+ma10 = ta.sma(close, 10)
+ma20 = ta.sma(close, 20)
+ma50 = ta.sma(close, 50)
+
+ma5_plot = plot(ma5, title = 'MA 5', color = color.white)
+ma10_plot = plot(ma10, title = 'MA 10', color = color.aqua)
+ma20_plot = plot(ma20, title = 'MA 20', color = color.orange)
+ma50_plot = plot(ma50, title = 'MA 50', color = color.yellow)
+
+
+
+
+// # lines crossing each other above
+ma5_crossabove_ma10 = ta.crossover(ma5, ma10)
+ma5_crossabove_ma20 = ta.crossover(ma5, ma20)
+ma5_crossabove_ma50 = ta.crossover(ma5, ma50)
+
+ma10_crossabove_ma5 = ta.crossover(ma10, ma5)
+ma10_crossabove_ma20 = ta.crossover(ma10, ma20)
+ma10_crossabove_ma50 = ta.crossover(ma10, ma50)
+
+ma20_crossabove_ma5 = ta.crossover(ma20, ma5)
+ma20_crossabove_ma10 = ta.crossover(ma20, ma10)
+ma20_crossabove_ma50 = ta.crossover(ma20, ma50)
+
+ma50_crossabove_ma5 = ta.crossover(ma50, ma5)
+ma50_crossabove_ma10 = ta.crossover(ma50, ma10)
+ma50_crossabove_ma20 = ta.crossover(ma50, ma20)
+
+alertcondition(ma5_crossabove_ma10, title = 'MA5 Cross Above MA10', message = 'MA5 Cross Above MA10')
+alertcondition(ma5_crossabove_ma20, title = 'MA5 Cross Above MA20', message = 'MA5 Cross Above MA20')
+alertcondition(ma5_crossabove_ma50, title = 'MA5 Cross Above MA50', message = 'MA5 Cross Above MA50')
+
+alertcondition(ma10_crossabove_ma5, title = 'MA10 Cross Above MA5', message = 'MA10 Cross Above MA5')
+alertcondition(ma10_crossabove_ma20, title = 'MA10 Cross Above MA20', message = 'MA10 Cross Above MA20')
+alertcondition(ma10_crossabove_ma50, title = 'MA10 Cross Above MA50', message = 'MA10 Cross Above MA50')
+
+alertcondition(ma20_crossabove_ma5, title = 'MA20 Cross Above MA5', message = 'MA20 Cross Above MA5')
+alertcondition(ma20_crossabove_ma10, title = 'MA20 Cross Above MA10', message = 'MA20 Cross Above MA10')
+alertcondition(ma20_crossabove_ma50, title = 'MA20 Cross Above MA50', message = 'MA20 Cross Above MA50')
+
+alertcondition(ma50_crossabove_ma5, title = 'MA50 Cross Above MA5', message = 'MA50 Cross Above MA5')
+alertcondition(ma50_crossabove_ma10, title = 'MA50 Cross Above MA10', message = 'MA50 Cross Above MA10')
+alertcondition(ma50_crossabove_ma20, title = 'MA50 Cross Above MA20', message = 'MA50 Cross Above MA20')
+
+
+// # lines crossing each other below
+ma5_crossbelow_ma10 = ta.crossunder(ma5, ma10)
+ma5_crossbelow_ma20 = ta.crossunder(ma5, ma20)
+ma5_crossbelow_ma50 = ta.crossunder(ma5, ma50)
+
+ma10_crossbelow_ma5 = ta.crossunder(ma10, ma5)
+ma10_crossbelow_ma20 = ta.crossunder(ma10, ma20)
+ma10_crossbelow_ma50 = ta.crossunder(ma10, ma50)
+
+ma20_crossbelow_ma5 = ta.crossunder(ma20, ma5)
+ma20_crossbelow_ma10 = ta.crossunder(ma20, ma10)
+ma20_crossbelow_ma50 = ta.crossunder(ma20, ma50)
+
+ma50_crossbelow_ma5 = ta.crossunder(ma50, ma5)
+ma50_crossbelow_ma10 = ta.crossunder(ma50, ma10)
+ma50_crossbelow_ma20 = ta.crossunder(ma50, ma20)
+
+alertcondition(ma5_crossbelow_ma10, title = 'MA5 Cross Below MA10', message = 'MA5 Cross Below MA10')
+alertcondition(ma5_crossbelow_ma20, title = 'MA5 Cross Below MA20', message = 'MA5 Cross Below MA20')
+alertcondition(ma5_crossbelow_ma50, title = 'MA5 Cross Below MA50', message = 'MA5 Cross Below MA50')
+
+alertcondition(ma10_crossbelow_ma5, title = 'MA10 Cross Below MA5', message = 'MA10 Cross Below MA5')
+alertcondition(ma10_crossbelow_ma20, title = 'MA10 Cross Below MA20', message = 'MA10 Cross Below MA20')
+alertcondition(ma10_crossbelow_ma50, title = 'MA10 Cross Below M50', message = 'MA10 Cross Below MA50')
+
+alertcondition(ma20_crossbelow_ma5, title = 'MA20 Cross Below MA5', message = 'MA20 Cross Below MA5')
+alertcondition(ma20_crossbelow_ma10, title = 'MA20 Cross Below MA10', message = 'MA20 Cross Below MA10')
+alertcondition(ma20_crossbelow_ma50, title = 'MA20 Cross Below MA50', message = 'MA20 Cross Below MA50')
+
+alertcondition(ma50_crossbelow_ma5, title = 'MA50 Cross Below MA5', message = 'MA50 Cross Below MA5')
+alertcondition(ma50_crossbelow_ma10, title = 'MA50 Cross Below MA10', message = 'MA50 Cross Below MA10')
+alertcondition(ma50_crossbelow_ma20, title = 'MA50 Cross Below MA20', message = 'MA50 Cross Below MA20')
+
+
+any_line_crossing_above_line = 
+   ma5_crossabove_ma10
+ or ma5_crossabove_ma20
+ or ma5_crossabove_ma50
+
+ or ma10_crossabove_ma5
+ or ma10_crossabove_ma20
+ or ma10_crossabove_ma50
+
+ or ma20_crossabove_ma5
+ or ma20_crossabove_ma10
+ or ma20_crossabove_ma50
+
+ or ma50_crossabove_ma5
+ or ma50_crossabove_ma10
+ or ma50_crossabove_ma20
+alertcondition(any_line_crossing_above_line, title = 'ANY - Line Crossing Above Another Line', message = 'Any Line Crossing Above Another Line')
+
+
+any_line_crossing_below_line = 
+   ma5_crossbelow_ma10
+ or ma5_crossbelow_ma20
+ or ma5_crossbelow_ma50
+
+ or ma10_crossbelow_ma5
+ or ma10_crossbelow_ma20
+ or ma10_crossbelow_ma50
+
+ or ma20_crossbelow_ma5
+ or ma20_crossbelow_ma10
+ or ma20_crossbelow_ma50
+
+ or ma50_crossbelow_ma5
+ or ma50_crossbelow_ma10
+ or ma50_crossbelow_ma20
+alertcondition(any_line_crossing_below_line, title = 'ANY - Line Crossing Below Another Line', message = 'Any Line Crossing Below Another Line')
+
+
+// # close crossing above
+close_above_ma5 = ta.crossover(close, ma5)
+close_above_ma10 = ta.crossover(close, ma10)
+close_above_ma20 = ta.crossover(close, ma20)
+close_above_ma50 = ta.crossover(close, ma50)
+alertcondition(close_above_ma5, title = 'Close Cross Above MA5', message = 'Close Cross Above MA5')
+alertcondition(close_above_ma10, title = 'Close Cross Above MA10', message = 'Close Cross Above MA10')
+alertcondition(close_above_ma20, title = 'Close Cross Above MA20', message = 'Close Cross Above MA20')
+alertcondition(close_above_ma50, title = 'Close Cross Above MA50', message = 'Close Cross Above MA50')
+
+close_above_any = 
+ close_above_ma5 
+ or close_above_ma10
+ or close_above_ma20 
+ or close_above_ma50
+alertcondition(close_above_any, title = 'ANY - Close Crosses Above Any Line', message = 'Close Crosses Above ANY Line')
+
+// # close crossing below
+close_below_ma5 = ta.crossunder(close, ma5)
+close_below_ma10 = ta.crossunder(close, ma10)
+close_below_ma20 = ta.crossunder(close, ma20)
+close_below_ma50 = ta.crossunder(close, ma50)
+alertcondition(close_below_ma5, title = 'Close Cross Below MA5', message = 'Close Cross Below MA5')
+alertcondition(close_below_ma10, title = 'Close Cross Below MA10', message = 'Close Cross Below MA10')
+alertcondition(close_below_ma20, title = 'Close Cross Below MA20', message = 'Close Cross Below MA20')
+alertcondition(close_below_ma50, title = 'Close Cross Below MA50', message = 'Close Cross Below MA50')
+
+close_below_any = 
+ close_below_ma5 
+ or close_below_ma10
+ or close_below_ma20 
+ or close_below_ma50
+alertcondition(close_above_any, title = 'ANY - Close Crosses Below Any Line', message = 'Close Crosses Below ANY Line')
+
+

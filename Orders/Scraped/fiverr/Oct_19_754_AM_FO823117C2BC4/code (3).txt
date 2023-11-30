@@ -1,0 +1,593 @@
+ // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_brandonj100_v2", overlay = true, max_lines_count = 250, max_boxes_count = 500)
+
+// INPUTS
+cons_candles = input.int(2, title = 'MIN Consecutive Candles', minval = 2)
+
+show_0 = input(true, "", inline = "0")
+label_0 = input.string("0", "", inline = "0")
+value_0 = input(0, "", inline = "0")
+color_0 = input(#787b86, "", inline = "0")
+
+show_100 = input(true, "", inline = "100")
+label_100 = input.string("1.00", "", inline = "100")
+value_100 = input(1.00, "", inline = "100")
+color_100 = input(#787b86, "", inline = "100")
+
+show_1 = input(false, "", inline = "Level1")
+label_1 = input.string("Level 1", "", inline = "Level1")
+value_1 = input(0.382, "", inline = "Level1")
+color_1 = input(#787b86, "", inline = "Level1")
+
+show_2 = input(false, "", inline = "Level2")
+label_2 = input.string("Level 2", "", inline = "Level2")
+value_2 = input(0.5, "", inline = "Level2")
+color_2 = input(#787b86, "", inline = "Level2")
+
+show_3 = input(false, "", inline = "Level3")
+label_3 = input.string("Level 3", "", inline = "Level3")
+value_3 = input(0.68, "", inline = "Level3")
+color_3 = input(#787b86, "", inline = "Level3")
+
+barrier_pos_lbl = input.string("+1.65", "", inline = "Positive Barrier")
+barrier_pos = input(1.65, "", inline = "Positive Barrier")
+barrier_pos_css = input(#b51d1d, "", inline = "Positive Barrier")
+
+barrier_neg_lbl = input.string("-0.65", "", inline = "Negative Barrier")
+barrier_neg = input(-0.65, "", inline = "Negative Barrier")
+barrier_neg_css = input(#b51d1d, "", inline = "Negative Barrier")
+
+show_connector  = input.bool(true, title = 'Connector', group = 'Other Settings')
+deleteOld       = input.bool(false, title = 'Delete Old Lines', group = 'Other Settings')
+displayPriceWLbl= input.bool(true, title = 'Display Price on Label', group = 'Other Settings')
+lbl_extension   = input.int(35, title = 'Label Extension', group = 'Other Settings')
+
+
+// VARS
+var bool barrierBroken  = false
+
+var startBNs    = array.new_int(5, na)
+var endBNs      = array.new_int(5, na)
+var fibHighs    = array.new_float(5, na)
+var fibLows     = array.new_float(5, na)
+var fibHighsBN  = array.new_int(5, na)
+var fibLowsBN   = array.new_int(5, na)
+
+var Line_connector  = array.new_line(1, na)
+var Line_fib0       = array.new_box(1, na)
+var Line_fib100     = array.new_box(1, na)
+var Line_fibPOS     = array.new_box(1, na)
+var Line_fibNEG     = array.new_box(1, na)
+var Line_fib1       = array.new_box(1, na)
+var Line_fib2       = array.new_box(1, na)
+var Line_fib3       = array.new_box(1, na)
+
+var old_Line_connector  = array.new_line(25, na)
+var old_Line_fib0       = array.new_box(25, na)
+var old_Line_fib100     = array.new_box(25, na)
+var old_Line_fibPOS     = array.new_box(25, na)
+var old_Line_fibNEG     = array.new_box(25, na)
+var old_Line_fib1       = array.new_box(25, na)
+var old_Line_fib2       = array.new_box(25, na)
+var old_Line_fib3       = array.new_box(25, na)
+
+var int candleCount = 0
+var int candleSide  = 0
+var bool firstDraw  = true
+
+
+// function
+f_boxarray_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+f_linearray_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+f_trackConsecutive(startBNs, endBNs, fibHighs, fibLows, fibHighsBN, fibLowsBN) =>
+    var bool newConsecutive = false
+    var int track_StartBN   = na
+    var int track_EndBN     = na
+    var float track_fibHigh = na
+    var float track_fibLow  = na
+    var int track_fibHighBN = na
+    var int track_fibLowBN  = na
+
+    if candleCount[1] >= cons_candles and candleCount == 1
+        // cond met
+        track_StartBN       := track_StartBN[1]
+        track_EndBN         := bar_index + 1
+        track_fibHigh       := math.max(high, track_fibHigh[1])
+        track_fibLow        := math.min(low, track_fibLow[1])
+        track_fibHighBN     := high == track_fibHigh ? bar_index : track_fibHighBN[1]
+        track_fibLowBN      := low == track_fibLow ? bar_index : track_fibLowBN[1] 
+        newConsecutive      := true
+
+    else if candleSide != candleSide[1]
+        //  reset
+        track_StartBN       := bar_index[1]
+        track_EndBN         := bar_index + 1
+        track_fibHigh       := math.max(high, high[1])
+        track_fibLow        := math.min(low, low[1])
+        track_fibHighBN     := high[1] == track_fibHigh ? bar_index[1] : high == track_fibHigh ? bar_index : track_fibHighBN[1]
+        track_fibLowBN      := low[1] == track_fibLow ? bar_index[1] : low == track_fibLow ? bar_index : track_fibLowBN[1]
+        newConsecutive      := false
+
+    else 
+        // track
+        track_StartBN       := track_StartBN[1]
+        track_EndBN         := bar_index + 1
+        track_fibHigh       := math.max(high, track_fibHigh[1])
+        track_fibLow        := math.min(low, track_fibLow[1])
+        track_fibHighBN     := high == track_fibHigh ? bar_index : track_fibHighBN[1]
+        track_fibLowBN      := low == track_fibLow ? bar_index : track_fibLowBN[1]
+        newConsecutive      := false
+
+
+    if candleCount[1] >= cons_candles and candleCount == 1
+        array.push(startBNs, track_StartBN)
+        array.push(endBNs, track_EndBN)
+        array.push(fibHighs, track_fibHigh)
+        array.push(fibLows, track_fibLow)
+        array.push(fibHighsBN, track_fibHighBN)
+        array.push(fibLowsBN, track_fibLowBN)
+
+        // reset
+        track_StartBN       := bar_index[1]
+        track_EndBN         := bar_index + 1
+        track_fibHigh       := math.max(high, high[1])
+        track_fibLow        := math.min(low, low[1])
+        track_fibHighBN     := high[1] == track_fibHigh ? bar_index[1] : high == track_fibHigh ? bar_index : track_fibHighBN[1]
+        track_fibLowBN      := low[1] == track_fibLow ? bar_index[1] : low == track_fibLow ? bar_index : track_fibLowBN[1]
+        
+        newConsecutive      := true
+
+    newConsecutive
+
+
+f_createFibValues(startBN, endBN, fibTop, fibBot, fibTopBN, fibBotBN) =>
+    var float fib0_value    = 0.00
+    var float fib100_value  = 0.00
+
+    var float fib1_value = 0.00
+    var float fib2_value = 0.00
+    var float fib3_value = 0.00
+
+    var float fibpos_value = 0.00
+    var float fibneg_value = 0.00 
+
+    topISAnchor = fibTopBN > fibBotBN
+
+    fib0_value      := topISAnchor ? fibTop : fibBot
+    fib100_value    := topISAnchor ? fibBot : fibTop
+    fib_distance    = math.abs(fib0_value - fib100_value)
+
+    fibpos_value    := math.round_to_mintick(topISAnchor ?  fib0_value - (fib_distance * barrier_pos) : fib0_value + (fib_distance * barrier_pos))
+    fibneg_value    := math.round_to_mintick(topISAnchor ?  fib0_value - (fib_distance * barrier_neg) : fib0_value + (fib_distance * barrier_neg))
+
+    fib1_value      := math.round_to_mintick(topISAnchor ?  fib0_value - (fib_distance * value_1) : fib0_value + (fib_distance * value_1))
+    fib2_value      := math.round_to_mintick(topISAnchor ?  fib0_value - (fib_distance * value_2) : fib0_value + (fib_distance * value_2))
+    fib3_value      := math.round_to_mintick(topISAnchor ?  fib0_value - (fib_distance * value_3) : fib0_value + (fib_distance * value_3))
+    
+
+    [fib0_value, fib100_value, fibpos_value, fibneg_value, fib1_value, fib2_value, fib3_value]
+
+
+f_findNewBarrier(startBNs, endBNs, fibHighs, fibLows, fibHighsBN, fibLowsBN) =>
+    var float new_fib0_value    = na
+    var float new_fib100_value  = na
+    var float new_fibpos_value  = na
+    var float new_fibneg_value  = na
+    var float new_fib1_value    = na
+    var float new_fib2_value    = na
+    var float new_fib3_value    = na
+    var int new_connectorBN     = na
+
+    array_size = array.size(startBNs)
+    if array_size <= 0
+        [na, na, na, na, na, na, na, na]
+
+    else
+        for i=0 to array_size-1            
+            temp_startBN    = array.get(startBNs, i)
+            temp_endBN      = array.get(endBNs, i)
+            temp_fibHighs   = array.get(fibHighs, i)
+            temp_fibLows    = array.get(fibLows, i)
+            temp_fibHighsBN = array.get(fibHighsBN, i)
+            temp_fibLowsBN  = array.get(fibLowsBN, i)
+
+            temp_minHigh    = ta.highest(high, bar_index-temp_startBN)
+            temp_maxLow     = ta.lowest(low, bar_index-temp_startBN)
+
+            [fib0_value, fib100_value, fibpos_value, fibneg_value, fib1_value, fib2_value, fib3_value] = 
+             f_createFibValues(temp_startBN, temp_endBN, temp_fibHighs, temp_fibLows, temp_fibHighsBN, temp_fibLowsBN)
+
+            temp_max = math.max(fibpos_value, fibneg_value) 
+            temp_min = math.min(fibpos_value, fibneg_value) 
+
+            if temp_max >= temp_minHigh and temp_min <= temp_maxLow
+                new_fib0_value      := fib0_value
+                new_fib100_value    := fib100_value
+                new_fibpos_value    := fibpos_value
+                new_fibneg_value    := fibneg_value
+                new_fib1_value      := fib1_value
+                new_fib2_value      := fib2_value
+                new_fib3_value      := fib3_value
+                new_connectorBN     := temp_startBN
+                break
+            else
+                new_fib0_value      := na
+                new_fib100_value    := na
+                new_fibpos_value    := na
+                new_fibneg_value    := na
+                new_fib1_value      := na
+                new_fib2_value      := na
+                new_fib3_value      := na
+                new_connectorBN     := na
+
+        [new_fib0_value, new_fib100_value, new_fibpos_value, new_fibneg_value, new_fib1_value, new_fib2_value, new_fib3_value, new_connectorBN]
+
+
+f_drawFibs(
+     fib0_value, fib100_value, fibpos_value, fibneg_value,
+     fib1_value, fib2_value, fib3_value,
+     startBN, endBN, startConnectBN
+     ) =>
+    
+    f_boxarray_add_pop(Line_fibPOS, box.new(left=startBN, top=fibpos_value, right= endBN+10, bottom=fibpos_value,
+         border_color = barrier_pos_css, extend = extend.right, 
+         text = displayPriceWLbl ? barrier_pos_lbl + ' (' + str.tostring(fibpos_value) + ')' : barrier_pos_lbl, 
+         text_color = chart.fg_color,
+         text_size = size.small, text_halign = text.align_right, text_valign = text.align_top, border_width = 1))
+
+    f_boxarray_add_pop(Line_fibNEG, box.new(left=startBN, top=fibneg_value, right= endBN+10, bottom=fibneg_value,
+         border_color = barrier_neg_css, extend = extend.right,
+         text = displayPriceWLbl ? barrier_neg_lbl + ' (' + str.tostring(fibneg_value) + ')' : barrier_neg_lbl, 
+         text_color = chart.fg_color,
+         text_size = size.small, text_halign = text.align_right, text_valign = text.align_top, border_width = 1))
+
+    if show_0
+        f_boxarray_add_pop(Line_fib0, box.new(left=startBN, top=fib0_value, right= endBN+10, bottom=fib0_value,
+             border_color = color_0, extend = extend.right, 
+             text = displayPriceWLbl ? label_0 + ' (' + str.tostring(fib0_value) + ')' : label_0, 
+             text_color = chart.fg_color,
+             text_size = size.small, text_halign = text.align_right, text_valign = text.align_top))
+
+    if show_100
+        f_boxarray_add_pop(Line_fib100, box.new(left=startBN, top=fib100_value, right= endBN+10, bottom=fib100_value,
+             border_color = color_100, extend = extend.right, 
+             text = displayPriceWLbl ? label_100 + ' (' + str.tostring(fib100_value) + ')' : label_100, 
+             text_color = chart.fg_color,
+             text_size = size.small, text_halign = text.align_right, text_valign = text.align_top))
+
+    if show_1
+        f_boxarray_add_pop(Line_fib1, box.new(left=startBN, top=fib1_value, right= endBN+10, bottom=fib1_value,
+             border_color = color_1, extend = extend.right, 
+             text = displayPriceWLbl ? label_1 + ' (' + str.tostring(fib1_value) + ')' : label_1, 
+             text_color = chart.fg_color,
+             text_size = size.small, text_halign = text.align_right, text_valign = text.align_top))
+
+    if show_2
+        f_boxarray_add_pop(Line_fib2, box.new(left=startBN, top=fib2_value, right= endBN+10, bottom=fib2_value,
+             border_color = color_2, extend = extend.right, 
+             text = displayPriceWLbl ? label_2 + ' (' + str.tostring(fib2_value) + ')' : label_2, 
+             text_color = chart.fg_color,
+             text_size = size.small, text_halign = text.align_right, text_valign = text.align_top))
+
+    if show_3
+        f_boxarray_add_pop(Line_fib3, box.new(left=startBN, top=fib3_value, right= endBN+10, bottom=fib3_value,
+             border_color = color_3, extend = extend.right, 
+             text = displayPriceWLbl ? label_3 + ' (' + str.tostring(fib3_value) + ')' : label_3, 
+             text_color = chart.fg_color,
+             text_size = size.small, text_halign = text.align_right, text_valign = text.align_top))
+
+    // if show_connector and endTrendBN < startBN
+    if show_connector
+        connector_starty = hl2[math.max(bar_index-startConnectBN, 1)]
+        f_linearray_add_pop(Line_connector, line.new(x1=startConnectBN, y1=connector_starty, x2= startBN, y2=fib0_value,
+             color = color.new(chart.fg_color, 30), style = line.style_dotted, extend = extend.none, width = 1))    
+
+
+f_setOldLines() =>
+    temp_connect= array.first(old_Line_connector)
+    temp_fib0   = array.first(old_Line_fib0)
+    temp_fib100 = array.first(old_Line_fib100)
+    temp_fibPOS = array.first(old_Line_fibPOS)
+    temp_fibNEG = array.first(old_Line_fibNEG)
+    temp_fib1   = array.first(old_Line_fib1)
+    temp_fib2   = array.first(old_Line_fib2)
+    temp_fib3   = array.first(old_Line_fib3)
+
+
+    if deleteOld
+        line.delete(temp_connect)
+        box.delete(temp_fib0)
+        box.delete(temp_fib100)
+        box.delete(temp_fibPOS)
+        box.delete(temp_fibNEG)
+        box.delete(temp_fib1)
+        box.delete(temp_fib2)
+        box.delete(temp_fib3)
+
+    else
+        box.set_right(temp_fib0, bar_index)
+        box.set_right(temp_fib100, bar_index)
+        box.set_right(temp_fibPOS, bar_index)
+        box.set_right(temp_fibNEG, bar_index)
+        box.set_right(temp_fib1, bar_index)
+        box.set_right(temp_fib2, bar_index)
+        box.set_right(temp_fib3, bar_index)
+
+        box.set_extend(temp_fib0, extend.none)
+        box.set_extend(temp_fib100, extend.none)
+        box.set_extend(temp_fibPOS, extend.none)
+        box.set_extend(temp_fibNEG, extend.none)
+        box.set_extend(temp_fib1, extend.none)
+        box.set_extend(temp_fib2, extend.none)
+        box.set_extend(temp_fib3, extend.none)
+
+        box.set_border_color(temp_fib0, color.new(color_0, 70))
+        box.set_border_color(temp_fib100, color.new(color_100, 70))
+        box.set_border_color(temp_fibPOS, color.new(barrier_pos_css, 70))
+        box.set_border_color(temp_fibNEG, color.new(barrier_neg_css, 70))
+        box.set_border_color(temp_fib1, color.new(color_1, 70))
+        box.set_border_color(temp_fib2, color.new(color_2, 70))
+        box.set_border_color(temp_fib3, color.new(color_3, 70))
+
+        box.set_text(temp_fib0, label_0)
+        box.set_text(temp_fib100, label_100)
+        box.set_text(temp_fibPOS, barrier_pos_lbl)
+        box.set_text(temp_fibNEG, barrier_neg_lbl)
+        box.set_text(temp_fib1, label_1)
+        box.set_text(temp_fib2, label_2)
+        box.set_text(temp_fib3, label_3)
+
+        box.set_text_halign(temp_fib0, text.align_left)
+        box.set_text_halign(temp_fib100, text.align_left)
+        box.set_text_halign(temp_fibPOS, text.align_left)
+        box.set_text_halign(temp_fibNEG, text.align_left)
+        box.set_text_halign(temp_fib1, text.align_left)
+        box.set_text_halign(temp_fib2, text.align_left)
+        box.set_text_halign(temp_fib3, text.align_left)
+
+        box.set_text_valign(temp_fib0, text.align_bottom)
+        box.set_text_valign(temp_fib100, text.align_bottom)
+        box.set_text_valign(temp_fibPOS, text.align_bottom)
+        box.set_text_valign(temp_fibNEG, text.align_bottom)
+        box.set_text_valign(temp_fib1, text.align_bottom)
+        box.set_text_valign(temp_fib2, text.align_bottom)
+        box.set_text_valign(temp_fib3, text.align_bottom)
+
+        box.set_text_color(temp_fib0, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fib100, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fibPOS, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fibNEG, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fib1, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fib2, color.new(chart.fg_color, 50))
+        box.set_text_color(temp_fib3, color.new(chart.fg_color, 50))
+
+        box.set_text_size(temp_fib0, size.small)
+        box.set_text_size(temp_fib100, size.small)
+        box.set_text_size(temp_fibPOS, size.small)
+        box.set_text_size(temp_fibNEG, size.small)
+        box.set_text_size(temp_fib1, size.small)
+        box.set_text_size(temp_fib2, size.small)
+        box.set_text_size(temp_fib3, size.small)
+
+
+
+
+f_deleteOldBarrier() =>
+    line.delete(array.last(Line_connector))
+    box.delete(array.last(Line_fib0))
+    box.delete(array.last(Line_fib100))
+    box.delete(array.last(Line_fibPOS))
+    box.delete(array.last(Line_fibNEG))
+    box.delete(array.last(Line_fib1))
+    box.delete(array.last(Line_fib2))
+    box.delete(array.last(Line_fib3))
+
+
+f_copyOld() =>
+    copy_Connector      = line.copy(array.last(Line_connector))
+    copy_Line_fib0      = box.copy(array.last(Line_fib0))
+    copy_Line_fib100    = box.copy(array.last(Line_fib100))
+    copy_Line_fibPOS    = box.copy(array.last(Line_fibPOS))
+    copy_Line_fibNEG    = box.copy(array.last(Line_fibNEG))
+    copy_Line_fib1      = box.copy(array.last(Line_fib1))
+    copy_Line_fib2      = box.copy(array.last(Line_fib2))
+    copy_Line_fib3      = box.copy(array.last(Line_fib3))
+
+    f_linearray_add_pop(old_Line_connector, copy_Connector)
+    f_boxarray_add_pop(old_Line_fib0, copy_Line_fib0)
+    f_boxarray_add_pop(old_Line_fib100, copy_Line_fib100)
+    f_boxarray_add_pop(old_Line_fibPOS, copy_Line_fibPOS)
+    f_boxarray_add_pop(old_Line_fibNEG, copy_Line_fibNEG)
+    f_boxarray_add_pop(old_Line_fib1, copy_Line_fib1)
+    f_boxarray_add_pop(old_Line_fib2, copy_Line_fib2)
+    f_boxarray_add_pop(old_Line_fib3, copy_Line_fib3)
+
+    f_setOldLines()
+    f_deleteOldBarrier()
+
+
+f_resetTrackingArrays() =>
+    array.clear(startBNs)
+    array.clear(endBNs)
+    array.clear(fibHighs)
+    array.clear(fibLows)    
+    array.clear(fibHighsBN)    
+    array.clear(fibLowsBN)    
+
+
+f_endFibs() =>
+    f_copyOld()
+
+
+f_extendFibs() =>
+    box.set_right(array.last(Line_fib0), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fib100), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fibPOS), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fibNEG), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fib1), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fib2), bar_index+lbl_extension)
+    box.set_right(array.last(Line_fib3), bar_index+lbl_extension)
+
+
+
+
+
+
+
+//  CALCULATE
+candleSide  := 
+ bar_index < cons_candles*2 ? 0 
+ : close >= close[1] ? 1 : -1
+
+candleCount := 
+     bar_index < cons_candles*2 ? 0 
+     : bar_index  == 0 or candleSide != candleSide[1] ? 1 
+     : candleCount[1] + 1
+
+firstDraw := bar_index < cons_candles * 2 ? true 
+ : candleCount[1] == cons_candles ? false 
+ : firstDraw[1]
+
+
+newConsecutive  = f_trackConsecutive(startBNs, endBNs, fibHighs, fibLows, fibHighsBN, fibLowsBN)
+
+
+current_pos     = box.get_top(array.last(Line_fibPOS))
+current_neg     = box.get_top(array.last(Line_fibNEG))
+newBarrier      = current_pos != nz(current_pos[1], 0)
+BARRIER_top     = math.max(current_pos, current_neg)
+BARRIER_bot     = math.min(current_pos, current_neg)
+haveBarrier     = not na(current_pos)
+barrierBroken   := (high >= BARRIER_top or low <= BARRIER_bot) and BARRIER_top != BARRIER_top[1] ? true 
+     : (high >= BARRIER_top or low <= BARRIER_bot) and BARRIER_top == BARRIER_top[1] and barrierBroken[1] == false ? true
+     : false
+
+
+if newConsecutive and barstate.isconfirmed
+    if firstDraw[1]
+        [fib0_value, fib100_value, fibpos_value, fibneg_value, fib1_value, fib2_value, fib3_value] = 
+             f_createFibValues(array.last(startBNs), array.last(endBNs), array.last(fibHighs), array.last(fibLows), array.last(fibHighsBN), array.last(fibLowsBN))
+        
+        f_drawFibs(
+             fib0_value, fib100_value, fibpos_value, fibneg_value,
+             fib1_value, fib2_value, fib3_value,
+             bar_index, bar_index+1, array.last(startBNs)
+         )      
+
+        f_resetTrackingArrays()
+
+    else if not haveBarrier[1]
+        [fib0_value, fib100_value, fibpos_value, fibneg_value, fib1_value, fib2_value, fib3_value] = 
+             f_createFibValues(array.last(startBNs), array.last(endBNs), array.last(fibHighs), array.last(fibLows), array.last(fibHighsBN), array.last(fibLowsBN))
+        
+        f_drawFibs(
+             fib0_value, fib100_value, fibpos_value, fibneg_value,
+             fib1_value, fib2_value, fib3_value,
+             bar_index, bar_index+1, array.last(startBNs)
+         )  
+
+        f_resetTrackingArrays()
+
+
+if barrierBroken[1]
+    f_endFibs()
+
+    [fib0_value, fib100_value, fibpos_value, fibneg_value, fib1_value, fib2_value, fib3_value, fibConnect_start] = 
+         f_findNewBarrier(startBNs, endBNs, fibHighs, fibLows, fibHighsBN, fibLowsBN)
+
+    if not na(fib0_value) and barstate.isconfirmed
+        f_drawFibs(
+         fib0_value, fib100_value, fibpos_value, fibneg_value,
+         fib1_value, fib2_value, fib3_value,
+         bar_index, bar_index+1, fibConnect_start
+         )      
+
+    f_resetTrackingArrays()
+
+
+if barstate.isconfirmed
+    f_extendFibs()
+
+
+
+ 
+
+
+// ********************************************    ALERTS
+fib0_value      = box.get_top(array.last(Line_fib0))
+fib100_value    = box.get_top(array.last(Line_fib100))
+fib1_value      = box.get_top(array.last(Line_fib1))
+fib2_value      = box.get_top(array.last(Line_fib2))
+fib3_value      = box.get_top(array.last(Line_fib3))
+
+fib0_alert          = high >= fib0_value and low <= fib0_value
+fib100_alert        = high >= fib100_value and low <= fib100_value
+fib1_alert          = high >= fib1_value and low <= fib1_value
+fib2_alert          = high >= fib2_value and low <= fib2_value
+fib3_alert          = high >= fib3_value and low <= fib3_value
+BarrierTOP_alert    = high >= BARRIER_top and low <= BARRIER_top
+BarrierBOT_alert    = high >= BARRIER_bot and low <= BARRIER_bot
+
+
+alert_prefix = syminfo.ticker + ": " + timeframe.period  + (timeframe.isminutes ? "min" : "")
+
+alert(alert_prefix + " \nTESTING", alert.freq_once_per_bar)
+
+if BarrierTOP_alert
+    alert(alert_prefix + "\nBARRIER TOP TOUCH", alert.freq_once_per_bar)
+if BarrierBOT_alert
+    alert(alert_prefix + "\nBARRIER BOTTOM TOUCH", alert.freq_once_per_bar)
+
+if fib0_alert
+    alert(alert_prefix + "\n" + str.tostring(label_0) + "TOUCH", alert.freq_once_per_bar)
+if fib100_alert
+    alert(alert_prefix + "\n" + str.tostring(label_100) + "TOUCH", alert.freq_once_per_bar)
+if fib1_alert
+    alert(alert_prefix + "\n" + str.tostring(label_1) + "TOUCH", alert.freq_once_per_bar)
+if fib2_alert
+    alert(alert_prefix + "\n" + str.tostring(label_2) + "TOUCH", alert.freq_once_per_bar)
+if fib3_alert
+    alert(alert_prefix + "\n" + str.tostring(label_3) + "TOUCH", alert.freq_once_per_bar)
+
+
+
+// DEBUGGING
+// bgcolor(
+//  bar_index < cons_candles*2 ? color.new(color.aqua, 95) 
+//  : firstDraw ? color.new(color.blue, 90) 
+//  barrierBroken and not barrierBroken[1] ? color.new(color.black, 80)
+//  : na(BARRIER_top) ? color.white
+//  : barrierBroken ? color.new(color.yellow,95) 
+//  : na)
+
+
+// barcolor(
+//  haveBarrier ? color.black
+//  newConsecutive and firstDraw[1] ? color.new(color.black, 0)
+//  newConsecutive ? color.new(color.black, 0) 
+//  : na(BARRIER_top) ? color.blue 
+//   barrierBroken ? color.new(color.yellow, 0)
+//  : na)
+
+
+// test    = array.last(fibHighs)
+// test2   = array.last(fibLows)
+
+
+// plot(BARRIER_top, color = color.black, style = plot.style_steplinebr, linewidth = 5)
+// plot(BARRIER_bot, color = color.black, style = plot.style_steplinebr, linewidth = 5)
+
+
+// test_val = box.get_top(array.last(Line_fib0))
+// if not na(test_val)
+    // log.info( str.tostring(test_val) )

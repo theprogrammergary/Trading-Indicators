@@ -1,0 +1,380 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Mrhyh21_SMC_v2", overlay = true)
+
+
+
+//--GLOBAL INPUTS--//
+show_supplydemand = input.bool(true, title = 'Supply/Demand Zones (Orderblocks)',
+ group = 'SMC Options', inline = '1',
+ tooltip = 'Supply/Demand are price action zones that are drawn based on prior
+ swing highs and swing lows. Supply Zones act as resistance. Demand Zones act as support.')
+
+show_priceaction = input.bool(false, title = 'Price Action Labels',
+ group = 'SMC Options', inline = '2',
+  tooltip = 'Price Action Labels mark at each swing high or swing low. \n\nHH = Higher High \nLH = Lower High \nLL=
+ Lower Low \nLH = Lower High')
+
+show_bos = input.bool(false, title = 'Break-of-Structure (BOS)',
+ group = 'SMC Options', inline = '3',
+ tooltip = 'BOS or Break-of-Structure, are previous supply and demand zones that were broken. To break a Supply Zone we
+ close above it. To break a Demand Zone we must close below.')
+
+show_fvg = input.bool(true, title = 'Fair-Value Gaps (FVG)',
+ group = 'SMC Options', inline = '4',
+ tooltip = 'FVGs or Fair-Value Gaps mark inefficiencies, or imbalances, in price-aciton.
+ A FVG is drawn when there is a one-directional price-action move that is not backfilled on the next candle.
+ A new FVG marks a behavioral change in the market. If the FVG holds and then
+ price-action creates a confirming pattern,  price can continue to move away from the FVG.')
+//--GLOBAL INPUTS--//
+
+
+//--SUPPLY DEMAND INPUTS--//
+sd_length = input.int(20, title = 'Supply/Demand Length',
+ group = 'Supply/Demand Settings', minval = 3, maxval = 50)
+sd_width = input.float(7.00, title = 'Supply/Demand Width',
+ group = 'Supply/Demand Settings', minval = 1, maxval = 15, step = 0.5)
+sd_history = 50
+
+supply_color = input.color(color.new(#c30616,70), title = 'Supply',
+ group = 'Supply/Demand Settings', inline = '3')
+demand_color = input.color(color.new(#05cd0e,70), title = 'Demand',
+ group = 'Supply/Demand Settings', inline = '3')
+sd_labelcolor = input.color(color.new(color.white,20), title = 'Label',
+ group = 'Supply/Demand Settings', inline = '3')
+//--SUPPLY DEMAND INPUTS--//
+
+
+//--PRICE ACTION INPUTS--//
+pa_color = input.color(color.new(color.white, 60), title = 'Label',
+ group = 'Price Action Label Settings', inline = '1')
+//--PRICE ACTION INPUTS--//
+
+
+//--BOS INPUTS--//
+bos_color = input.color(color.new(color.white, 75), title = 'Line & Label',
+ group = 'Break-of-Structure (BOS) Settings', inline = '1')
+//--BOS INPUTS--//
+
+
+//--FVG INPUTS--//
+fvg_minimize_onfill = input.bool(true, title = 'Adjust FVG Box As It Fills', group = 'Fair-Value Gaps', inline = '1')
+fvg_delete_filled = input.bool(false, title = 'Delete Filled FVGs', group = 'Fair-Value Gaps', inline = '2')
+
+fvg_sensitivity = input.int(250, title = 'FVG Sensitivity',
+ group = 'Fair-Value Gaps', inline = '3', minval = 100, maxval = 500, step = 25)
+
+bull_fvg_css = input.color(color.new(#000000, 70), 'Bull FVG BG',
+ group = 'Fair-Value Gaps', inline = '4')
+bear_fvg_css = input.color(color.new(#000000, 70), 'Bear FVG BG',
+ group = 'Fair-Value Gaps', inline = '4')
+
+bull_fvgb_css = input.color(color.new(#41ff00, 20), 'Bull FVG Outline',
+ group = 'Fair-Value Gaps', inline = '5')
+bear_fvgb_css = input.color(color.new(#ff0000, 20), 'Bear FVG Outline',
+ group = 'Fair-Value Gaps', inline = '5')
+//--FVG INPUTS--//
+
+
+
+
+
+//-----FUNCTIONS-----//
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+//--FUNCTION SWING H & L LABELS--//
+f_sh_sl_labels(array, swing_type) =>
+    var string label_text = na
+    if swing_type == 1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HH'
+        else
+            label_text := 'LH'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text,
+         style=label.style_label_down, textcolor = pa_color,
+         color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+    
+    else if swing_type == -1
+        if array.get(array, 0) >= array.get(array, 1)
+            label_text := 'HL'
+        else
+            label_text := 'LL'
+        label.new(bar_index - sd_length, array.get(array,0), text = label_text,
+         style=label.style_label_up, textcolor = pa_color,
+         color = color.new(pa_color, 100), size = size.tiny, tooltip = label_text)
+//--FUNCTION SWING H & L LABELS--//
+
+
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+f_check_overlapping(new_poi, box_array, atr) =>
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+//--FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING--//
+
+
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+f_supply_demand(value_array, bn_array, box_array, box_type, atr) =>
+    atr_buffer = atr * (sd_width / 10)
+    box_left = array.get(bn_array, 0)
+    box_right = bar_index
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+
+    if box_type == 1
+        box_top := array.get(value_array, 0)
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := array.get(value_array, 0)
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    //delete oldest box, and then create a new box and add it to the array
+    if box_type == 1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+         border_color = show_supplydemand ? color.new(supply_color,30) : color.new(#000000,100),
+         bgcolor = show_supplydemand ? supply_color : color.new(#000000,100), extend = extend.right,
+         text = show_supplydemand ? 'SUPPLY' : '', text_halign = text.align_center,
+         text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+
+    else if box_type == -1 and okay_to_draw
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+         border_color = show_supplydemand ? color.new(demand_color,30) : color.new(#000000,100),
+         bgcolor = show_supplydemand ?  demand_color : color.new(#000000,100), extend = extend.right,
+         text = show_supplydemand ? 'DEMAND' : '', text_halign = text.align_center,
+         text_valign = text.align_center, text_color = sd_labelcolor, text_size = size.small, xloc = xloc.bar_index))
+//--FUNCTION TO DRAW SUPPLY OR DEMAND ZONE--//
+
+
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--//
+f_sd_to_bos(box_array, bos_array, zone_type) =>
+    for i = 0 to array.size(box_array) - 1
+        level_to_break = zone_type == 1 ? box.get_top(array.get(box_array,i)) : box.get_bottom(array.get(box_array,i))
+        if (zone_type == 1  and close >= level_to_break) or (zone_type == -1  and close <= level_to_break) 
+            if show_bos
+                copied_box = box.copy(array.get(box_array,i))
+                f_array_add_pop(bos_array, copied_box)
+                bos_level = zone_type == 1 ? box.get_top(array.get(box_array,i)) : box.get_bottom(array.get(box_array,i))
+                box.set_top(array.get(bos_array,0), bos_level)
+                box.set_bottom(array.get(bos_array,0), bos_level)
+                box.set_extend( array.get(bos_array,0), extend.none)
+                box.set_right( array.get(bos_array,0), bar_index)
+                box.set_text( array.get(bos_array,0), 'BOS' )
+                box.set_text_color( array.get(bos_array,0), color.new(bos_color, 40))
+                box.set_border_color( array.get(bos_array,0), bos_color)
+                box.set_text_size( array.get(bos_array,0), size.small)
+                box.set_text_halign( array.get(bos_array,0), text.align_center)
+                box.set_text_valign( array.get(bos_array,0), text.align_center)
+            box.delete(array.get(box_array, i))
+//--FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN--//
+
+
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+f_extend_box_endpoint(box_array) =>
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), bar_index + 100)
+//--FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT--//
+
+
+//--FUNCTION TO DRAW NEW FVGS--//
+f_new_fvg(box_array, box_type) =>
+    box_left = bar_index - 1
+    box_right = bar_index + 3
+
+    box_top = box_type == 1 ? low : math.max( (high[1] + low[1])/2, low[2] ) 
+    box_bottom = box_type == 1 ? math.min( (high[1] + low[1])/2, high[2] ) : high
+    
+    if box_type == 1
+        box.delete( array.get(box_array, array.size(box_array) - 1) )
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+         border_color = bull_fvgb_css, bgcolor = bull_fvg_css, extend = extend.none, text = 'FVG',
+         text_halign = text.align_center, text_valign = text.align_bottom, text_color = color.new(bull_fvgb_css,20),
+         text_size = size.small, xloc = xloc.bar_index, border_style = line.style_solid, border_width  = 1))
+    if box_type == -1
+        f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom,
+         border_color = bear_fvgb_css,
+         bgcolor = bear_fvg_css, extend = extend.none, text = 'FVG',
+         text_halign = text.align_center, text_valign = text.align_top, text_color = color.new(bear_fvgb_css,20),
+         text_size = size.small, xloc = xloc.bar_index, border_style = line.style_solid, border_width  = 1))
+//--FUNCTION TO DRAW NEW FVGS--//
+
+
+//--FUNCTION TO COMBINE FVGS--//
+f_merge_fvg(box_array, box_type) =>
+    if box_type == 1
+        box.set_top(array.get(box_array,0), low)
+    if box_type == -1
+        box.set_bottom(array.get(box_array,0), high)
+//--FUNCTION TO COMBINE FVGS--//
+
+
+//--FUNCTION TO MANAGE FVGS--//
+f_manage_fvg(box_array, finished_box_array, box_type) =>
+    // loop to move broken fvgs to finished and extend unbroken ones
+    for i = 0 to array.size(box_array) - 1
+        box_top = box.get_top(array.get(box_array,i))
+        box_bottom = box.get_bottom(array.get(box_array,i))
+
+        if box_type == 1
+            if low < box_bottom
+                if not fvg_delete_filled
+                    copied_box = box.copy(array.get(box_array,i))
+                    f_array_add_pop(finished_box_array, copied_box)
+
+                    box.set_extend(array.get(finished_box_array,0), extend.none)
+                    box.set_right(array.get(finished_box_array,0),bar_index)
+                    box.set_text(array.get(finished_box_array,0), 'FVG')
+                    box.set_text_color(array.get(finished_box_array,0), color.new(bull_fvgb_css, 40))
+                    box.set_border_color(array.get(finished_box_array,0), color.new(bull_fvgb_css, 40))
+                    box.set_border_width(array.get(finished_box_array,0),0)
+                    box.set_text_size(array.get(finished_box_array,0), size.small)
+                box.delete( array.get(box_array, i) )
+            else if fvg_minimize_onfill and low < box_top
+                box.set_top( array.get(box_array,i), low)
+            else
+                box.set_right(array.get(box_array,i),bar_index)
+
+        if box_type == -1
+            if high > box_top
+                if not fvg_delete_filled
+                    copied_box = box.copy(array.get(box_array,i))
+                    f_array_add_pop(finished_box_array, copied_box)
+
+                    box.set_extend(array.get(finished_box_array,0), extend.none)
+                    box.set_right(array.get(finished_box_array,0),bar_index)
+                    box.set_text(array.get(finished_box_array,0), 'FVG')
+                    box.set_text_color(array.get(finished_box_array,0), color.new(bear_fvgb_css, 40))
+                    box.set_border_color(array.get(finished_box_array,0), color.new(bear_fvgb_css, 40))
+                    box.set_border_width(array.get(finished_box_array,0),0)
+                    box.set_text_size(array.get(finished_box_array,0), size.small)
+                box.delete( array.get(box_array, i) )
+            else if fvg_minimize_onfill and high > box_bottom
+                box.set_bottom( array.get(box_array,i), high)
+            else
+                box.set_right(array.get(box_array,i),bar_index)
+//--FUNCTION TO MANAGE FVGS--//
+//-----FUNCTIONS-----//
+
+
+//-----DEFINE VARIABLES-----//
+//--ARRAYS FOR SWING H/L & BN--//
+var swing_high_values = array.new_float(5,0.00)
+var swing_low_values = array.new_float(5,0.00)
+var swing_high_bns = array.new_int(5,0)
+var swing_low_bns = array.new_int(5,0)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR SWING H/L & BN--//
+var current_supply_box = array.new_box(sd_history, na)
+var current_demand_box = array.new_box(sd_history, na)
+//--ARRAYS FOR SWING H/L & BN--//
+
+
+//--ARRAYS FOR BOS--//
+var supply_bos = array.new_box(5, na)
+var demand_bos = array.new_box(5, na)
+//--ARRAYS FOR BOS--//
+//-----DEFINE VARIABLES-----//
+
+
+//-----START CALCULATING-----//
+// call functions to calculate swing highs/lows
+swing_high = ta.pivothigh(high, sd_length, sd_length)
+swing_low = ta.pivotlow(low, sd_length, sd_length)
+
+atr = ta.atr(50)
+
+// if new swing high
+if not na(swing_high)
+
+    // manage swing high values
+    f_array_add_pop(swing_high_values, swing_high)
+    f_array_add_pop(swing_high_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_high_values, 1)
+    f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, 1, atr)
+
+// if new swing low
+else if not na(swing_low)
+
+    // manage swing low values
+    f_array_add_pop(swing_low_values, swing_low)
+    f_array_add_pop(swing_low_bns, bar_index[sd_length])
+    if show_priceaction
+        f_sh_sl_labels(swing_low_values, -1)
+    f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, -1, atr)
+
+
+// move s/d zones to bos
+f_sd_to_bos(current_supply_box, supply_bos, 1)
+f_sd_to_bos(current_demand_box, demand_bos, -1)
+
+if barstate.islast
+    f_extend_box_endpoint(current_supply_box)
+    f_extend_box_endpoint(current_demand_box)
+
+
+// fvg logic
+abody = math.round_to_mintick(ta.sma(math.abs(close-open), 20))
+abody_pct_value = math.round(math.abs(close-open) / abody * 100,0)
+abody_bull = abody_pct_value > fvg_sensitivity and close > open ? 1 : 0 
+abody_bear = abody_pct_value > fvg_sensitivity and close < open ? 1 : 0 
+
+var bool fvg_bull = false 
+var bool fvg_bear = false 
+
+fvg_bull := abody_bull[1] and low > (high[1] + low[1]) / 2 and low > high[2]
+fvg_bear := abody_bear[1] and high < (high[1] + low[1]) / 2 and high < low[2]
+
+//--ARRAYS FOR FVGS--//
+var fvg_bull_box = array.new_box(20, na)
+var fvg_bear_box = array.new_box(20, na)
+
+var fvg_finishedbull_box = array.new_box(100, na)
+var fvg_finishedbear_box = array.new_box(100, na)
+//--ARRAYS FOR FVGS--//
+
+if show_fvg
+    if fvg_bull 
+        if not fvg_bull[1]
+            f_new_fvg(fvg_bull_box, 1)
+        else
+            f_merge_fvg(fvg_bull_box, 1)
+
+    if fvg_bear
+        if not fvg_bear[1]
+            f_new_fvg(fvg_bear_box, -1)
+        else
+            f_merge_fvg(fvg_bear_box, -1)
+
+f_manage_fvg(fvg_bull_box, fvg_finishedbull_box, 1) 
+f_manage_fvg(fvg_bear_box, fvg_finishedbear_box, -1) 
+// fvg logic

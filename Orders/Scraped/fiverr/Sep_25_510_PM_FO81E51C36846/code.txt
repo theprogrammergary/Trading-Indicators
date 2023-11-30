@@ -1,0 +1,624 @@
+//@version=3
+// Created By Lij_MC
+//
+// Use as a supplementary Indicator to confirm your entries, but it is as good on it's own.
+//
+// The indicator consists of 3 different Trend Meters and a Trend Bar which are used to confirm trend 
+//
+// As a bonus Wave Trend Signals are marked as well, these are very powerful however please use with caution 
+//
+// How to Use 
+//
+// Look for Support or Resistance Levels for price to be attracted to
+//
+// Find confluence with other indicators
+//
+// Enter Long above the Setup Bar
+//
+// Enter Short Below the Setup Bar
+
+
+study(title="Trend Meter v2")
+
+// Inputs / Menus
+
+// Trend Bar / Meter - Inputs / Menus
+
+ShowTrendBar   = true 
+
+WTSetups       = input(true, "1 ----------- Show Setups - Wave Trend Filtered by Trend")
+TMSetups       = input(true, "2 ----------- Show Setups - All 3 Trend Meters Now Align")
+MSBar1         = "Trend Filter" // input(title= "1 - Wave Trend Signals",    defval = "Trend Filter",                             options = ["N/A", "Trend Filter", "Filter X", "Filter X + Trend Filter"])
+// MSBar1         = input(title= "1 - Wave Trend Signals",    defval = "Trend Filter",                             options = ["N/A", "Trend Filter", "Filter X", "Filter X + Trend Filter"])
+MSBar2         = "Trend Filter" // input(title= "2 - Wave Trend Signals",    defval = "Filter X",                                 options = ["N/A", "Trend Filter", "Filter X", "Filter X + Trend Filter"])
+TrendBar1      = input(title= "3 - Trend Meter 1",         defval = "MACD Crossover - Fast - 8, 21, 5",         options = ["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5", "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21", "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"]) // "MA Crossover", "DAD Direction (Top Dog Trading)",
+TrendBar2      = input(title= "4 - Trend Meter 2",         defval = "RSI 13: > or < 50",                        options = ["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5", "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21", "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"]) // "MA Crossover", "DAD Direction (Top Dog Trading)",
+TrendBar3      = input(title= "5 - Trend Meter 3",         defval = "RSI 5: > or < 50",                         options = ["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5", "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21", "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"]) // "MA Crossover", "DAD Direction (Top Dog Trading)",
+TrendBar4      = input(title= "6 - Trend Bar 1",           defval = "MA Crossover",                             options = ["MA Crossover", "MA Direction - Fast MA - TB1", "MA Direction - Slow MA - TB1", "N/A"])  //  "MACD Crossover - 12, 26 9", "MACD Crossover - Fast - 8, 21, 5", "DAD Direction (Top Dog Trading)",
+TrendBar5      = input(title= "7 - Trend Bar 2",           defval = "MA Crossover",                             options = ["MA Crossover", "MA Direction - Fast MA - TB2", "MA Direction - Slow MA - TB2", "N/A"])  //  "MACD Crossover - 12, 26 9", "MACD Crossover - Fast - 8, 21, 5", "DAD Direction (Top Dog Trading)",
+DotSize        = input(title= 'Dot Size',                  defval = 'Small',                                    options = ['Small', 'Large'])
+
+////////////////Signals - Wave Trend////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// Wave Trend - RSI
+
+RSIMC        = rsi(close,14)
+
+// Wave Trend
+
+ap           = input(hlc3, "Wave Trend - Source")
+n1           = input(9,    "Wave Trend - WT Channel Length")
+n2           = input(12,   "Wave Trend - WT Average Length")
+esa          = ema(ap, n1)
+de           = ema(abs(ap - esa), n1)
+ci           = (ap - esa) / (0.015 * de)
+tci          = ema(ci, n2)
+wt1          = tci
+wt2          = sma(wt1, 3)
+
+// Wave Trend - Overbought & Oversold lines
+
+obLevel2     = input( 60,  "Wave Trend - WT Very Overbought")
+obLevel      = input( 50,  "Wave Trend - WT Overbought")
+osLevel      = input(-50,  "Wave Trend - WT Oversold")
+osLevel2     = input(-60,  "Wave Trend - WT Very Oversold")
+
+// Wave Trend - Conditions
+
+WTCross      = cross(wt1, wt2)
+WTCrossUp    = wt2 - wt1 <= 0
+WTCrossDown  = wt2 - wt1 >= 0
+WTOverSold   = wt2 <= osLevel2
+WTOverBought = wt2 >= obLevel2
+
+
+
+// MA Inputs
+
+MA1_Type          = input(      title = 'Trend Bar 1 - Fast MA - Type',   defval="EMA", options=["EMA","SMA"])
+MA1_Length        = input( 5,   title = 'Trend Bar 1 - Fast MA - Length', minval=1)
+
+MA2_Type          = input(      title = 'Trend Bar 1 - Slow MA - Type',   defval="EMA", options=["EMA","SMA"])
+MA2_Length        = input(11,   title = 'Trend Bar 1 - Slow MA - Length', minval=1)
+
+
+MA3_Type          = input(      title = 'Trend Bar 2 - Fast MA - Type',   defval="EMA", options=["EMA","SMA"])
+MA3_Length        = input(13,   title = 'Trend Bar 2 - Fast MA - Length', minval=1)
+
+MA4_Type          = input(      title = 'Trend Bar 2 - Slow MA - Type',   defval="SMA", options=["EMA","SMA"])
+MA4_Length        = input(36,   title = 'Trend Bar 2 - Slow MA - Length', minval=1)
+
+
+
+
+// MA Calculations
+
+MA1=   if MA1_Type=="SMA"
+    sma(close,MA1_Length)
+else
+    ema(close,MA1_Length)
+
+
+MA2=   if MA2_Type=="SMA"
+    sma(close,MA2_Length)
+else
+    ema(close,MA2_Length)
+    
+    
+MA3=   if MA3_Type=="SMA"
+    sma(close,MA3_Length)
+else
+    ema(close,MA3_Length)
+
+
+MA4=   if MA4_Type=="SMA"
+    sma(close,MA4_Length)
+else
+    ema(close,MA4_Length)
+
+
+// MA Crossover Condition
+
+MACrossover1 = MA1 > MA2? 1 : 0
+
+MACrossover2 = MA3 > MA4? 1 : 0
+
+// MA Direction Condition
+
+MA1Direction = MA1 > MA1[1] ? 1 : 0
+
+MA2Direction = MA2 > MA2[1] ? 1 : 0
+
+MA3Direction = MA3 > MA3[1] ? 1 : 0
+
+MA4Direction = MA4 > MA4[1] ? 1 : 0
+
+// MA Direction Change Condition
+
+MA1PositiveDirectionChange = MA1Direction and not MA1Direction[1] ? 1 : 0
+
+MA2PositiveDirectionChange = MA2Direction and not MA2Direction[1] ? 1 : 0
+
+MA3PositiveDirectionChange = MA3Direction and not MA3Direction[1] ? 1 : 0
+
+MA4PositiveDirectionChange = MA4Direction and not MA4Direction[1] ? 1 : 0
+
+
+MA1NegativeDirectionChange = not MA1Direction and MA1Direction[1] ? 1 : 0
+
+MA2NegativeDirectionChange = not MA2Direction and MA2Direction[1] ? 1 : 0
+
+MA3NegativeDirectionChange = not MA3Direction and MA3Direction[1] ? 1 : 0
+
+MA4NegativeDirectionChange = not MA4Direction and MA4Direction[1] ? 1 : 0
+
+
+// MACD and MOM & DAD - Top Dog Trading
+
+// Standard MACD Calculations
+
+MACDfastMA        = 12
+MACDslowMA        = 26
+MACDsignalSmooth  = 9
+
+
+MACDLine                            = ema(close, MACDfastMA) - ema(close, MACDslowMA)
+    
+SignalLine                          = ema(MACDLine, MACDsignalSmooth)
+
+MACDHistogram                       = MACDLine - SignalLine
+
+
+// MACD- Background Color Change Condition
+
+MACDHistogramCross                  = MACDHistogram > 0 ?                                1 : 0
+
+MACDLineOverZero                    = MACDLine      > 0 ?                                1 : 0
+
+MACDLineOverZeroandHistogramCross   = MACDHistogramCross and MACDLineOverZero ?          1 : 0
+
+MACDLineUnderZeroandHistogramCross  = not MACDHistogramCross and not MACDLineOverZero  ? 1 : 0
+
+
+// Fast MACD Calculations
+
+FastMACDfastMA        = 8
+FastMACDslowMA        = 21
+FastMACDsignalSmooth  = 5
+
+
+FastMACDLine                        = ema(close, FastMACDfastMA) - ema(close, FastMACDslowMA)
+    
+FastSignalLine                      = ema(FastMACDLine, FastMACDsignalSmooth)
+
+FastMACDHistogram                   = FastMACDLine - FastSignalLine
+
+// Fast MACD- Background Color Change Condition
+
+FastMACDHistogramCross                 = FastMACDHistogram > 0 ?                                    1 : 0
+
+FastMACDLineOverZero                   = FastMACDLine      > 0 ?                                    1 : 0
+
+FastMACDLineOverZeroandHistogramCross  = FastMACDHistogramCross and FastMACDLineOverZero ?          1 : 0
+
+FastMACDLineUnderZeroandHistogramCross = not FastMACDHistogramCross and not FastMACDLineOverZero  ? 1 : 0
+
+
+// Top Dog Trading - Mom Dad Calculations
+
+TopDog_Fast_MA     = 5
+TopDog_Slow_MA     = 20
+TopDog_Sig         = 30
+
+
+TopDogMom                           = ema(close, TopDog_Fast_MA) - ema(close, TopDog_Slow_MA)
+    
+TopDogDad                           = ema(TopDogMom, TopDog_Sig)
+
+// Top Dog Dad - Background Color Change Condition
+
+TopDogDadDirection                  = TopDogDad > TopDogDad[1] ?                         1 : 0
+
+TopDogMomOverDad                    = TopDogMom > TopDogDad ?                            1 : 0    
+
+TopDogMomOverZero                   = TopDogMom > 0 ?                                    1 : 0    
+
+TopDogDadDirectandMomOverZero       = TopDogDadDirection and TopDogMomOverZero ?         1 : 0    
+
+TopDogDadDirectandMomUnderZero      = not TopDogDadDirection and not TopDogMomOverZero ? 1 : 0    
+
+
+
+////// Trend Barmeter Calculations //////
+
+// UCS_Trend / Trend Candles Trend Barmeter Calculations
+
+//UCS_Trend by ucsgears copy Trend Candles
+//Interpretation of TTM Trend bars. It is really close to the actual. 
+
+haclose = ohlc4
+haopen = 0.0
+haopen := na(haopen[1]) ? (open + close) / 2 : (haopen[1] + haclose[1]) / 2
+//hahigh = max(high, max(haopen, haclose))
+//halow = min(low, min(haopen, haclose))
+
+ccolor  = haclose - haopen > 0 ? 1 : 0
+
+inside6 = haopen <= max(haopen[6],haclose[6]) and haopen>=min(haopen[6],haclose[6]) and haclose <= max(haopen[6],haclose[6]) and haclose >= min(haopen[6],haclose[6]) ? 1 : 0
+
+inside5 = haopen <= max(haopen[5],haclose[5]) and haopen>=min(haopen[5],haclose[5]) and haclose <= max(haopen[5],haclose[5]) and haclose >= min(haopen[5],haclose[5]) ? 1 : 0
+
+inside4 = haopen <= max(haopen[4],haclose[4]) and haopen>=min(haopen[4],haclose[4]) and haclose <= max(haopen[4],haclose[4]) and haclose >= min(haopen[4],haclose[4]) ? 1 : 0
+
+inside3 = haopen <= max(haopen[3],haclose[3]) and haopen>=min(haopen[3],haclose[3]) and haclose <= max(haopen[3],haclose[3]) and haclose >= min(haopen[3],haclose[3]) ? 1 : 0
+
+inside2 = haopen <= max(haopen[2],haclose[2]) and haopen>=min(haopen[2],haclose[2]) and haclose <= max(haopen[2],haclose[2]) and haclose >= min(haopen[2],haclose[2]) ? 1 : 0
+
+inside1 = haopen <= max(haopen[1],haclose[1]) and haopen>=min(haopen[1],haclose[1]) and haclose <= max(haopen[1],haclose[1]) and haclose >= min(haopen[1],haclose[1]) ? 1 : 0
+
+
+colorvalue = inside6 ? ccolor[6] : inside5 ? ccolor[5] : inside4 ? ccolor[4] : inside3 ? ccolor[3] : inside2 ? ccolor[2] : inside1 ? ccolor[1] : ccolor
+
+TrendBarTrend_Candle_Color = colorvalue ?  #288a75 : red
+
+TrendBarTrend_Candle       = colorvalue ?        1 : 0
+
+
+// barcolor(Trend_Candle_Color , title = "Trend Candles")
+// barcolor(ShowTrendCandles? Trend_Candle_Color : na, title = "Trend Candles")
+
+
+// RSI 5 Trend Barmeter Calculations
+
+RSI5                      = rsi(close, 5)
+
+RSI5Above50               = RSI5 > 50? 1 : 0
+
+RSI5Color                 = RSI5Above50?         #288a75 : red
+
+TrendBarRSI5Color         = RSI5Above50?         #288a75 : red
+
+
+// RSI 5 Trend Barmeter Calculations
+
+RSI13                     = rsi(close, 13)
+
+
+// Linear Regression Calculation For RSI Signal Line
+
+SignalLineLength1 = 21 
+
+x  = n
+y  = RSI13
+x_ = sma(x,SignalLineLength1) 
+y_ =   sma(y,SignalLineLength1)
+mx = stdev(x,SignalLineLength1)
+my = stdev(y,SignalLineLength1)
+c  = correlation(x,y,SignalLineLength1)
+slope = c * (my/mx)
+inter = y_ - slope*x_
+LinReg1 = x*slope + inter
+
+
+RSISigDirection           = LinReg1 > LinReg1[1] ?     1 : 0
+
+RSISigCross               = RSI13 > LinReg1 ?          1 : 0
+
+RSI13Above50              = RSI13 > 50?                1 : 0
+
+
+// Trend Barmeter Color Calculation
+
+RSI13Color                = RSI13Above50?           #288a75 : red
+
+TrendBarRSI13Color        = RSI13Above50?           #288a75 : red
+
+TrendBarRSISigCrossColor  = RSISigCross?            #288a75 : red
+
+TrendBarMACDColor         = MACDHistogramCross?     #288a75 : red
+
+TrendBarFastMACDColor     = FastMACDHistogramCross? #288a75 : red
+
+TrendBarMACrossColor      = MACrossover1?           #288a75 : red
+
+TrendBarMomOverDadColor   = TopDogMomOverDad?       #288a75 : red
+
+TrendBarDadDirectionColor = TopDogDadDirection?     #288a75 : red
+
+
+TrendBar1Result = TrendBar1=="MA Crossover" ? MACrossover1 : TrendBar1=="MACD Crossover - 12, 26, 9" ? MACDHistogramCross : TrendBar1=="MACD Crossover - Fast - 8, 21, 5" ? FastMACDHistogramCross : TrendBar1=="Mom Dad Cross (Top Dog Trading)" ? TopDogMomOverDad : TrendBar1=="DAD Direction (Top Dog Trading)" ? TopDogDadDirection : TrendBar1=="RSI Signal Line Cross - RSI 13, Sig 21" ?  RSISigCross : TrendBar1=="RSI 5: > or < 50" ? RSI5Above50 : TrendBar1=="RSI 13: > or < 50" ? RSI13Above50 : TrendBar1=="Trend Candles" ? TrendBarTrend_Candle : na 
+
+TrendBar2Result = TrendBar2=="MA Crossover" ? MACrossover1 : TrendBar2=="MACD Crossover - 12, 26, 9" ? MACDHistogramCross : TrendBar2=="MACD Crossover - Fast - 8, 21, 5" ? FastMACDHistogramCross : TrendBar2=="Mom Dad Cross (Top Dog Trading)" ? TopDogMomOverDad : TrendBar2=="DAD Direction (Top Dog Trading)" ? TopDogDadDirection : TrendBar2=="RSI Signal Line Cross - RSI 13, Sig 21" ?  RSISigCross : TrendBar2=="RSI 5: > or < 50" ? RSI5Above50 : TrendBar2=="RSI 13: > or < 50" ? RSI13Above50 : TrendBar2=="Trend Candles" ? TrendBarTrend_Candle : na 
+
+TrendBar3Result = TrendBar3=="MA Crossover" ? MACrossover1 : TrendBar3=="MACD Crossover - 12, 26, 9" ? MACDHistogramCross : TrendBar3=="MACD Crossover - Fast - 8, 21, 5" ? FastMACDHistogramCross : TrendBar3=="Mom Dad Cross (Top Dog Trading)" ? TopDogMomOverDad : TrendBar3=="DAD Direction (Top Dog Trading)" ? TopDogDadDirection : TrendBar3=="RSI Signal Line Cross - RSI 13, Sig 21" ?  RSISigCross : TrendBar3=="RSI 5: > or < 50" ? RSI5Above50 : TrendBar3=="RSI 13: > or < 50" ? RSI13Above50 : TrendBar3=="Trend Candles" ? TrendBarTrend_Candle : na 
+
+
+TrendBars2Positive = (    TrendBar1Result and     TrendBar2Result) or (    TrendBar1Result and     TrendBar3Result) or (    TrendBar2Result and     TrendBar3Result) ?        1 : 0
+
+TrendBars2Negative = (not TrendBar1Result and not TrendBar2Result) or (not TrendBar1Result and not TrendBar3Result) or (not TrendBar2Result and not TrendBar3Result) ?        1 : 0
+
+
+TrendBars3Positive =      TrendBar1Result and     TrendBar2Result and      TrendBar3Result ?                                                                                  1 : 0
+
+TrendBars3Negative = not  TrendBar1Result and not TrendBar2Result and not  TrendBar3Result ?                                                                                  1 : 0
+
+
+// Signal Filters
+
+// FilterX          = (ema(close,15) > sma(close,15)) and (ema(close,15)[1] > sma(close,15)[1]) ?                                                                             1 : 0 
+
+// FilterXUp        = ema(close,15) > sma(close,15)  and  ema(close, 11) > ema(close, 15)  and  ema(close,3) > ema(close,15)  and  ema(close,8) > ema(close,15) ?                1 : 0
+
+// FilterXDown      = ema(close,15) < sma(close,15)  and  ema(close, 11) < ema(close, 15)  and  ema(close,3) < ema(close,15)  and  ema(close,8) < ema(close,15) ?                1 : 0
+
+FilterXUp        =     FastMACDHistogramCross and (ema(close, 15) > ema(close, 15)[1])
+
+FilterXDown      = not FastMACDHistogramCross and (ema(close, 15) < ema(close, 15)[1])
+
+
+
+TrendFilterPlus  = (ema(close,15) > ema(close,20)) and (ema(close,20) > ema(close,30)) and (ema(close,30) > ema(close,40)) and (ema(close,40) > ema(close,50)) ? 1 : 0 
+
+TrendFilterMinus = (ema(close,15) < ema(close,20)) and (ema(close,20) < ema(close,30)) and (ema(close,30) < ema(close,40)) and (ema(close,40) < ema(close,50)) ? 1 : 0 
+
+
+// // Wave Trend - Conditions
+
+// WTCross      = cross(wt1, wt2)
+// WTCrossUp    = wt2 - wt1 <= 0
+// WTCrossDown  = wt2 - wt1 >= 0
+// WTOverSold   = wt2 <= osLevel2
+// WTOverBought = wt2 >= obLevel2
+
+
+MSBar1PositiveWaveTrendSignal = MSBar1=="Filter X"?  FilterXUp    and WTCross and WTCrossUp    : MSBar1=="Trend Filter"? TrendFilterPlus  and WTCross  and WTCrossUp    : MSBar1=="Filter X + Trend Filter"? FilterXUp   and TrendFilterPlus  and WTCross and WTCrossUp    : WTCross and WTCrossUp 
+MSBar1NegativeWaveTrendSignal = MSBar1=="Filter X"?  FilterXDown  and WTCross and WTCrossDown  : MSBar1=="Trend Filter"? TrendFilterMinus and WTCross  and WTCrossDown  : MSBar1=="Filter X + Trend Filter"? FilterXDown and TrendFilterMinus and WTCross and WTCrossDown  : WTCross and WTCrossDown
+
+MSBar2PositiveWaveTrendSignal = MSBar2=="Filter X"?  FilterXUp    and WTCross and WTCrossUp    : MSBar2=="Trend Filter"? TrendFilterPlus  and WTCross  and WTCrossUp    : MSBar2=="Filter X + Trend Filter"? FilterXUp   and TrendFilterPlus  and WTCross and WTCrossUp    : WTCross and WTCrossUp 
+MSBar2NegativeWaveTrendSignal = MSBar2=="Filter X"?  FilterXDown  and WTCross and WTCrossDown  : MSBar2=="Trend Filter"? TrendFilterMinus and WTCross  and WTCrossDown  : MSBar2=="Filter X + Trend Filter"? FilterXDown and TrendFilterMinus and WTCross and WTCrossDown  : WTCross and WTCrossDown
+
+
+// Alerts & Conditions - Wave Trend
+
+alertcondition(MSBar1PositiveWaveTrendSignal,                                  title='Alert-Wave Trend 1 -- Long',               message='Long - Wave Trend 1 Signal - Trend Meter')
+alertcondition(MSBar1NegativeWaveTrendSignal,                                  title='Alert-Wave Trend 1 -- Short',              message='Short - Wave Trend 1 Signal - Trend Meter')
+alertcondition(MSBar1PositiveWaveTrendSignal or MSBar1NegativeWaveTrendSignal, title='Alert-Wave Trend 1-Long or Short',         message='Long or Short - Wave Trend 1 Signal - Trend Meter')
+
+// alertcondition(MSBar2PositiveWaveTrendSignal,                                  title='Alert-Wave Trend 2 -- Long',               message='Long - Wave Trend 2 Signal - Trend Meter')
+// alertcondition(MSBar2NegativeWaveTrendSignal,                                  title='Alert-Wave Trend 2 -- Short',              message='Short - Wave Trend 2 Signal - Trend Meter')
+// alertcondition(MSBar2PositiveWaveTrendSignal or MSBar2NegativeWaveTrendSignal, title='Alert-Wave Trend 2-Long or Short',         message='Long or Short - Wave Trend 2 Signal - Trend Meter')
+
+
+// alertcondition(MSBar1PositiveWaveTrendSignal or MSBar2PositiveWaveTrendSignal, title='Alert-Wave Trend -- Long',                 message='Long - Wave Trend Signal - Trend Meter')
+// alertcondition(MSBar1NegativeWaveTrendSignal or MSBar2NegativeWaveTrendSignal, title='Alert-Wave Trend -- Short',                message='Short - Wave Trend Signal - Trend Meter')
+// alertcondition(MSBar1PositiveWaveTrendSignal or MSBar1NegativeWaveTrendSignal or MSBar2PositiveWaveTrendSignal or MSBar2NegativeWaveTrendSignal, title='Alert-Wave Trend - Long or Short',         message='Long or Short - Wave Trend Signal - Trend Meter')
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+BackgroundColorChangePositive = TrendBars3Positive and not TrendBars3Positive[1]
+BackgroundColorChangeNegative = TrendBars3Negative and not TrendBars3Negative[1]
+
+// Signals Color Calculations
+
+MSBar1Color                             =      MSBar1PositiveWaveTrendSignal ?            #288a75              : MSBar1NegativeWaveTrendSignal ?                           red : na
+MSBar2Color                             =      BackgroundColorChangePositive ?            #288a75              : BackgroundColorChangeNegative ?                           red : na
+
+
+// Trend Barmeter Color Assignments
+
+TrendBar1Color    = TrendBar1=="N/A"?      na : TrendBar1=="MACD Crossover - 12, 26, 9"? TrendBarMACDColor : TrendBar1=="MACD Crossover - Fast - 8, 21, 5" ? TrendBarFastMACDColor : TrendBar1=="Mom Dad Cross (Top Dog Trading)" ? TrendBarMomOverDadColor : TrendBar1=="DAD Direction (Top Dog Trading)"? TrendBarDadDirectionColor : TrendBar1=="RSI Signal Line Cross - RSI 13, Sig 21" ?  TrendBarRSISigCrossColor : TrendBar1=="RSI 5: > or < 50"? TrendBarRSI5Color : TrendBar1=="RSI 13: > or < 50"? TrendBarRSI13Color : TrendBar1=="Trend Candles"? TrendBarTrend_Candle_Color : TrendBar1=="MA Crossover"? TrendBarMACrossColor : na
+
+TrendBar2Color    = TrendBar2=="N/A"?      na : TrendBar2=="MACD Crossover - 12, 26, 9"? TrendBarMACDColor : TrendBar2=="MACD Crossover - Fast - 8, 21, 5" ? TrendBarFastMACDColor : TrendBar2=="Mom Dad Cross (Top Dog Trading)" ? TrendBarMomOverDadColor : TrendBar2=="DAD Direction (Top Dog Trading)"? TrendBarDadDirectionColor : TrendBar2=="RSI Signal Line Cross - RSI 13, Sig 21" ?  TrendBarRSISigCrossColor : TrendBar2=="RSI 5: > or < 50"? TrendBarRSI5Color : TrendBar2=="RSI 13: > or < 50"? TrendBarRSI13Color : TrendBar2=="Trend Candles"? TrendBarTrend_Candle_Color : TrendBar2=="MA Crossover"? TrendBarMACrossColor : na
+
+TrendBar3Color    = TrendBar3=="N/A"?      na : TrendBar3=="MACD Crossover - 12, 26, 9"? TrendBarMACDColor : TrendBar3=="MACD Crossover - Fast - 8, 21, 5" ? TrendBarFastMACDColor : TrendBar3=="Mom Dad Cross (Top Dog Trading)" ? TrendBarMomOverDadColor : TrendBar3=="DAD Direction (Top Dog Trading)"? TrendBarDadDirectionColor : TrendBar3=="RSI Signal Line Cross - RSI 13, Sig 21" ?  TrendBarRSISigCrossColor : TrendBar3=="RSI 5: > or < 50"? TrendBarRSI5Color : TrendBar3=="RSI 13: > or < 50"? TrendBarRSI13Color : TrendBar3=="Trend Candles"? TrendBarTrend_Candle_Color : TrendBar3=="MA Crossover"? TrendBarMACrossColor : na
+
+
+CrossoverType2    = TrendBar4=="DAD Direction (Top Dog Trading)" ?  TopDogDadDirection : TrendBar4=="MACD Crossover"  ? MACDHistogramCross :  TrendBar4=="MA Direction - Fast MA - TB1" ? MA1Direction : TrendBar4=="MA Direction - Slow MA - TB1" ? MA2Direction : MACrossover1 
+
+TrendBar4Color1   = TrendBar4=="N/A" ?     na : CrossoverType2 ? color(green, 30) :  color(red, 30)
+
+// TrendBar4Color2   = TrendBar4=="N/A" ?     na : TrendBar4=="DAD Direction (Top Dog Trading)" and TopDogDadDirectandMomOverZero ? color(green, 70) : TrendBar4=="DAD Direction (Top Dog Trading)" and TopDogDadDirectandMomUnderZero ? color(red, 70) : TrendBar4=="MACD Crossover - 12, 26, 9" and MACDLineOverZeroandHistogramCross ? color(green, 70) : TrendBar4=="MACD Crossover - 12, 26, 9" and MACDLineUnderZeroandHistogramCross ? color(red, 70) : TrendBar4=="MA Crossover" and CrossoverType2 ? color(green, 40) : TrendBar4=="MA Crossover" and not CrossoverType2 ? color(red, 40) : TrendBar4=="MA Direction - Fast MA" and CrossoverType2 ? color(green, 40) : TrendBar4=="MA Direction - Fast MA" and not CrossoverType2 ? color(red, 40) : na
+
+
+CrossoverType3    = TrendBar5=="DAD Direction (Top Dog Trading)" ?  TopDogDadDirection : TrendBar5=="MACD Crossover"  ? MACDHistogramCross :  TrendBar5=="MA Direction - Fast MA - TB2" ? MA3Direction : TrendBar5=="MA Direction - Slow MA - TB2" ? MA4Direction : MACrossover2
+
+TrendBar5Color1   = TrendBar5=="N/A" ?     na : CrossoverType3 ? color(green, 30) :  color(red, 30)
+
+// TrendBar5Color2   = TrendBar5=="N/A" ?     na : TrendBar5=="DAD Direction (Top Dog Trading)" and TopDogDadDirectandMomOverZero ? color(green, 70) : TrendBar5=="DAD Direction (Top Dog Trading)" and TopDogDadDirectandMomUnderZero ? color(red, 70) : TrendBar5=="MACD Crossover - 12, 26, 9" and MACDLineOverZeroandHistogramCross ? color(green, 70) : TrendBar5=="MACD Crossover - 12, 26, 9" and MACDLineUnderZeroandHistogramCross ? color(red, 70) : TrendBar5=="MA Crossover" and CrossoverType3 ? color(green, 40) : TrendBar5=="MA Crossover" and not CrossoverType3 ? color(red, 40) : TrendBar5=="MA Direction - Fast MA" and CrossoverType3 ? color(green, 40) : TrendBar5=="MA Direction - Fast MA" and not CrossoverType3 ? color(red, 40) : na
+
+all_up = TrendBar1Color == #288a75 and TrendBar2Color == #288a75 and TrendBar3Color == #288a75 and TrendBar4Color1 == color(green,30) and TrendBar5Color1 == color(green,30)
+new_up = all_up and not all_up[1]
+all_down = TrendBar1Color == red and TrendBar2Color == red and TrendBar3Color == red and TrendBar4Color1 == color(red,30) and TrendBar5Color1 == color(red,30)
+new_down = all_down and not all_down[1]
+plotshape(new_up == true, title = "Up Arrow", style =  shape.triangleup, location = location.bottom, color =  color(yellow, 50), size = size.small)
+plotshape(new_down == true, title = "Down Arrow", style =  shape.triangledown, location = location.top, color =  color(yellow, 50), size = size.small)
+
+// Momentum Setup Plots 
+
+plot(ShowTrendBar and WTSetups and DotSize=='Small'? 140.5   : na, title="Signals 1 - Wave Trend Signals 1 - Color - Small Dots",         style = circles, color = MSBar1Color,  linewidth = 2, transp = 40)
+plot(ShowTrendBar and TMSetups and DotSize=='Small'? 134.5   : na, title="Signals 2 - All 3 Trend Meters Now Align - Color - Small Dots", style = circles, color = MSBar2Color,  linewidth = 2, transp = 40)
+
+
+plot(ShowTrendBar and WTSetups and DotSize=='Large'? 140.5   : na, title="Signals 1 - Wave Trend Signals 1 - Color - Large Dots",         style = circles, color = MSBar1Color,  linewidth = 3, transp = 40)
+plot(ShowTrendBar and TMSetups and DotSize=='Large'? 134.5   : na, title="Signals 2 - All 3 Trend Meters Now Align - Color - Large Dots", style = circles, color = MSBar2Color,  linewidth = 3, transp = 40)
+
+
+// Trend Barmeter Plots
+
+plot(ShowTrendBar and DotSize=='Small'? 128.5   : na, title="3 - Trend Meter - Color - Small Dots", style = circles, color = TrendBar1Color,  linewidth = 2, transp = 40)
+
+plot(ShowTrendBar and DotSize=='Small'? 122.5   : na, title="4 - Trend Meter - Color - Small Dots", style = circles, color = TrendBar2Color,  linewidth = 2, transp = 40)
+
+plot(ShowTrendBar and DotSize=='Small'? 116.5   : na, title="5 - Trend Meter - Color - Small Dots", style = circles, color = TrendBar3Color,  linewidth = 2, transp = 40)
+
+
+plot(ShowTrendBar and DotSize=='Large'? 128.5   : na, title="3 - Trend Meter - Color - Large Dots", style = circles, color = TrendBar1Color,  linewidth = 3, transp = 40)
+
+plot(ShowTrendBar and DotSize=='Large'? 122.5   : na, title="4 - Trend Meter - Color - Large Dots", style = circles, color = TrendBar2Color,  linewidth = 3, transp = 40)
+
+plot(ShowTrendBar and DotSize=='Large'? 116.5   : na, title="5 - Trend Meter - Color - Large Dots", style = circles, color = TrendBar3Color,  linewidth = 3, transp = 40)
+
+
+plot(ShowTrendBar and not (TrendBar5=="N/A")?                              110     : na, title="6 - Trend Bar 1 - Thin Line - Color",                                      style = line, color = TrendBar4Color1, linewidth = 4)
+plot(ShowTrendBar and    ((TrendBar5=="N/A") and not (TrendBar4=="N/A")) ? 107.25  : na, title="6 - Trend Bar 1 - Thick Line - Color",                                     style = line, color = TrendBar4Color1, linewidth = 7)
+
+plot(ShowTrendBar and not (TrendBar4=="N/A")?                              104.5   : na, title="7 - Trend Bar 2 - Thin Line - Color",                                      style = line, color = TrendBar5Color1, linewidth = 4)
+plot(ShowTrendBar and    ((TrendBar4=="N/A") and not (TrendBar5=="N/A")) ? 107.25  : na, title="7 - Trend Bar 2 - Thick Line - Color",                                     style = line, color = TrendBar5Color1, linewidth = 7)
+
+
+// plot(ShowTrendBar and not (TrendBar5=="N/A")?                           110     : na, title="6 - Trend Bar 1 - Thin Line - Color Highlight Momentum Above or Below 0",  style = line, color = TrendBar4Color2, linewidth = 4)
+// plot(ShowTrendBar and not (TrendBar4=="N/A")?                           104.5   : na, title="7 - Trend Bar 2 - Thin Line - Color Highlight Momentum Above or Below 0",  style = line, color = TrendBar5Color2, linewidth = 4)
+// plot(ShowTrendBar and ((TrendBar5=="N/A") and not (TrendBar4=="N/A")) ? 107.25  : na, title="6 - Trend Bar 1 - Thick Line - Color Highlight Momentum Above or Below 0", style = line, color = TrendBar4Color2, linewidth = 7)
+// plot(ShowTrendBar and ((TrendBar4=="N/A") and not (TrendBar5=="N/A")) ? 107.25  : na, title="7 - Trend Bar 2 - Thick Line - Color Highlight Momentum Above or Below 0", style = line, color = TrendBar5Color2, linewidth = 7)
+
+
+// Background Highlights
+
+
+
+TrendBar3BarsSame = TrendBars3Positive ? green : TrendBars3Negative ? red : na
+
+TMa                                    = hline(113.7,    color = color(white, 100))
+
+TMb                                    = hline(131.3,    color = color(white, 100))
+
+fill(TMa, TMb, color = TrendBar3BarsSame, transp = 91, title = "Trend Meter Background Highlight - 3 Trend Meter Conditions Met")
+
+	
+// Alerts & Conditions - Background Color
+
+// BackgroundColorChangePositive = TrendBars3Positive and not TrendBars3Positive[1]
+// BackgroundColorChangeNegative = TrendBars3Negative and not TrendBars3Negative[1]
+
+
+alertcondition(BackgroundColorChangePositive,          title='Alert-All 3 Dots Changed to Green',                 message='All 3 Dots Changed to Green - Trend Meter')
+alertcondition(BackgroundColorChangeNegative,          title='Alert-All 3 Dots Changed to Red',                   message='All 3 Dots Changed to Red - Trend Meter')
+alertcondition(BackgroundColorChangePositive or BackgroundColorChangeNegative,  title='Alert-All 3 Dots Changed to Red or Green', message='All 3 Dots Changed to Red or Green - Trend Meter')
+
+
+RapidColorChangePositive = TrendBars3Positive and (TrendBars3Negative[1] or TrendBars3Negative[2])
+RapidColorChangeNegative = TrendBars3Negative and (TrendBars3Positive[1] or TrendBars3Positive[2])
+
+alertcondition(RapidColorChangePositive,          title='Alert-Rapid Change All Red to All Green',                message='Rapid Change All Red to All Green - Trend Meter')
+alertcondition(RapidColorChangeNegative,          title='Alert-Rapid Change All Green to All Red',                message='Rapid Change All Green to All Red - Trend Meter')
+alertcondition(RapidColorChangePositive or RapidColorChangeNegative,  title='Alert-Rapid Color Change',           message='Rapid Color Change - Trend Meter')
+
+
+MaxValueMACrossUp   = crossover( ema(close, 5), ema(close, 11)) 
+MaxValueMACrossDown = crossunder(ema(close, 5), ema(close, 11))
+
+alertcondition(MSBar1PositiveWaveTrendSignal or BackgroundColorChangePositive or MaxValueMACrossUp ,  title='Alert - Any Positive Setup - Signals',   message='Any Positive Setup - 3 Trend Meters Now Align or Filtered Wave Trend or 5 / 11 EMA Cross - Trend Meter')
+alertcondition(MSBar1NegativeWaveTrendSignal or BackgroundColorChangeNegative or MaxValueMACrossDown, title='Alert - Any Negative Setup - Signals',   message='Any Negative Setup - 3 Trend Meters Now Align or Filtered Wave Trend or 5 / 11 EMA Cross - Trend Meter')
+alertcondition(MSBar1PositiveWaveTrendSignal or MSBar1NegativeWaveTrendSignal or BackgroundColorChangePositive or BackgroundColorChangeNegative or MaxValueMACrossUp or MaxValueMACrossDown,   title='Alert - Any Setup - Signals',   message='Any Setup - 3 Trend Meters Now Align or Filtered Wave Trend or 5 / 11 EMA Cross - Trend Meter')
+
+
+// Alerts & Conditions - Trend Candles
+ 
+TrendCandleGreenChange =     TrendBarTrend_Candle and not TrendBarTrend_Candle[1]
+TrendCandleRedChange   = not TrendBarTrend_Candle and     TrendBarTrend_Candle[1]
+
+alertcondition(TrendCandleGreenChange,                 title='Alert-Trend Candles Changed to Green',            message='Trend Candles Changed to Green - Trend Meter')
+alertcondition(TrendCandleRedChange,                   title='Alert-Trend Candles Changed to Red',              message='Trend Candles Changed to Red - Trend Meter')
+alertcondition(TrendCandleGreenChange or TrendCandleRedChange,                  title='Alert-Trend Candles Changed Red/Green',    message='Trend Candles Changed to Red or Green - Trend Meter')
+
+
+// Alerts & Conditions - MA Crossing
+
+TB1MACrossUp   = crossover( MA1, MA2) 
+TB1MACrossDown = crossunder(MA1, MA2)
+
+
+alertcondition(TB1MACrossUp,                           title='Alert-TB1 Fast MA X Above Slow MA',                 message='Trend Bar 1 - Fast MA X Above Slow MA - Trend Meter')
+alertcondition(TB1MACrossDown,                         title='Alert-TB1 Fast MA X Below Slow MA',                 message='Trend Bar 1 - Fast MA X Below Slow MA - Trend Meter')
+alertcondition(TB1MACrossUp or TB1MACrossDown,                                  title='Alert-TB1 MAs X',                          message='Color Change - Trend Bar 1 - MAs Crossing - Trend Meter')
+
+
+TB2MACrossUp   = crossover( MA3, MA4) 
+TB2MACrossDown = crossunder(MA3, MA4)
+
+
+alertcondition(TB2MACrossUp,                           title='Alert-TB2 Fast MA X Above Slow MA',                 message='Trend Bar 2 - Fast MA X Above Slow MA - Trend Meter')
+alertcondition(TB2MACrossDown,                         title='Alert-TB2 Fast MA X Below Slow MA',                 message='Trend Bar 2 - Fast MA X Below Slow MA - Trend Meter')
+alertcondition(TB2MACrossUp or TB2MACrossDown,                                  title='Alert-TB2 MAs X',                          message='Color Change - Trend Bar 2 - MAs Crossing - Trend Meter')
+
+
+// Alerts & Conditions - RSI Signal Line Cross 
+
+RSICrossOverSignalLine   = crossover( RSI13, LinReg1) 
+RSICrossUnderSignalLine  = crossunder(RSI13, LinReg1) 
+
+alertcondition(RSICrossOverSignalLine,                   title='Alert-RSI X Over Signal Line',                    message='RSI X Over Signal Line - Trend Meter')
+alertcondition(RSICrossUnderSignalLine,                  title='Alert-RSI X Under Signal Line',                   message='RSI X Under Signal Line - Trend Meter')
+alertcondition(RSICrossOverSignalLine or RSICrossUnderSignalLine,               title='Alert-RSI X Signal Line',             message='RSI X Signal Line - Trend Meter')
+
+
+// Alerts & Conditions - RSI13 Cross 50
+
+RSI13CrossOver50   = crossover( RSI13, 50) 
+RSI13CrossUnder50  = crossunder(RSI13, 50) 
+
+alertcondition(RSI13CrossOver50,                         title='Alert-Color Change-RSI 13 X Over 50',             message='Color Change - RSI 13 X Over 50 - Trend Meter')
+alertcondition(RSI13CrossUnder50,                        title='Alert-Color Change-RSI 13 X Under 50',            message='Color Change - RSI 13 X Under 50 - Trend Meter')
+alertcondition(RSI13CrossOver50 or RSI13CrossUnder50,                           title='Alert-Color Change-RSI 13 X 50',       message='Color Change - RSI 13 X 50 - Trend Meter')
+
+
+// Alerts & Conditions - RSI5 Cross 50
+
+RSI5CrossOver50   = crossover( RSI5, 50) 
+RSI5CrossUnder50  = crossunder(RSI5, 50) 
+
+alertcondition(RSI5CrossOver50,                         title='Alert-Color Change-RSI 5 X Over 50',               message='Color Change - RSI 5 X Over 50 - Trend Meter')
+alertcondition(RSI5CrossUnder50,                        title='Alert-Color Change-RSI 5 X Under 50',              message='Color Change - RSI 5 X Under 50 - Trend Meter')
+alertcondition(RSI5CrossOver50 or RSI5CrossUnder50,                             title='Alert-Color Change-RSI 5 X 50',       message='Color Change - RSI 5 X 50 - Trend Meter')
+
+
+// Alerts & Conditions - MACD Histogram Crossing 0 
+
+MACDHistogramCrossUp   = crossover(MACDHistogram, 0) 
+MACDHistogramCrossDown = crossunder(MACDHistogram, 0) 
+
+alertcondition(MACDHistogramCrossUp,                    title='Alert-MACD Histogram X Up',                        message='MACD Histogram X Up Over 0 - Trend Meter')
+alertcondition(MACDHistogramCrossDown,                  title='Alert-MACD Histogram X Down',                      message='MACD Histogram X Down Under 0 - Trend Meter')
+alertcondition(MACDHistogramCrossUp or MACDHistogramCrossDown,                  title='Alert-MACD Histogram Cross',           message='MACD Histogram Crossing Over or Under 0 - Trend Meter')
+
+
+FastMACDHistogramCrossUp   = crossover( FastMACDHistogram, 0) 
+FastMACDHistogramCrossDown = crossunder(FastMACDHistogram, 0) 
+
+alertcondition(FastMACDHistogramCrossUp,                title='Alert-Fast MACD Histogram X Up',                   message='Fast MACD Histogram X Up Over 0 - Trend Meter')
+alertcondition(FastMACDHistogramCrossDown,              title='Alert-Fast MACD Histogram X Down',                 message='Fast MACD Histogram X Down Under 0 - Trend Meter')
+alertcondition(FastMACDHistogramCrossUp or FastMACDHistogramCrossDown,          title='Alert-Fast MACD Histogram Cross',      message='Fast MACD Histogram X Over or Under 0 - Trend Meter')
+
+
+// Alerts & Conditions - Top Dog Dad Crossing
+
+TopDogMomCrossOverDad  = crossover(TopDogMom, TopDogDad) 
+TopDogMomCrossUnderDad = crossunder(TopDogMom, TopDogDad) 
+
+alertcondition(TopDogMomCrossOverDad,                    title='Alert-TopDog Mom X Over Dad',                    message='TopDog Mom X Over Dad - Trend Meter')
+alertcondition(TopDogMomCrossUnderDad,                   title='Alert-TopDog Mom X Under Dad',                   message='TopDog Mom X Under Dad - Trend Meter')
+alertcondition(TopDogMomCrossOverDad or TopDogMomCrossUnderDad,                 title='Alert-TopDog Mom Xing Dad',           message='TopDog Mom Crossing Dad - Trend Meter')
+
+
+// Alerts - TB1 and TB2 MAs Direction Change
+
+alertcondition(MA1PositiveDirectionChange,               title='Alert-TB1 Fast MA Now Pointing Up',              message='Trend Bar 1 - Fast MA Now Pointing Up - Trend Meter')
+alertcondition(MA1NegativeDirectionChange,               title='Alert-TB1 Fast MA Now Pointing Down',            message='Trend Bar 1 - Fast MA Now Pointing Down - Trend Meter')
+alertcondition(MA1PositiveDirectionChange or MA1NegativeDirectionChange,                      title='Alert-TB1 Fast MA Changed Direction',  message='Trend Bar 1 - Fast MA Changed Direction - Trend Meter')
+
+
+alertcondition(MA2PositiveDirectionChange,               title='Alert-TB1 Slow MA Now Pointing Up',              message='Trend Bar 1 - Slow MA Now Pointing Up - Trend Meter')
+alertcondition(MA2NegativeDirectionChange,               title='Alert-TB1 Slow MA Now Pointing Down',            message='Trend Bar 1 - Slow MA Now Pointing Down - Trend Meter')
+alertcondition(MA2PositiveDirectionChange or MA2NegativeDirectionChange,                      title='Alert-TB1 Slow MA Changed Direction',  message='Trend Bar 1 - Slow MA Changed Direction - Trend Meter')
+
+
+alertcondition(MA3PositiveDirectionChange,               title='Alert-TB2 Fast MA Now Pointing Up',              message='Trend Bar 2 - Fast MA Now Pointing Up - Trend Meter')
+alertcondition(MA3NegativeDirectionChange,               title='Alert-TB2 Fast MA Now Pointing Down',            message='Trend Bar 2 - Fast MA Now Pointing Down - Trend Meter')
+alertcondition(MA3PositiveDirectionChange or MA3NegativeDirectionChange,                      title='Alert-TB2 Fast MA Changed Direction',  message='Trend Bar 2 - Fast MA Changed Direction - Trend Meter')
+
+
+alertcondition(MA4PositiveDirectionChange,               title='Alert-TB2 Slow MA Now Pointing Up',              message='Trend Bar 2 - Slow MA Now Pointing Up - Trend Meter')
+alertcondition(MA4NegativeDirectionChange,               title='Alert-TB2 Slow MA Now Pointing Down',            message='Trend Bar 2 - Slow MA Now Pointing Down - Trend Meter')
+alertcondition(MA4PositiveDirectionChange or MA4NegativeDirectionChange,                      title='Alert-TB2 Slow MA Changed Direction',  message='Trend Bar 2 - Slow MA Changed Direction - Trend Meter')

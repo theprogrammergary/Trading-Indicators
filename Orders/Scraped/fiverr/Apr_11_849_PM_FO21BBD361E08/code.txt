@@ -1,0 +1,159 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_lavis_divergence_scan", overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+
+f_get_swing_values(sd_length, _high, _low) =>
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), _high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), _low[sd_length], 0)
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), _high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), _low[sd_length], 1)
+
+    csh_bn = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), time[sd_length], 0)
+    psh_bn = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), time[sd_length], 1)
+    csl_bn = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), time[sd_length], 0)
+    psl_bn = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), time[sd_length], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and _high >= psh) or _high > csh) ? 1 : ((ll and _low <= psl) or _low < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_bn, psh_bn, csl_bn, psl_bn]
+
+
+// create price pivots
+pivot_length = input.int(3, title = 'Swing Length')
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_bn, psh_bn, csl_bn, psl_bn] = f_get_swing_values(pivot_length, high, low)
+
+
+// create rsi pivots
+rsi_value = ta.rsi(close, 14)
+[rsi_sh, rsi_sl, rsi_psh, rsi_psl, rsi_csh, rsi_csl, rsi_hh, rsi_lh, rsi_ll, rsi_hl, rsi_trend, rsi_last_signal,
+ rsi_csh_bn, rsi_psh_bn, rsi_csl_bn, rsi_psl_bn] = f_get_swing_values(pivot_length, rsi_value, rsi_value)
+
+
+// create stoch pivots
+k = ta.sma(ta.stoch(close, high, low, 14), 3)
+stoch_value = ta.sma(k, 3)
+[stoch_sh, stoch_sl, stoch_psh, stoch_psl, stoch_csh, stoch_csl, stoch_hh, stoch_lh, stoch_ll, stoch_hl, 
+ stoch_trend, stoch_last_signal, stoch_csh_bn, stoch_psh_bn, stoch_csl_bn, stoch_psl_bn] = f_get_swing_values(pivot_length, stoch_value, stoch_value)
+
+
+// atr
+price_atr = ta.atr(50)
+
+
+// find double bottoms / double tops
+var bool double_btm = na
+var bool double_top = na
+
+atrpct = input.float(0.4, title = 'Pattern Sensitivity', minval = 0.00, maxval = 5.00, step = 0.1, 
+ group = 'Double Bottom / Double Top Scan Settings', inline = '1')
+
+rsi_divpct = input.float(5.00, title = 'RSI Divergence   ', minval = 0.00, maxval = 100.00, step = 1.0, 
+ group = 'Double Bottom / Double Top Scan Settings', inline = '2')
+rsi_dt = input.bool(true, title = 'DT', group = 'Double Bottom / Double Top Scan Settings', inline = '2')
+rsi_db = input.bool(true, title = 'DB', group = 'Double Bottom / Double Top Scan Settings', inline = '2')
+
+stoch_divpct = input.float(5.00, title = 'Stoch Divergence ', minval = 0.00, maxval = 100.00, step = 1.0,
+ group = 'Double Bottom / Double Top Scan Settings', inline = '3')
+stoch_dt = input.bool(true, title = 'DT', group = 'Double Bottom / Double Top Scan Settings', inline = '3')
+stoch_db = input.bool(true, title = 'DB', group = 'Double Bottom / Double Top Scan Settings', inline = '3')
+
+double_btm := sl and (math.abs(csl-psl) <= price_atr * atrpct) ? true : false
+double_top := sh and (math.abs(csh-psh) <= price_atr * atrpct) ? true : false
+
+plotshape(double_top ? high[pivot_length] : na, title = 'Double Top', style = shape.circle, 
+ location = location.absolute, offset = -pivot_length, color = color.red, size= size.small)
+plotshape(double_btm ? low[pivot_length]  : na,  title = 'Double Bottom', style = shape.circle,
+ location = location.absolute, offset = -pivot_length, color = color.green, size= size.small)
+
+plotshape(sh ? high[pivot_length] : na, title = 'PH', style = shape.circle, location = location.absolute,
+ offset = -pivot_length, color = color.black)
+plotshape(sl ? low[pivot_length]  : na,  title = 'PL', style = shape.circle, location = location.absolute,
+ offset = -pivot_length, color = color.black)
+
+db_rsidiv = rsi_db and double_btm and (rsi_csl >= rsi_psl) and (math.abs(rsi_csl - rsi_psl) >= rsi_divpct) ? true : false
+dt_rsidiv = rsi_dt and double_top and (rsi_csh <= rsi_psh) and (math.abs(rsi_csh - rsi_psh) >= rsi_divpct) ? true : false
+
+db_stochdiv = stoch_db and double_btm and (stoch_csl >= stoch_psl) and (math.abs(stoch_csl - stoch_psl) >= stoch_divpct) ? true : false
+dt_stochdiv = stoch_dt and double_top and (stoch_csh <= stoch_psh) and (math.abs(stoch_csh - stoch_psh) >= stoch_divpct) ? true : false
+
+str_db = db_rsidiv and db_stochdiv ? ("DB - RSI & STOCH")
+ : db_stochdiv ? ("DB - STOCH") 
+ : db_rsidiv   ? ("DB - RSI")
+ : na 
+
+str_dt = dt_rsidiv and dt_stochdiv ? ("DT - RSI & STOCH")
+ : dt_stochdiv ? ("DT - STOCH") 
+ : dt_rsidiv   ? ("DT - RSI")
+ : na 
+
+
+// price action scans versus rsi & stochs 
+rsi_lldivpct = input.float(5.00, title = 'RSI Divergence   ', minval = 0.00, maxval = 100.00, step = 1.0,
+ group = 'Price-Action Scan Settings', inline = '2')
+_hh_rsi = input.bool(true, title = 'HH', group = 'Price-Action Scan Settings', inline = '2')
+_ll_rsi = input.bool(true, title = 'LL', group = 'Price-Action Scan Settings', inline = '2')
+
+stoch_lldivpct = input.float(5.00, title = 'Stoch Divergence ', minval = 0.00, maxval = 100.00, step = 1.0,
+ group = 'Price-Action Scan Settings', inline = '3')
+_hh_stoch = input.bool(true, title = 'HH', group = 'Price-Action Scan Settings', inline = '3')
+_ll_stoch = input.bool(true, title = 'LL', group = 'Price-Action Scan Settings', inline = '3')
+
+
+ll_rsi   = _ll_rsi   and sl and ll and (rsi_csl >= rsi_psl) and (math.abs(rsi_csl - rsi_psl) >= rsi_divpct) 
+ll_stoch = _ll_stoch and sl and ll and (stoch_csl >= stoch_psl) and (math.abs(stoch_csl - stoch_psl) >= stoch_divpct)
+
+hh_rsi   = _hh_rsi   and sh and hh and (rsi_csh <= rsi_psh) and (math.abs(rsi_csh - rsi_psh) >= rsi_divpct) 
+hh_stoch = _hh_stoch and sh and hh and (stoch_csh <= stoch_psh) and (math.abs(stoch_csh - stoch_psh) >= stoch_divpct)
+
+str_ll = ll_rsi and ll_stoch ? ("LL - RSI & STOCH")
+ : ll_stoch ? ("LL - STOCH") 
+ : ll_rsi   ? ("LL - RSI")
+ : na 
+
+str_hh = hh_rsi and hh_stoch ? ("HH - RSI & STOCH")
+ : hh_stoch ? ("HH - STOCH") 
+ : hh_rsi   ? ("HH - RSI")
+ : na 
+
+
+// bullish divergences
+str_bull = not na(str_db) and not na(str_ll) ? (str_db + "\n" + str_ll) 
+ : not na(str_db) ? str_db
+ : str_ll
+if db_rsidiv or db_stochdiv or ll_rsi or ll_stoch
+    alert("Bullish Alert: \n" + str_bull, alert.freq_once_per_bar_close)
+    label.new(bar_index[pivot_length], low[pivot_length], text = str_bull, yloc = yloc.belowbar, style = label.style_label_up,
+     color = color.new(#787b85, 0), textcolor = color.white)
+
+    line.new(x1=psl_bn, y1=psl, x2=csl_bn, y2=csl, xloc=xloc.bar_time, color=color.green)
+
+
+
+// bearish divergences
+str_bear = not na(str_dt) and not na(str_hh) ? (str_dt + "\n" + str_hh) 
+ : not na(str_dt) ? str_dt
+ : str_hh
+if dt_rsidiv or dt_stochdiv or hh_rsi or hh_stoch
+    alert("Bearish Alert: \n" + str_bear, alert.freq_once_per_bar_close)
+    label.new(bar_index[pivot_length], high[pivot_length], text = str_bear, yloc = yloc.abovebar, style = label.style_label_down,
+     color = color.new(#787b85, 0), textcolor = color.white)
+
+    line.new(x1=psh_bn, y1=psh, x2=csh_bn, y2=csh, xloc=xloc.bar_time, color=color.red)
+
+
+

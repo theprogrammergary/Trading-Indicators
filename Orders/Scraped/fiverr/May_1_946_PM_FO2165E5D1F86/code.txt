@@ -1,0 +1,52 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("3MA Average", overlay = true)
+
+malength1 = input.int(9, title = 'MA 1', group = 'Settings', inline = '1')
+malength2 = input.int(20, title = 'MA 2', group = 'Settings', inline = '2')
+malength3 = input.int(50, title = 'MA 3', group = 'Settings', inline = '3')
+
+ma_type1 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '1')
+ma_type2 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '2')
+ma_type3 = input.string("EMA", title = '',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Settings', inline = '3')
+
+
+ // calc ma
+float ma_value1 = switch ma_type1
+    "EMA" => ta.ema(close, malength1)
+    "SMA" => ta.sma(close, malength1)
+    "WMA" => ta.wma(close, malength1)
+    "VWMA" => ta.vwma(close, malength1)
+    "HMA" => ta.hma(close, malength1)
+    => ta.sma(close, malength1)
+
+float ma_value2 = switch ma_type2
+    "EMA" => ta.ema(close, malength2)
+    "SMA" => ta.sma(close, malength2)
+    "WMA" => ta.wma(close, malength2)
+    "VWMA" => ta.vwma(close, malength2)
+    "HMA" => ta.hma(close, malength2)
+    => ta.sma(close, malength2)
+
+float ma_value3 = switch ma_type3
+    "EMA" => ta.ema(close, malength3)
+    "SMA" => ta.sma(close, malength3)
+    "WMA" => ta.wma(close, malength3)
+    "VWMA" => ta.vwma(close, malength3)
+    "HMA" => ta.hma(close, malength3)
+    => ta.sma(close, malength3)
+
+
+three_maavg = (ma_value1 + ma_value2 + ma_value3) / 3
+
+plot(ma_value1, title = 'MA 1 ', color = color.blue, linewidth = 2, display = display.none)
+plot(ma_value2, title = 'MA 2', color = color.blue, linewidth = 2, display = display.none)
+plot(ma_value3, title = 'MA 3', color = color.blue, linewidth = 2, display = display.none)
+
+
+plot(three_maavg, title = '3MA Avg', color = color.blue)

@@ -1,0 +1,60 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_nirlapu", overlay = true)
+
+
+
+// buy settings
+buy_masource        = input.source(high, title = 'EMA Source', group = 'Buy Settings')
+buy_emalength       = input.int(200, title = 'EMA Length', group = 'Buy Settings')
+buy_fast_length     = input(title="MACD Fast Length", defval=12, group = 'Buy Settings')
+buy_slow_length     = input(title="MACD Slow Length", defval=26, group = 'Buy Settings')
+buy_src             = input(title="MACD Source", defval=close, group = 'Buy Settings')
+buy_signal_length   = input.int(title="MACD Signal Smoothing",  minval = 1, maxval = 50, defval = 9, group = 'Buy Settings')
+
+// sell settings
+sell_masource        = input.source(low, title = 'EMA Source', group = 'Sell Settings')
+sell_emalength       = input.int(200, title = 'EMA Length', group = 'Sell Settings')
+sell_fast_length     = input(title="MACD Fast Length", defval=12, group = 'Sell Settings')
+sell_slow_length     = input(title="MACD Slow Length", defval=26, group = 'Sell Settings')
+sell_src             = input(title="MACD Source", defval=close, group = 'Sell Settings')
+sell_signal_length   = input.int(title="MACD Signal Smoothing",  minval = 1, maxval = 50, defval = 9, group = 'Sell Settings')
+
+
+
+//  ma
+ma_buy = ta.ema(buy_masource, buy_emalength)
+ma_sell = ta.ema(sell_masource, sell_emalength)
+p_mabuy = plot(ma_buy, title = 'Buy EMA', color = color.white)
+p_ma_sell = plot(ma_sell, title = 'Sell EMA', color = color.blue)
+ma_buycond = close > ma_buy
+ma_sellcond = close < ma_sell
+fill(p_mabuy, p_ma_sell, color = ma_buycond ? color.new(color.green, 80) : color.new(color.red,80))
+
+
+
+//  macd
+[b_macdLine, b_signalLine, b_histLine] = ta.macd(buy_src, buy_fast_length, buy_slow_length, buy_signal_length)
+[s_macdLine, s_signalLine, s_histLine] = ta.macd(sell_src, sell_fast_length, sell_slow_length, sell_signal_length)
+buy_macdcond = ta.crossover(b_macdLine, b_signalLine) and b_signalLine < 0
+sell_macdcond = ta.crossunder(s_macdLine, s_signalLine) and s_signalLine > 0
+// barcolor(buy_macdcond ? color.green : sell_macdcond ? color.red : na)
+
+
+long_entry = ma_buycond and buy_macdcond and barstate.isconfirmed
+short_entry = ma_sellcond and sell_macdcond and barstate.isconfirmed
+
+
+// plot
+plotshape(long_entry, style=shape.labelup, editable=true, text= "BUY", textcolor=color.white, location= location.belowbar,
+ color=color.new(color.green, 30), size=size.tiny)
+plotshape(short_entry, style=shape.labeldown, editable=true, text='SELL', textcolor=color.white, location=location.abovebar,
+  color=color.new(color.red, 30), size=size.tiny)
+
+
+// alerts
+alertcondition(long_entry, "Long Entry", "Long Entry")
+alertcondition(short_entry, "Sell Entry", "Sell Entry")
+alertcondition(long_entry or short_entry, "Long Entry or Short Entry", "Long Entry or Short Entry")

@@ -1,0 +1,122 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_binchur", overlay = true)
+
+
+// settings
+_signal1 = input.bool(true, title = 'Use Signal 1')
+_signal2 = input.bool(true, title = 'Use Signal 2')
+
+_time_constraint = input.bool(true, title = 'Use Time Constraint')
+_time_sess = input.session("0645-1700", title = 'Time Session')
+
+_tp1 = input.float(0.625, title = 'TP 1')
+_tp2 = input.float(1.00, title = 'TP 2')
+_tp3 = input.float(1.625, title = 'TP 3')
+
+is_time = time(timeframe.period, _time_sess, "America/Chicago") or not _time_constraint
+
+
+
+// dmi
+_dmi_length = input.int(14, title = 'DMI Length')
+[di_plus, di_minus, adx] = ta.dmi(_dmi_length, _dmi_length)
+
+dmi_buy1 = ta.crossover(di_plus, di_minus)
+dmi_sell1 = ta.crossover(di_minus, di_plus)
+
+dmi_buy2 = di_plus >= di_minus
+dmi_sell2 = di_minus >= di_plus
+
+
+
+
+// macd
+_macd_fast = input.int(12, title = 'MACD Fast')
+_macd_slow = input.int(26, title = 'MACD Slow')
+_macd_signal = input.int(9, title = 'MACD Signal')
+
+[macdLine, signalLine, macd_hist] = ta.macd(close, _macd_fast, _macd_slow, _macd_signal)
+
+macd_buy1 = macd_hist > 0
+macd_sell1 = macd_hist < 0
+
+macd_buy2 = ta.crossover(macd_hist, 0)
+macd_sell2 = ta.crossunder(macd_hist, 0)
+
+
+
+// generate signals
+buy_signal1 = dmi_buy1 and macd_buy1 and _signal1 and is_time and barstate.isconfirmed
+buy_signal2 = dmi_buy2 and macd_buy2 and _signal2 and is_time and barstate.isconfirmed
+
+sell_signal1 = dmi_sell1 and macd_sell1 and _signal1 and is_time and barstate.isconfirmed
+sell_signal2 = dmi_sell2 and macd_sell2 and _signal2 and is_time and barstate.isconfirmed
+
+plotshape(buy_signal2, "Buy Signal 2", style = shape.triangleup, location = location.belowbar,
+ color = color.rgb(55, 129, 58), text = '', size = size.small)
+
+plotshape(buy_signal1, "Buy Signal 1", style = shape.triangleup, location = location.belowbar,
+ color = color.rgb(129, 202, 132), text = '', size = size.small)
+
+plotshape(sell_signal2, "Sell Signal 2", style = shape.triangledown, location = location.abovebar,
+ color = color.rgb(255, 50, 50), text = '', size = size.small)
+
+plotshape(sell_signal1, "Sell Signal 1", style = shape.triangledown, location = location.abovebar,
+ color = color.rgb(212, 159, 209), text = '', size = size.small)
+
+
+
+// tp and stop lines
+var float entry = na
+var float signal_bar_range = na
+var float tp1 = na
+var float tp2 = na
+var float tp3 = na
+
+var float sl = na
+
+entry := (buy_signal1 or sell_signal1 or buy_signal2 or sell_signal2) ? close : entry[1]
+signal_bar_range := (buy_signal1 or sell_signal1 or buy_signal2 or sell_signal2) ? high - low : signal_bar_range[1]
+
+tp1 := (buy_signal1 or buy_signal2) ? entry + (signal_bar_range * _tp1) 
+ : (sell_signal1 or sell_signal2) ? entry - (signal_bar_range * _tp1)
+ : tp1[1]
+
+tp2 := (buy_signal1 or buy_signal2) ? entry + (signal_bar_range * _tp2) 
+ : (sell_signal1 or sell_signal2) ? entry - (signal_bar_range * _tp2)
+ : tp2[1]
+
+tp3 := (buy_signal1 or buy_signal2) ? entry + (signal_bar_range * _tp3) 
+ : (sell_signal1 or sell_signal2) ? entry - (signal_bar_range * _tp3)
+ : tp3[1] 
+
+sl := (buy_signal1 or buy_signal2) ? low
+ : (sell_signal1 or sell_signal2) ? high
+ : sl[1] 
+
+
+plot(entry, title = 'Entry', color = color.blue, style = plot.style_circles)
+plot(tp1, title = 'TP 1', color = color.green, style = plot.style_circles)
+plot(tp2, title = 'TP 2', color = color.green, style = plot.style_circles)
+plot(tp3, title = 'TP 3', color = color.green, style = plot.style_circles)
+plot(sl, title = 'SL', color = color.fuchsia, style = plot.style_circles)
+
+
+
+
+// alerts
+var bool is_alert = na
+var string alert_str = na
+
+is_alert := buy_signal1 or buy_signal2 or sell_signal1 or sell_signal2
+alert_str := buy_signal1 ? "BUY SIGNAL 1"
+ : buy_signal2 ? "BUY SIGNAL 2"
+ : sell_signal1 ? "SELL SIGNAL 1"
+ : sell_signal2 ? "SELL SIGNAL 2"
+ : na
+
+if is_alert
+    alert(alert_str, alert.freq_once_per_bar_close)

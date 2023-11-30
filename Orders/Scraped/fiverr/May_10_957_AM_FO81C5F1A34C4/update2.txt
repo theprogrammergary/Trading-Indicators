@@ -1,0 +1,180 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_praneshsridhara", overlay = true)
+
+//
+//VWAPS
+//
+
+//NO VOLUME ERROR CATCH 
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+//FUNCTIONS 
+computeVWAP(src, isNewPeriod) =>
+	var float sumSrcVol = na
+	var float sumVol = na
+    var float sumSrcSrcVol = na
+
+	sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+	sumVol := isNewPeriod ? volume : volume + sumVol[1]
+	// sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+	sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+	_vwap = sumSrcVol / sumVol
+
+	_vwap
+
+timeChange(period) =>
+	ta.change(time(period))
+
+//COMPUTE VWAP
+var anchor_1 = input.string(defval = "Week", title="VWAP Period", options=["Day", "Week", "Month", "Quarter", "Year"], group="VWAP Settings", inline = '1')
+src_1 = input(title = "", defval = hlc3, group="VWAP Settings", inline = '1')
+isNewPeriod_1 = switch anchor_1
+	"Day" => timeChange("D")
+	"Week" => timeChange("W")
+	"Month" => timeChange("M")
+	"Quarter" => timeChange("3M")
+	"Year" => timeChange("12M")
+	=> false
+if na(src_1[1]) 
+	isNewPeriod_1 := true
+float vwapValue_1 = na
+_vwap_1 = computeVWAP(src_1, isNewPeriod_1)
+vwapValue_1 := _vwap_1
+plot(vwapValue_1, title="VWAP 1", color=color.new(color.white,70))
+
+
+var anchor_2 = input.string(defval = "Month", title="VWAP Period", options=["Day", "Week", "Month", "Quarter", "Year"], group="VWAP Settings", inline = '2')
+src_2 = input(title = "", defval = hlc3, group="VWAP Settings", inline = '2')
+isNewPeriod_2 = switch anchor_2
+	"Day" => timeChange("D")
+	"Week" => timeChange("W")
+	"Month" => timeChange("M")
+	"Quarter" => timeChange("3M")
+	"Year" => timeChange("12M")
+	=> false
+if na(src_2[1]) 
+	isNewPeriod_2 := true
+float vwapValue_2 = na
+_vwap_2 = computeVWAP(src_2, isNewPeriod_2)
+vwapValue_2 := _vwap_2
+plot(vwapValue_2, title="VWAP 2", color=color.new(color.white,70))
+
+vwap_buy = close >= vwapValue_1 or close >= vwapValue_2
+vwap_sell = close < vwapValue_1 or close < vwapValue_2
+
+//
+//SUPERTREND
+//
+
+atrPeriod = input(2, "ATR Length", group="Supertrend Settings", inline = '1')
+factor = input.float(11.0, "Factor", step = 0.01, group="Supertrend Settings", inline = '2')
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+bodyMiddle = plot((open + close) / 2, display=display.none, title = 'Supertrend Mid')
+super_trend_color = direction < 0 ? #00ff0a : #ff0000
+upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr, display = display.none)
+downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr, display = display.none)
+super_trend_line = plot(supertrend, "Supertrend", color = super_trend_color, style=plot.style_linebr)
+
+fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false)
+
+supertrend_buy = direction < 0
+supertrend_sell = direction > 0 
+
+//
+//SUPERTREND 2
+//
+
+atrPeriod2 = input(3, "ATR Length", group="Supertrend 2 Settings", inline = '1')
+factor2 = input.float(10.0, "Factor", step = 0.01, group="Supertrend 2 Settings", inline = '2')
+
+[supertrend2, direction2] = ta.supertrend(factor2, atrPeriod2)
+
+bodyMiddle2 = plot((open + close) / 2, display=display.none, title = 'Supertrend Mid')
+super_trend_color2 = direction2 < 0 ? #00ff0a : #ff0000
+upTrend2 = plot(direction2 < 0 ? supertrend2 : na, "Up Trend 2", color = color.green, style=plot.style_linebr, display = display.none)
+downTrend2 = plot(direction2 < 0? na : supertrend2, "Down Trend 2", color = color.red, style=plot.style_linebr, display = display.none)
+super_trend_line2 = plot(supertrend2, "Supertrend 2", color = super_trend_color, style=plot.style_linebr)
+
+fill(bodyMiddle2, upTrend2, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle2, downTrend2, color.new(color.red, 90), fillgaps=false)
+
+supertrend_buy2 = direction2 < 0
+supertrend_sell2 = direction2 > 0 
+
+//
+//MA 1
+//
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+ma_length1 = input.int(26, minval = 1, title = 'MA Length 1', group="MA Settings", inline = '1')
+ma_type1 = input.string(title = "MA 1 Type", defval = "EMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="MA Settings", inline = '1')
+ma_value1 = ma(close, ma_length1, ma_type1)
+plot(ma_value1, title = 'MA 1', color = color.yellow)
+
+ma1_buy = close >= ma_value1
+ma1_sell = close < ma_value1
+
+//
+//MA 2
+//
+ma_length2 = input.int(55, minval = 1, title = 'MA Length 2', group="MA Settings", inline = '2')
+ma_type2 = input.string(title = "MA 2 Type", defval = "EMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="MA Settings", inline = '2')
+ma_value2 = ma(close, ma_length2, ma_type2)
+plot(ma_value2, title = 'MA 2', color = color.orange)
+
+ma2_buy = close >= ma_value2
+ma2_sell = close < ma_value2
+
+//
+//PIVOT POINTS
+//
+pivot_timeframe = input.timeframe('W', title = 'Pivot Timeframe', group = 'Pivot Settings', inline = '1')
+
+woodie_value = request.security(syminfo.tickerid, pivot_timeframe, (high[1] + low[1] + 2 * open) / 4, lookahead = barmerge.lookahead_on)
+plot(woodie_value, title = 'Woodie Pivot', color = color.orange, style = plot.style_circles)
+
+traditional_value = request.security(syminfo.tickerid, pivot_timeframe, (high[1] + low[1] + close[1]) / 3, lookahead = barmerge.lookahead_on)
+plot(traditional_value, title = 'Tradtional Pivot', color = color.yellow, style = plot.style_circles)
+
+pivot_buy = close > math.max(woodie_value, traditional_value)
+pivot_sell = close < math.min(woodie_value, traditional_value)
+
+//
+//KIJUN SEN
+//
+
+basePeriods = input.int(26, minval=1, title="Kijun Period", group = 'Kijun Settings', inline = '1')
+donchian(len) => 
+    math.avg(ta.lowest(len), ta.highest(len))
+baseLine = donchian(basePeriods)
+plot(baseLine, color=color.aqua, title="Kijun-Sen")
+
+kijun_buy = close > baseLine
+kijun_sell = close < baseLine
+
+//SIGNALS
+buy_alert = vwap_buy and supertrend_buy and supertrend_buy2 and ma1_buy and ma2_buy and pivot_buy and kijun_buy and barstate.isconfirmed
+sell_alert = vwap_sell and supertrend_sell and supertrend_sell2 and ma1_sell and ma2_sell and pivot_sell and kijun_sell and barstate.isconfirmed
+
+if buy_alert and not buy_alert[1]
+    alert('Buy Alert', alert.freq_once_per_bar_close)
+if sell_alert and not sell_alert[1]
+    alert('Sell Alert', alert.freq_once_per_bar_close)
+    
+plotshape(buy_alert and not buy_alert[1], title = 'Buy Alert', location = location.belowbar, color = color.green, style= shape.triangleup, size = size.small)
+plotshape(sell_alert and not sell_alert[1], title = 'Sell Alert', location = location.abovebar, color = color.red, style= shape.triangledown, size = size.small)

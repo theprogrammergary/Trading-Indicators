@@ -1,0 +1,47 @@
+# SUPERTREND FILTER 
+
+
+
+
+
+#CHANGE THESE
+input signal_must_be_close_to_price = no;
+input st_periods = 10;
+input st_multiplier = 3.0;
+input st_ChangeATR = yes;
+input close_to_trendline_trigger = 1.00;
+
+
+
+#IGNORE BELOW
+def st_HAClose = OHLC4;
+def st_HAOpen = (st_HAClose[1] + st_HAOpen[1]) / 2;
+def st_HAHigh = Max(high, Max(st_HAOpen, st_HAClose));
+def st_HALow = Min(low, Min(st_HAOpen, st_HAClose));
+def st_src = (st_HAHigh + st_HALow) / 2;
+
+def tr = Max(Max(st_HAHigh – st_HALow, AbsValue(st_HAHigh – st_HAClose[1])), AbsValue(st_HALow – st_HAClose[1]));
+def atr2 = MovingAverage(AverageType.SIMPLE, tr, st_periods);
+def rma = (tr + (st_periods - 1) * rma[1]) / st_periods;
+def atr = if st_ChangeATR then rma else atr2;
+def up = if st_HAClose[1] > up[1] then Max(st_src - (st_multiplier * atr), up[1]) else st_src - (st_multiplier * atr);
+def dn = if st_HAClose[1] < dn[1] then Min(st_src + (st_multiplier * atr), dn[1])
+else st_src + (st_multiplier * atr);
+
+def trend = if trend[1] == -1 and st_HAClose > dn[1] then 1 else (if trend[1] == 1 and st_HAClose < up[1] then -1 else (if (trend[1] != 1 and trend[1] != -1) then 1 else trend[1]));
+
+def close_atr = MovingAverage(averageType.WILDERS, TrueRange(high, close, low), 14);
+def distance_from_downtrend = (trend == -1 and signal_must_be_close_to_price and absValue(close - dn) <= close_atr * close_to_trendline_trigger) or !signal_must_be_close_to_price and trend == -1;
+def distance_from_uptrend = (trend == 1 and signal_must_be_close_to_price and absvalue(close - up) <= close_atr * close_to_trendline_trigger) or !signal_must_be_close_to_price and trend == 1;
+
+
+
+
+#CHANGE HERE
+#PICK THE SCAN YOU WANT BELOW...ONLY ONE CAN BE COLORED REST NEED TO ADD # TO GRAY THEM OUT
+
+#plot BUYCHANGE_trend = trend == 1 and trend[1] != 1 and distance_from_uptrend;
+#plot SELLCHANGE_trend= trend == -1 and trend[1] != -1 and distance_from_downtrend;
+
+plot BUY_trend = distance_from_uptrend;
+#plot SELL_trend = distance_from_downtrend;

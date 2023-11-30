@@ -1,0 +1,17 @@
+
+Plot Long = (close > close[1] and close[1] > close[2]) and
+(high > high[1]) and
+(low > low[1] and low[1] > low[2]) and
+(low >= (high[1] + low[1]) /2);
+Long.setpaintingStrategy(paintingStrategy.BOOLEAN_POINTS);
+Long.setdefaultcolor(color.dark_orange);
+Long.setLineWeight(3);
+
+Plot Short = (close < close[1] and close[1] < close[2]) and
+(low < low[1]) and
+(high < high[1] and high[1] < high[2]) and
+(high <= (high[1] + low[1]) /2);
+Short.setpaintingStrategy(paintingStrategy.BOOLEAN_POINTS);
+Short.setdefaultcolor(color.dark_orange);
+Short.setLineWeight(3);
+

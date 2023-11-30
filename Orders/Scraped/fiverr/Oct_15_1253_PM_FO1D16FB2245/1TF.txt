@@ -1,0 +1,246 @@
+// This source code is subject to the terms of the Mozilla Public License
+// © PpSignal01
+//@version=5
+indicator('Comcast Patty 1TF', overlay=true)
+
+//TIMEFRAMES
+tf1 = input.timeframe("1", "Timeframe 1", group = "Indicator Settings", inline = "1")
+
+LabelSize = input.string(defval="medium", options=["small", "medium", "large"], title = "Dashboard Size", group = "Indicator Settings", inline = "2")
+position = input.string(defval='Top', options=['Top', 'Middle', 'Bottom'], title='Dashboard Position', inline='2', group='Indicator Settings')
+positioning = position == 'Top' ? position.top_right : position == 'Middle' ? position.middle_right : position == 'Bottom' ? position.bottom_right : position.middle_right
+dashboard_txt = input.color(#ffffff, title = "Dashboard Text Color",group = "Indicator Settings", inline = "3")
+dashboard_bg = input.color(#131722, title = "Dashboard BG Color",group = "Indicator Settings", inline = "3")
+dashboard_bull = input.color(color.green, title = "Bull Color",group = "Indicator Settings", inline = "4")
+dashboard_bear = input.color(color.red, title = "Bear Color",group = "Indicator Settings", inline = "4")
+dashboard_neutral = input.color(color.gray, title = "Neutral Color",group = "Indicator Settings", inline = "4")
+
+//PP Signal TF1
+pp_length1 = input(200, "PP Length 1", group = "PP Signal Settings")
+pp_length2 = input(44, "PP Length 2", group = "PP Signal Settings")
+pp_src = input(ohlc4, title='PP Price', group = "PP Signal Settings")
+
+//PP function
+pp_signal(src, bn, length) =>
+    x_ = ta.linreg(bn, length, 5)
+    y_ = ta.linreg(src, length, 5)
+    mx = ta.stdev(bn, length)
+    my = ta.stdev(src, length)
+    c = ta.correlation(bn, src, length)
+    slope = c * (my / mx)
+    inter = y_ - slope * x_
+    reg = bn * slope + inter
+    
+    reg
+
+regtf1_1color = #000000
+regtf1_2color = #000000
+regtf2_1color = #000000
+regtf2_2color = #000000
+
+regtf1_1 = request.security(syminfo.tickerid, tf1, pp_signal(pp_src, bar_index, pp_length1))
+regtf1_1color := regtf1_1 > regtf1_1[1] ? color.lime : regtf1_1 < regtf1_1[1] ? color.red : regtf1_1 == regtf1_1[1] ? regtf1_1color[1] : color.black
+plot(regtf1_1, "PP TF1 Length 1", color = regtf1_1color, display = display.none)
+
+regtf1_2 = request.security(syminfo.tickerid, tf1, pp_signal(pp_src, bar_index, pp_length2))
+regtf1_2color := regtf1_2 > regtf1_2[1] ? color.lime : regtf1_2 < regtf1_2[1] ? color.red : regtf1_2 == regtf1_2[1] ? regtf1_2color[1] : color.black
+plot(regtf1_2, "PP TF1 Length 2", color = regtf1_2color, display = display.none)
+
+
+
+pp_buy_tf1 = false
+pp_buy_tf1 := regtf1_1 > regtf1_1[1] and regtf1_2 > regtf1_2[1] ? true : regtf1_1 == regtf1_1[1] or regtf1_2 == regtf1_2[1] ? pp_buy_tf1[1] : false
+
+pp_sell_tf1 = false
+pp_sell_tf1 := regtf1_1 < regtf1_1[1] and regtf1_2 < regtf1_2[1] ? true : regtf1_1 == regtf1_1[1] or regtf1_2 == regtf1_2[1] ? pp_sell_tf1[1] : false
+
+pp_buy = pp_buy_tf1
+pp_sell = pp_sell_tf1
+
+pp_color1_tf1 = #000000
+pp_color1_tf1 := regtf1_1 > regtf1_1[1] ? dashboard_bull : regtf1_1 < regtf1_1[1] ? dashboard_bear : regtf1_1 == regtf1_1[1] ? pp_color1_tf1[1] : dashboard_neutral
+
+pp_color2_tf1 = #000000
+pp_color2_tf1 := regtf1_2 > regtf1_2[1] ? dashboard_bull : regtf1_2 < regtf1_2[1] ? dashboard_bear : regtf1_2 == regtf1_2[1] ? pp_color2_tf1[1] : dashboard_neutral
+
+
+//Supertrend
+atrPeriod = input(10, "ATR Length", group = "Supertrend Settings")
+factor = input(3, "Factor", group = "Supertrend Settings")
+
+[supertrend_tf1, direction_tf1] = request.security(syminfo.tickerid, tf1, ta.supertrend(factor, atrPeriod))
+st_up_tf1 = plot(direction_tf1 < 0 ? supertrend_tf1 : na, "ST Up TF1", color = color.green, style=plot.style_linebr, display = display.none)
+st_down_tf1 = plot(direction_tf1 < 0? na : supertrend_tf1, "ST Down TF1", color = color.red, style=plot.style_linebr, display = display.none)
+
+
+st_buy_tf1 = direction_tf1 < 0
+
+st_sell_tf1 = direction_tf1 > 0
+
+st_buy = st_buy_tf1
+st_sell = st_sell_tf1
+
+st_color_tf1 = direction_tf1 < 0 ? dashboard_bull : direction_tf1 > 0 ? dashboard_bear : dashboard_neutral
+
+//3 SMA
+len1 = input.int(21, minval=1, title="Length 1", group = "3 SMA Settings", inline = "1")
+len2 = input.int(50, minval=1, title="Length 2", group = "3 SMA Settings", inline = "2")
+len3 = input.int(200, minval=1, title="Length 3", group = "3 SMA Settings", inline = "3")
+
+src1 = input.source(close, title="Source 1", group = "3 SMA Settings", inline = "1")
+src2 = input.source(close, title="Source 2", group = "3 SMA Settings", inline = "2")
+src3 = input.source(close, title="Source 3", group = "3 SMA Settings", inline = "3")
+
+smma(src,len) =>
+    ma = ta.sma(src,len)
+    ma := na(ma[1]) ? ma : (ma[1] * (len - 1) + src) / len
+    ma
+    
+smma1_tf1 = request.security(syminfo.tickerid, tf1, smma(src1,len1))
+plot(smma1_tf1, color=color.blue, title = "SMMA1 TF1", display = display.none, linewidth  = 1)
+smma2_tf1 = request.security(syminfo.tickerid, tf1, smma(src2,len2))
+plot(smma2_tf1, color=color.green, title = "SMMA2 TF1", display = display.none, linewidth  = 1)
+smma3_tf1 = request.security(syminfo.tickerid, tf1, smma(src3,len3))
+plot(smma3_tf1, color=color.red, title = "SMMA3 TF1", display = display.none, linewidth  = 1)
+
+
+max_smma_tf1 = math.max(smma1_tf1,smma2_tf1,smma3_tf1)
+min_smma_tf1 = math.min(smma1_tf1,smma2_tf1,smma3_tf1)
+
+smma_buy_tf1 = close > max_smma_tf1
+smma_buy = smma_buy_tf1
+
+smma_sell_tf1 = close < min_smma_tf1
+smma_sell = smma_sell_tf1
+
+smma_color_tf1 = close > max_smma_tf1 ? dashboard_bull : close < min_smma_tf1 ? dashboard_bear : dashboard_neutral
+
+//BEST Cloud
+source = input(close, title='Source', group = "Best Cloud Settings")
+typeofMA1 = input.string(title='Type of Moving Average 1', defval='EMA', options=['RMA', 'SMA', 'EMA', 'WMA', 'VWMA', 'SMMA', 'TMA', 'HullMA', 'DEMA', 'TEMA', 'VWAP'], group = "Best Cloud Settings")
+length_ma1 = input(30, title='[ALL but VWAP] Length of Moving Average 1', group = "Best Cloud Settings")
+typeofMA2 = input.string(title='Type of Moving Average 2', defval='EMA', options=['RMA', 'SMA', 'EMA', 'WMA', 'VWMA', 'SMMA', 'TMA', 'HullMA', 'DEMA', 'TEMA', 'VWAP'], group = "Best Cloud Settings")
+length_ma2 = input(74, title='[ALL but VWAP] Length of Moving Average 2', group = "Best Cloud Settings")
+
+
+f_smma(src, len) =>
+    ma = ta.sma(src,len)
+    ma := na(ma[1]) ? ma : (ma[1] * (len - 1) + src) / len
+    ma
+
+f_hullma(src, length) =>
+    ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length), math.round(math.sqrt(length)))
+
+f_tma(src, length) =>
+    ta.sma(ta.sma(src, length), length)
+
+f_dema(src, length) =>
+    emaValue = ta.ema(src, length)
+    2 * emaValue - ta.ema(emaValue, length)
+
+f_tema(src, length) =>
+    ema1 = ta.ema(src, length)
+    ema2 = ta.ema(ema1, length)
+    ema3 = ta.ema(ema2, length)
+    3 * ema1 - 3 * ema2 + ema3
+
+f_ma(smoothing, src, length) =>
+
+    rma_1 = ta.rma(src, length)
+    sma_1 = ta.sma(src, length)
+    ema_1 = ta.ema(src, length)
+    wma_1 = ta.wma(src, length)
+    vwma_1 = ta.vwma(src, length)
+    f_smma_1 = f_smma(src, length)
+    f_hullma_1 = f_hullma(src, length)
+    vwap_1 = ta.vwap(hlc3)
+    f_dema_1 = f_dema(src, length)
+    f_tema_1 = f_tema(src, length)
+    iff_1 = smoothing == 'TEMA' ? f_tema_1 : src
+    iff_2 = smoothing == 'DEMA' ? f_dema_1 : iff_1
+    iff_3 = smoothing == 'VWAP' ? vwap_1 : iff_2
+    iff_4 = smoothing == 'HullMA' ? f_hullma_1 : iff_3
+    iff_5 = smoothing == 'SMMA' ? f_smma_1 : iff_4
+    iff_6 = smoothing == 'VWMA' ? vwma_1 : iff_5
+    iff_7 = smoothing == 'WMA' ? wma_1 : iff_6
+    iff_8 = smoothing == 'EMA' ? ema_1 : iff_7
+    iff_9 = smoothing == 'SMA' ? sma_1 : iff_8
+    smoothing == 'RMA' ? rma_1 : iff_9
+
+bestcloud_ma1_tf1 = request.security(syminfo.tickerid, tf1, f_ma(typeofMA1, source, length_ma1))
+bestcloud_ma2_tf1 = request.security(syminfo.tickerid, tf1, f_ma(typeofMA2, source, length_ma2))
+
+plot_ma1_tf1 = plot(bestcloud_ma1_tf1, color=color.new(color.green, 0), linewidth=3, title='Best Cloud MA1  TF1', display = display.none)
+plot_ma2_tf1 = plot(bestcloud_ma2_tf1, color=color.new(color.red, 0), linewidth=3, title='Best Cloud MA2 TF1', display = display.none)
+
+fill_color_tf1 = bestcloud_ma1_tf1 > bestcloud_ma2_tf1 ? color.new(color.green, 100) : color.new(color.red, 100)
+fill(plot_ma1_tf1, plot_ma2_tf1, color=fill_color_tf1, title = "Best Cloud TF1")
+
+
+bestcloud_buy_tf1 = bestcloud_ma1_tf1 > bestcloud_ma2_tf1 or close > math.max(bestcloud_ma1_tf1,bestcloud_ma2_tf1)
+bestcloud_buy = bestcloud_buy_tf1
+
+bestcloud_sell_tf1 = bestcloud_ma1_tf1 < bestcloud_ma2_tf1 or close < math.min(bestcloud_ma1_tf1,bestcloud_ma2_tf1)
+bestcloud_sell = bestcloud_sell_tf1
+
+best_cloud_color_tf1 = bestcloud_ma1_tf1 > bestcloud_ma2_tf1 or close > math.max(bestcloud_ma1_tf1,bestcloud_ma2_tf1) ? dashboard_bull : bestcloud_ma1_tf1 < bestcloud_ma2_tf1 or close < math.min(bestcloud_ma1_tf1,bestcloud_ma2_tf1) ? dashboard_bear : dashboard_neutral
+
+//EMA
+ema_length = input.int(50, "EMA Length", group = "EMA Settings")
+
+ema_tf1 = request.security(syminfo.tickerid, tf1, ta.ema(close, ema_length))
+plot(ema_tf1, title = "EMA TF 1", color = color.yellow, display = display.none)
+
+ema_buy = close > ema_tf1
+ema_sell = close < ema_tf1
+
+ema_color_tf1 = close > ema_tf1 ? dashboard_bull : dashboard_bear
+
+//SIGNALS
+buy = pp_buy and st_buy and smma_buy and bestcloud_buy and ema_buy
+sell = pp_sell and st_sell and smma_sell and bestcloud_sell and ema_sell
+
+new_buy = buy and not buy[1]
+new_sell = sell and not sell[1]
+
+color_signal_bg = input.bool(false, "Color Signal Background", group = "Indicator Settings", inline = "5")
+bgcolor(color_signal_bg and buy ? color.new(color.green,90) : color_signal_bg and sell ? color.new(color.red,90) : na, title = "Signal Background")
+
+plotshape(new_buy, "New Buy", style = shape.labelup, location = location.belowbar, color = color.green, text = "Buy", textcolor = color.white,  size = size.normal)
+plotshape(new_sell, "New Sell", style = shape.labeldown, location = location.abovebar, color = color.red, text = "Sell", textcolor = color.white,  size = size.normal)
+
+alertcondition(buy, title = "Buy", message = "Buy")
+alertcondition(new_buy, title = "New Buy", message = "New Buy")
+alertcondition(sell, title = "Sell", message = "Sell")
+alertcondition(new_sell, title = "New Sell", message = "New Sell")
+
+//DEBUGGING
+//bgcolor(pp_buy ? color.green : pp_sell ? color.red : color.black, transp = 90)
+//bgcolor(st_buy ? color.green : st_sell ? color.red : color.black, transp = 90)
+//bgcolor(smma_buy ? color.green : smma_sell ? color.red : color.black, transp = 90)
+//bgcolor(bestcloud_buy ? color.green : bestcloud_sell ? color.red : color.black, transp = 90)
+//bgcolor(ema_buy ? color.green : ema_sell ? color.red : color.black, transp = 90)
+
+//TABLE
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+var table t = table.new(positioning, 4, 10, border_width = 1, frame_color = #000000)
+ 
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = "Dashboard", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 1, 0, text = tf1, width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+
+    table.cell(t, 0, 1, text = "PP Signal", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 0, 2, text = "PP Signal 2", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 0, 3, text = "Supertrend", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 0, 4, text = "3 SMMA", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 0, 5, text = "Best Cloud", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    table.cell(t, 0, 6, text = "EMA", width = 0, bgcolor = dashboard_bg, text_size = label_size, text_color = dashboard_txt)
+    
+    table.cell(t, 1, 1, text = "   ", width = 0, bgcolor = pp_color1_tf1, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 2, text = "   ", width = 0, bgcolor = pp_color2_tf1, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 3, text = "   ", width = 0, bgcolor = st_color_tf1, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 4, text = "   ", width = 0, bgcolor = smma_color_tf1, text_size = label_size, text_color = #000000) 
+    table.cell(t, 1, 5, text = "   ", width = 0, bgcolor = best_cloud_color_tf1, text_size = label_size, text_color = #000000)
+    table.cell(t, 1, 6, text = "   ", width = 0, bgcolor = ema_color_tf1, text_size = label_size, text_color = #000000)
+    
+

@@ -1,0 +1,251 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_Nakefoster", overlay = true, max_boxes_count = 500)
+
+
+// supply demand settings
+use_sd          = input.bool(true, title = 'Supply & Demand Zones', group = 'Supply/Demand Settings', inline = '0')
+sd_timeframe    = input.timeframe("60", title = 'Timeframe    ', group = 'Supply/Demand Settings', inline = '1')
+swing_length    = input.int(10, title = 'Length        ', minval = 2, maxval = 50,  group = 'Supply/Demand Settings', inline = '2')
+
+boxes_width     = input.float(7.5, title = 'Zone Width   ', minval = 1, maxval = 15, step = 0.5,  group = 'Supply/Demand Settings', inline = '4')
+history_of_demand_to_keep = 50
+
+_css_supply     = input.color(color.new(#982525, 40), title = 'Supply ',  group = 'Supply/Demand Settings', inline = '5')
+_css_textsupply = input.color(color.new(#ffffff,0), title = 'Text',  group = 'Supply/Demand Settings', inline = '5')
+_css_supplyout   = input.color(color.new(color.gray,0), title = 'Outline',  group = 'Supply/Demand Settings', inline = '5')
+// _style_supply   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Supply/Demand Settings', inline = '5')
+
+_css_demand     = input.color(color.new(#3e9f78, 40), title = 'Demand',  group = 'Supply/Demand Settings', inline = '6')
+_css_textdemand = input.color(color.new(#ffffff, 0), title = 'Text',  group = 'Supply/Demand Settings', inline = '6')
+_css_demandout   = input.color(color.new(color.gray, 0), title = 'Outline',  group = 'Supply/Demand Settings', inline = '6')
+// _style_demand   = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Supply/Demand Settings', inline = '6')
+
+css_supply      = not use_sd ? color.new(#000000,100) : _css_supply
+css_textsupply  = not use_sd ? color.new(#000000,100) : _css_textsupply
+css_supplyout   = not use_sd ? color.new(#000000,100) : _css_supplyout
+style_supply    = line.style_solid
+
+css_demand      = not use_sd ? color.new(#000000,100) :_css_demand
+css_textdemand  = not use_sd ? color.new(#000000,100) :_css_textdemand
+css_demandout   = not use_sd ? color.new(#000000,100) : _css_demandout
+style_demand    = line.style_solid 
+
+
+if timeframe.in_seconds('') > timeframe.in_seconds(sd_timeframe)
+    runtime.error("Supply/Demand timeframe cannot be less than the main chart due to calculation issues. To fix either set
+     the timeframe to the same as the chart or greater.")
+
+// FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+
+
+
+// function to get swing h/l, previous swing h/l, and tell trend
+f_get_swing_values(sd_length) =>
+    sh = ta.pivothigh(high, sd_length, sd_length)
+    sl = ta.pivotlow(low, sd_length, sd_length)
+
+    csh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 0)
+    csl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 0)
+
+    psh = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), high[sd_length], 1)
+    psl = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), low[sd_length], 1)
+
+    csh_time = ta.valuewhen(ta.pivothigh(high, sd_length, sd_length), time[sd_length], 0)
+    csl_time = ta.valuewhen(ta.pivotlow(low, sd_length, sd_length), time[sd_length], 0)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_time, csl_time]
+
+
+// FUNCTION MAKE SURE SUPPLY ISNT OVERLAPPING
+f_check_overlapping(new_poi, box_array, atr) =>
+    atr_threshold = atr * 2
+    okay_to_draw = true
+
+    for i = 0 to array.size(box_array) - 1
+        top = box.get_top(array.get(box_array, i))
+        bottom = box.get_bottom(array.get(box_array, i))
+        poi = (top + bottom) / 2
+
+        upper_boundary = poi + atr_threshold
+        lower_boundary = poi - atr_threshold
+
+        if new_poi >= lower_boundary and new_poi <= upper_boundary
+            okay_to_draw := false
+            break
+        else 
+            okay_to_draw := true
+    okay_to_draw
+
+
+
+// FUNCTION TO DRAW SUPPLY OR DEMAND ZONE
+f_supply_demand(box_array, box_type, atr, box_left, level) =>
+    atr_buffer = atr * (boxes_width / 10)
+    // box_left = time[swing_length]
+    box_right = time
+
+    var float box_top = 0.00
+    var float box_bottom = 0.00
+    var float poi = 0.00
+    var bool new_supply_or_demand = false
+
+    if box_type == 1
+        box_top := level
+        box_bottom := box_top - atr_buffer
+        poi := (box_top + box_bottom) / 2
+    else if box_type == -1
+        box_bottom := level
+        box_top := box_bottom + atr_buffer
+        poi := (box_top + box_bottom) / 2
+
+    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+
+    if okay_to_draw
+        new_supply_or_demand := true
+
+        //delete oldest box, and then create a new box and add it to the array
+        if box_type == 1 
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_supplyout, border_width = 1,
+             bgcolor = css_supply, extend = extend.right, text ="SUPPLY", text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = css_textsupply, text_size = size.small, xloc = xloc.bar_time, border_style = style_supply))
+        
+        else if box_type == -1
+            box.delete( array.get(box_array, array.size(box_array) - 1) )
+            f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = css_demandout, border_width = 1,
+             bgcolor = css_demand, extend = extend.right,  text ="DEMAND", text_halign = text.align_center, text_valign = text.align_center, 
+             text_color = css_textdemand, text_size = size.small, xloc = xloc.bar_time, border_style = style_demand))
+
+    new_supply_or_demand
+
+
+
+// FUNCTION TO CHANGE SUPPLY/DEMAND TO A BOS IF BROKEN
+f_delete_boxes(box_array, zone_type) =>
+
+    // supply
+    if zone_type == 1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_top(array.get(box_array,i))
+            if close >= level_to_break
+                box.delete(array.get(box_array, i))
+
+    // demand
+    if zone_type == -1
+        for i = 0 to array.size(box_array) - 1
+            level_to_break = box.get_bottom(array.get(box_array,i))
+            if close <= level_to_break
+                box.delete(array.get(box_array, i))
+
+
+
+
+
+// FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT
+f_extend_box_endpoint(box_array) =>
+    for i = 0 to array.size(box_array) - 1
+        box.set_right(array.get(box_array, i), time + (timeframe.in_seconds() * 1000 * 50))
+
+
+// FUNCTION MANAGE CURRENT BOXES BY CHANGING ENDPOINT
+// ARRAYS FOR SUPPLY / DEMAND
+var current_supply_box = array.new_box(history_of_demand_to_keep, na)
+var current_demand_box = array.new_box(history_of_demand_to_keep, na)
+var bool new_demand = false
+var bool new_supply = false
+
+atr =  request.security(syminfo.ticker, sd_timeframe, ta.atr(50)[1])
+
+// supply/demand zones
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal, csh_time, csl_time] = request.security(syminfo.ticker, sd_timeframe, f_get_swing_values(swing_length))
+
+
+bar_mult = timeframe.in_seconds(sd_timeframe) / timeframe.in_seconds() 
+
+// bgcolor(not na(sh) ? color.new(color.red,50) : not na(sl) ? color.new(color.green,50) : na, offset = -swing_length * bar_mult)
+if not na(sh)
+    // draw supply zone
+    new_supply :=  f_supply_demand(current_supply_box, 1, atr, csh_time, csh)
+else if not na(sl)
+    // draw demand zone
+    new_demand :=  f_supply_demand(current_demand_box,  -1, atr, csl_time, csl)
+else
+    new_demand := false
+    new_supply := false
+
+// update boxes
+f_delete_boxes(current_supply_box, 1)
+f_delete_boxes(current_demand_box, -1)
+
+f_extend_box_endpoint(current_supply_box)
+f_extend_box_endpoint(current_demand_box)
+
+
+
+
+
+
+// linear regression
+lengthInput = input.int(100, title="Length  ", minval = 1, maxval = 5000, group = 'Linear Regression Settings', inline = '1', step=10)
+sourceInput = input.source(hlc3, title="Source  ", group = 'Linear Regression Settings', inline = '2')
+devInput    = input.float(2.35, title="Deviation", group = 'Linear Regression Settings', inline = '3')
+lr_extend   = input.bool(true, title = 'Extend |', group = 'Linear Regression Settings', inline = '4')
+lr_color    = input.color(color.gray, title = 'Color', group = 'Linear Regression Settings', inline = '4')
+
+calculate_linreg(length, deviation) =>
+    a = ta.wma(sourceInput, length)
+    b = ta.sma(sourceInput, length)
+    A = 4 * b - 3 * a
+    B = 3 * a - 2 * b
+    m = (A - B) / (length - 1)
+    d = 0.00
+    for i = 0 to length - 1 by 1
+        l = B + m * i
+        d += math.pow(sourceInput[i] - l, 2)
+        d
+    linreg_1 = math.sqrt(d / (length - 1)) * deviation
+    [A, m, B, linreg_1]
+    
+drawLinReg(color_input, A, m, B, k) =>
+    lr_ext = lr_extend ? 50 : 0
+    _x1 = bar_index - lengthInput + 1
+    _x2 = bar_index + lr_ext
+    _y1 = A + k
+    _y2 = -m*lr_ext + (B + k)
+    current_value = -m*0 + (B + k)
+    line lr = line.new(x1=_x1, y1=_y1, x2=_x2, y2=_y2, extend = extend.none, color = color_input, width = 1)
+    line.delete(lr[1])
+    
+    current_value
+
+
+[tf1_A, tf1_m, tf1_B, tf1_linreg1] = calculate_linreg(lengthInput, devInput)
+lr_mid = drawLinReg(lr_color, tf1_A, tf1_m, tf1_B, 0)
+lr_upper = drawLinReg(color.new(lr_color,100), tf1_A, tf1_m, tf1_B, tf1_linreg1)
+lr_lower = drawLinReg(color.new(lr_color,100), tf1_A, tf1_m, tf1_B, -tf1_linreg1)
+
+in_top = high >= lr_upper
+in_bottom = low <= lr_lower
+
+alertcondition(in_top,    "Top Channel Alert", "Top Channel Alert")
+alertcondition(in_bottom, "Bottom Channel Alert", "Bottom Channel Alert")
+
+alertcondition(in_top and not in_top[1],    "NEW Top Channel Alert", "NEW Top Channel Alert")
+alertcondition(in_bottom and not in_bottom[1], "NEW Bottom Channel Alert", "NEW Bottom Channel Alert")

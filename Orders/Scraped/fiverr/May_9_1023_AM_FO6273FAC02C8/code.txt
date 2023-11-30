@@ -1,0 +1,22 @@
+input ma_type = averageType.EXPONENTIAL;
+input ma_length = 9;
+input ma_source = close;
+
+plot ma = movingaverage(ma_type, ma_source, ma_length);
+ma.setdefaultcolor(color.yellow);
+
+plot ma_bullscan = close crosses above ma;
+plot ma_bearscan = close crosses below ma;
+
+ma_bullscan.setpaintingstrategy(paintingStrategy.BOOLEAN_ARROW_UP);
+ma_bullscan.setdefaultcolor(color.green);
+ma_bullscan.hide();
+
+ma_bearscan.setpaintingstrategy(paintingStrategy.BOOLEAN_ARROW_DOWN);
+ma_bearscan.setdefaultcolor(color.red);
+ma_bearscan.hide();
+
+
+alert(ma_bullscan[1], "MA BULL ALERT", alert.bar, sound.ding);
+alert(ma_bearscan[1], "MA BEAR ALERT", alert.bar, sound.ding);
+

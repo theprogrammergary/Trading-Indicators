@@ -1,0 +1,22 @@
+input wick_pct = 25.00;
+
+addlabel(yes, " ");
+
+# def candle dimensions
+def upper_wick = high - max(close, open);
+def lower_wick = min(close, open) - low;
+def candle_range = high-low;
+def candle_body = absvalue(close-open);
+
+def lowerWickPCT = (lower_wick/candle_range) * 100;
+def lowIsWicked = lowerWickPCT >= wick_pct;
+def bear_candle = close < open;
+def bull_candle = close > open;
+
+def step1 = bear_candle[2];
+def step2 = bull_candle[1] and lowisWicked[1];
+def step3 = high > high[1];
+def fibSignal = step1 and step2 and step3;
+plot signal = fibSignal;
+signal.assignvaluecolor(if fibsignal then color.yellow else color.black);
+assignbackgroundcolor(if fibsignal then color.yellow else color.black);

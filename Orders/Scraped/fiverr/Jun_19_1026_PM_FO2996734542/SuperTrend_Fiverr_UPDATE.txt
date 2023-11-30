@@ -1,0 +1,113 @@
+
+declare upper;
+
+
+input HTF = AggregationPeriod.HOUR;
+
+input BuySellSignals = no;
+input Cloud = yes;
+
+
+##########################################
+##########################################
+
+
+input NX_STREND_PERIOD = 10;
+input NX_STREND_MULTIPLIER = 3.0;
+
+input NX_STREND_ChangeATR = yes;
+
+
+def NX_STREND_h = high(Period = HTF);
+def NX_STREND_l = low(Period = HTF);
+def NX_STREND_o = open(Period = HTF);
+def NX_STREND_c = close(Period = HTF);
+
+def NX_STREND_hl2 = hl2(Period = HTF);
+
+def NX_STREND_ATR = if NX_STREND_ChangeATR then RoundDown(MovingAverage(AverageType.WILDERS, RoundDown(TrueRange(NX_STREND_h, NX_STREND_c, NX_STREND_l), 2), NX_STREND_PERIOD), 2) else RoundDown(MovingAverage(AverageType.SIMPLE, RoundDown(TrueRange(NX_STREND_h, NX_STREND_c, NX_STREND_l), 2), NX_STREND_PERIOD), 2);
+
+def NX_STREND_UPBand_Basic = Round(NX_STREND_hl2 + (NX_STREND_MULTIPLIER * NX_STREND_ATR), 2);
+def NX_STREND_LWBand_Basic = Round(NX_STREND_hl2 + (-NX_STREND_MULTIPLIER * NX_STREND_ATR), 2);
+def NX_STREND_UPBand = if ((NX_STREND_UPBand_Basic < NX_STREND_UPBand[1]) or (NX_STREND_c[1] > NX_STREND_UPBand[1])) then NX_STREND_UPBand_Basic else NX_STREND_UPBand[1];
+def NX_STREND_LWBand = if ((NX_STREND_LWBand_Basic > NX_STREND_LWBand[1]) or (NX_STREND_c[1] < NX_STREND_LWBand[1])) then NX_STREND_LWBand_Basic else NX_STREND_LWBand[1];
+
+def NX_STREND_ST = if ((NX_STREND_ST[1] == NX_STREND_UPBand[1]) and (NX_STREND_c < NX_STREND_UPBand)) then NX_STREND_UPBand else 
+                       if ((NX_STREND_ST[1] == NX_STREND_UPBand[1]) and (NX_STREND_c > NX_STREND_UPBand)) then NX_STREND_LWBand else 
+                       if ((NX_STREND_ST[1] == NX_STREND_LWBand[1]) and (NX_STREND_c > NX_STREND_LWBand)) then NX_STREND_LWBand else 
+                       if ((NX_STREND_ST[1] == NX_STREND_LWBand) and (NX_STREND_c < NX_STREND_LWBand)) then NX_STREND_UPBand else NX_STREND_LWBand;
+
+
+
+plot NX_STREND_UpTrend = if NX_STREND_c > NX_STREND_ST then NX_STREND_ST else Double.NaN;
+NX_STREND_UpTrend.DefineColor("UP", Color.GREEN);
+NX_STREND_UpTrend.DefineColor("UPCLOUD", CreateColor(0, 54, 21));
+NX_STREND_UpTrend.AssignValueColor(NX_STREND_UpTrend.Color("UP"));
+NX_STREND_UpTrend.SetLineWeight(1);
+#NX_STREND_UpTrend.HideBubble();
+NX_STREND_UpTrend.HideTitle();
+
+plot NX_STREND_DownTrend = if NX_STREND_c < NX_STREND_ST then NX_STREND_ST else Double.NaN;
+NX_STREND_DownTrend.DefineColor("DN", Color.RED);
+NX_STREND_DownTrend.DefineColor("DNCLOUD", CreateColor(68, 0, 0));
+NX_STREND_DownTrend.AssignValueColor(NX_STREND_DownTrend.Color("DN"));
+NX_STREND_DownTrend.SetLineWeight(1);
+#NX_STREND_DownTrend.HideBubble();
+NX_STREND_DownTrend.HideTitle();
+
+
+
+
+###
+input channel_size = 4.00;
+
+
+def NX_CHANNEL_Uptrend_value = if NX_STREND_c > NX_STREND_ST and !(NX_STREND_c[1] > NX_STREND_ST[1]) then NX_STREND_ST + channel_size *  NX_STREND_ATR  else if NX_STREND_c > NX_STREND_ST then NX_CHANNEL_Uptrend_value[1] + absvalue(NX_STREND_UpTrend[1] - NX_STREND_UpTrend) else double.nan;
+plot NX_CHANNEL_Uptrend = NX_CHANNEL_Uptrend_value;
+NX_CHANNEL_Uptrend.SetDefaultColor(Color.ORANGE);
+NX_CHANNEL_Uptrend.SetLineWeight(1);
+#NX_STREND_DownTrend.HideBubble();
+NX_CHANNEL_Uptrend.HideTitle();
+
+
+def NX_CHANNEL_Downtrend_value = if NX_STREND_c < NX_STREND_ST and !(NX_STREND_c[1] < NX_STREND_ST[1]) then NX_STREND_ST - channel_size *  NX_STREND_ATR  else if NX_STREND_c < NX_STREND_ST then NX_CHANNEL_Downtrend_value[1] - absvalue(NX_STREND_DownTrend[1] - NX_STREND_DownTrend) else double.nan;
+plot NX_CHANNEL_Downtrend = NX_CHANNEL_Downtrend_value;
+NX_CHANNEL_Downtrend.SetDefaultColor(Color.ORANGE);
+NX_CHANNEL_Downtrend.SetLineWeight(1);
+#NX_STREND_DownTrend.HideBubble();
+NX_CHANNEL_Downtrend.HideTitle();
+
+
+###
+
+def NX_STREND_LongTrigger = IsNaN(NX_STREND_UpTrend[1]) and !IsNaN(NX_STREND_UpTrend);
+def NX_STREND_ShortTrigger = IsNaN(NX_STREND_DownTrend[1]) and !IsNaN(NX_STREND_DownTrend);
+
+plot NX_STREND_UpTrendBegins = if NX_STREND_LongTrigger then NX_STREND_ST else Double.NaN;
+NX_STREND_UpTrendBegins.SetPaintingStrategy(PaintingStrategy.SQUARES);
+NX_STREND_UpTrendBegins.SetDefaultColor(Color.GREEN);
+NX_STREND_UpTrendBegins.SetLineWeight(1);
+AddChartBubble(BuySellSignals and NX_STREND_LongTrigger, NX_STREND_ST, "Buy", NX_STREND_UpTrend.Color("UP"), no);
+
+plot NX_STREND_DownTrendBegins = if NX_STREND_ShortTrigger then NX_STREND_ST else Double.NaN;
+NX_STREND_DownTrendBegins.SetPaintingStrategy(PaintingStrategy.SQUARES);
+NX_STREND_DownTrendBegins.SetDefaultColor(Color.RED);
+NX_STREND_DownTrendBegins.SetLineWeight(1);
+AddChartBubble(BuySellSignals and NX_STREND_ShortTrigger, NX_STREND_ST, "Sell", NX_STREND_DownTrend.Color("DN"), yes);
+
+plot NX_STREND_mPlot = if NX_STREND_c > NX_STREND_ST then hl2 else if NX_STREND_c < NX_STREND_ST then hl2 else Double.NaN;
+NX_STREND_mPlot.HideBubble();
+NX_STREND_mPlot.HideTitle();
+NX_STREND_mPlot.Hide();
+NX_STREND_mPlot.SetDefaultColor(Color.CYAN);
+
+
+def NX_STREND_Value = if NX_STREND_ST != NX_STREND_ST[1] then NX_STREND_ST else NX_STREND_ST[1];
+AddCloud(if Cloud and NX_STREND_c > NX_STREND_Value then NX_STREND_mPlot else Double.NaN, NX_STREND_Value, NX_STREND_UpTrend.Color("UPCLOUD"), NX_STREND_UpTrend.Color("UPCLOUD"));
+AddCloud(if Cloud and NX_STREND_c < NX_STREND_Value then NX_STREND_mPlot else Double.NaN, NX_STREND_Value, NX_STREND_DownTrend.Color("DNCLOUD"), NX_STREND_DownTrend.Color("DNCLOUD"));
+
+#Alert(LongTrigger, "SuperTrend Buy", Alert.Bar, Sound.Ding);
+#Alert(ShortTrigger, "SuperTrend Sell", Alert.Bar, Sound.Ding);
+
+
+########## END ##########

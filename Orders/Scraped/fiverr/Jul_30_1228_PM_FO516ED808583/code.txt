@@ -1,0 +1,75 @@
+
+
+#----------------------------------------------------------
+# Setup
+#----------------------------------------------------------
+# Show data in lower window
+declare lower;
+
+# Calculate 21-day EMA of close
+def _21DayExpMovingAverage = ExpAverage(close, 21);
+
+# Webby RSI data point - percent of day's low vs 21-day EMA
+def lowVs21DayMovingAverage = (((low - _21DayExpMovingAverage) / close) * 100);
+
+# Calculate simple moving average of data points over 10 days
+def _10DayMovingAverage = Average(lowVs21DayMovingAverage, 10);
+
+#----------------------------------------------------------
+# Show lines on graph at various intervals
+#----------------------------------------------------------
+plot _0Line = 0;
+_0Line.HideTitle();
+
+plot _pt5Line = .5;
+_pt5Line.setDefaultColor(Color.GREEN);
+_pt5Line.HideTitle();
+
+plot _2line = 2;
+_2line.setDefaultColor(Color.GREEN);
+_2line.HideTitle();
+
+plot _4line = 4;
+_4line.setDefaultColor(Color.YELLOW);
+_4line.HideTitle();
+
+plot _6Line = 6;
+_6Line.setDefaultColor(Color.RED);
+_6line.HideTitle();
+
+#----------------------------------------------------------
+# Plot histogram, ignoring negative values
+#----------------------------------------------------------
+def isPointNegative = Sign(lowVs21DayMovingAverage) == -1;
+plot histogram = if !isPointNegative then (lowVs21DayMovingAverage) else double.nan;
+histogram.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+histogram.setDefaultColor(Color.CYAN);
+
+
+#----------------------------------------------------------
+# Plot line showing moving average across the histogram
+#----------------------------------------------------------
+def isMovingAveragePointNegative = Sign(_10DayMovingAverage) == -1;
+plot line = if !isMovingAveragePointNegative then (_10DayMovingAverage) else double.nan;
+line.setDefaultColor(Color.VIOLET);
+line.setLineWeight(2);
+
+
+
+
+#----------------------------------------------------------
+# Added code below for bearish
+#----------------------------------------------------------
+def highVs21DayMovingAverage = (((_21DayExpMovingAverage - high) / close) * 100);
+def _10DayMovingAverageBear = Average(highVs21DayMovingAverage, 10);
+
+def isPointNegativeBear = Sign(highVs21DayMovingAverage) == -1; ### -1 or 1
+plot histogramBear = if !isPointNegativeBear then (-highVs21DayMovingAverage) else double.nan;
+histogramBear.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+histogramBear.setDefaultColor(Color.RED);
+
+def isMovingAveragePointNegativeBear = Sign(_10DayMovingAverageBear) == -1; ### -1 or 1
+plot lineBear = if !isMovingAveragePointNegativeBear then (_10DayMovingAverageBear) else double.nan;
+lineBear.setDefaultColor(Color.Pink);
+lineBear.setLineWeight(2);
+ 

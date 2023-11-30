@@ -1,0 +1,4 @@
+The 10 period moving average will be different values depending on what type of chart you have loaded.
+
+10sma on APPL 1min chart = 121.81
+10sma on APPL Daily chart  = 127.84

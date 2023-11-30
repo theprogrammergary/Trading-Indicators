@@ -1,0 +1,140 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("ORB_hooplah strategy", overlay=true, margin_long=100, margin_short=100, max_labels_count = 500)
+
+// inputs
+_color_candles = input.bool(true, title = 'Color Candles', group = 'Settings', inline = '1')
+_orb_session = input.session('0930-1000', title = 'ORB Session', group = 'Settings', inline = '2')
+_max_bars_break = input.int(1, title = 'Max Bars Since Break', group = 'Settings', inline = '3')
+
+_exit_yellow_bars = input.bool(true, title = 'Exit on Yellow Bars', group = 'Settings', inline = '4')
+_exit_at_time = input.bool(true, title = 'Time Exit', group = 'Settings', inline = '5')
+_time_to_exit = input.string('1530', title = '', group = 'Settings', inline = '5')
+_exit_tp = input.bool(false, title = 'Profit Target', group = 'Settings', inline = '6')
+_tp_amount = input.float(50.00, title = '', group = 'Settings', inline = '6', step = 1)
+
+// calculate orb
+or_session = time(timeframe.period, str.format('{0}:1234567', _orb_session), 'America/New_York')
+var or_high = 0.0
+var or_low = 0.0
+var or_mid = 0.0
+var days_open = 0.0
+
+var bool orh_break = na
+var bool orl_break = na
+var bool breakout_scan = na
+var bool breakdown_scan = na
+
+if or_session
+    if not or_session[1]
+        or_low := low
+        or_high := high
+        days_open := open
+    else 
+        or_low := math.min(low, or_low)
+        or_high := math.max(high, or_high)
+else if dayofweek != dayofweek[1]
+    or_low := na
+    or_high := na
+    days_open := na
+
+
+orh_break := ta.crossover(close, or_high)
+orl_break := ta.crossunder(close, or_low)
+
+breakout_scan := ta.barssince(orh_break) < _max_bars_break
+breakdown_scan := ta.barssince(orl_break) < _max_bars_break
+
+
+
+// visualize
+or_high_plot = plot(not or_session ? or_high : na, title='ORH', 
+ color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, offset = -1)
+or_low_plot = plot(not or_session ? or_low : na, title='ORL', 
+ color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, offset = -1)
+
+fill(or_high_plot, or_low_plot, title='OR Fill', color=color.new(color.silver, 90))
+
+
+orb_color = not _color_candles ? na 
+ : not or_session and na(or_high) ? color.gray
+ : or_session ? color.white
+ : close > or_high ? color.lime
+ : close < or_low ? color.red 
+ : color.yellow
+
+
+orb_side = not or_session and na(or_high) ? 100
+ : or_session ? 99
+ : close > or_high ? 1
+ : close < or_low ? -1
+ : 0
+
+barcolor(orb_color)
+plotcandle(open, high, low, close, title = 'Custom Candles',
+ color = orb_color, wickcolor = orb_color, bordercolor = orb_color)
+
+var int last_buysellsignal = 0
+var bool buy_signal = na
+var bool sell_signal = na
+
+// var float long_stop = 0.00
+// var float short_stop = 0.00
+var float long_tgt = 0.00
+var float short_tgt = 0.00
+
+buy_signal := barstate.isconfirmed and breakout_scan and (nz(last_buysellsignal[1],0) != 1)
+sell_signal := barstate.isconfirmed and breakdown_scan and (nz(last_buysellsignal[1],0) != -1)
+// last_buysellsignal := buy_signal ? 1 : sell_signal ? -1 : last_buysellsignal[1] 
+
+long_tgt := strategy.position_size > 0 ? strategy.position_avg_price + _tp_amount : na
+short_tgt := strategy.position_size < 0 ? strategy.position_avg_price - _tp_amount : na
+
+// alerts
+if buy_signal
+    alert("OR Breakout", alert.freq_once_per_bar_close)
+    label.new(bar_index, low, text = 'CALL/LONG ' + str.tostring(close),
+     color = color.green, textcolor = color.white, style = label.style_label_up)
+
+if sell_signal
+    alert("OR Breakdown", alert.freq_once_per_bar_close)
+    label.new(bar_index, high, text = 'PUT/SHORT ' + str.tostring(close),
+     color = color.red, textcolor = color.white, style = label.style_label_down)
+
+is_exit_time = _time_to_exit == str.tostring(hour(time), "00") + str.tostring(minute(time), "00")
+
+long_exit = last_buysellsignal == 1 
+ and ( (_exit_yellow_bars and orb_side == 0)
+ or (_exit_at_time and is_exit_time)
+ )
+
+short_exit = last_buysellsignal == -1 
+ and ( (_exit_yellow_bars and orb_side == 0)
+  or (_exit_at_time and is_exit_time)
+ )
+
+
+last_buysellsignal := buy_signal ? 1 
+ : sell_signal ? -1 
+ : (long_exit or short_exit) ? 0 
+ : last_buysellsignal[1]
+
+
+// send orders
+if buy_signal
+    strategy.entry("LE", strategy.long)
+if sell_signal
+    strategy.entry("SS_E", strategy.short)
+
+if long_exit 
+    strategy.close("LE", "LX", immediately = true)
+if short_exit 
+    strategy.close("SS_E", "SS_X", immediately = true)
+
+
+if _exit_tp
+    strategy.exit("L_TP", from_entry = "LE", limit = long_tgt)
+if _exit_tp
+    strategy.exit("SS_TP", from_entry = "SS_E", limit = short_tgt)

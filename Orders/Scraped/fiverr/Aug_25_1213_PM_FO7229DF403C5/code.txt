@@ -1,0 +1,85 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("MicroQuant Trend Strat", overlay = true, max_labels_count = 500)
+
+price = input.source(close, title = 'Price')
+length = input.int(21, title = 'Length')
+atrPeriod = input.int(21, "ATR Length")
+factor = input.float(4.0, "Factor", step = 0.1)
+
+
+// strategy settings
+use_tp = input.bool(true, title = 'TP', group = 'Trade Settings', inline = 'tp')
+tp_amount = input.float(20.00, title = '', group = 'Trade Settings', inline = 'tp')
+
+use_sl = input.bool(true, title = 'SL', group = 'Trade Settings', inline = 'sl')
+sl_amount = input.float(10.00, title = '', group = 'Trade Settings', inline = 'sl')
+
+
+// The same on Pine Script™
+pine_supertrend() =>
+    atr = ta.sma(ta.tr, atrPeriod)
+    lowerBand = ta.highest(ta.ema(high, length), length) - atr * factor
+    upperBand = ta.lowest(ta.ema(low, length), length) + atr * factor
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or price[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or price[1] > prevUpperBand ? upperBand : prevUpperBand
+    int direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        direction := 1
+    else if prevSuperTrend == prevUpperBand
+        direction := price > upperBand ? -1 : 1
+    else
+        direction := price < lowerBand ? 1 : -1
+    superTrend := direction == -1 ? lowerBand : upperBand
+    [superTrend, direction]
+
+[pineSupertrend, pineDirection] = pine_supertrend()
+plot(pineDirection < 0 ? pineSupertrend : na, "Up direction", color = color.green, style=plot.style_steplinebr)
+plot(pineDirection > 0 ? pineSupertrend : na, "Down direction", color = color.red, style=plot.style_steplinebr)
+
+
+var bool tradersPostBuy = na
+var bool tradersPostSell = na
+tradersPostBuy := pineDirection < 0 and pineDirection[1] >= 0
+tradersPostSell := pineDirection > 0 and pineDirection[1] <= 0
+
+
+// entry signals
+if tradersPostBuy
+    strategy.entry("LE", strategy.long)
+if tradersPostSell
+    strategy.entry("SS_E", strategy.short)
+
+
+
+// position management
+var float tp_lvl = 0.00
+var float sl_lvl = 0.00
+
+tp_lvl := strategy.position_size > 0 ? strategy.position_avg_price + tp_amount
+ : strategy.position_size < 0 ? strategy.position_avg_price - tp_amount
+ : na
+
+sl_lvl := strategy.position_size > 0 ? strategy.position_avg_price - sl_amount
+ : strategy.position_size < 0 ? strategy.position_avg_price + sl_amount
+ : na
+
+if strategy.position_size > 0
+    strategy.exit('LX', from_entry = 'LE', limit = tp_lvl, stop = sl_lvl, comment_profit = 'L_TP', comment_loss = 'L_SL')
+if strategy.position_size < 0
+    strategy.exit('SS_X', from_entry = 'SS_E', limit = tp_lvl, stop = sl_lvl, comment_profit = 'SS_TP', comment_loss = 'SS_SL')
+    
+
+p_entry = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+p_tp = plot(tp_lvl, title = 'TP', color = color.green, style = plot.style_circles)
+p_sl = plot(sl_lvl, title = 'SL', color = color.red, style = plot.style_circles)
+
+fill(p_entry, p_tp, color = color.new(color.green,90))
+fill(p_entry, p_sl, color = color.new(color.red,90))

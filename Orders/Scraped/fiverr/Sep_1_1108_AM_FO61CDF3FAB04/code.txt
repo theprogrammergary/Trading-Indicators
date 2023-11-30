@@ -1,0 +1,269 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("MTF Cipher Dots", overlay = true)
+
+
+bull_color1 = input.color(color.new(#1ecd25, 0), title = 'Bull 1', inline = '1')
+bull_color2 = input.color(color.new(#346836, 0), title = 'Bull 2', inline = '1')
+
+bear_color1 = input.color(color.new(#e31414, 0), title = 'Bear 1', inline = '1')
+bear_color2 = input.color(color.new(#6f2d2d, 0), title = 'Bear 2', inline = '1')
+
+
+
+// PARAMETERS {
+//  dot settings
+use_trade_cond1 = input.bool(true, title = 'Dot Above/Below   ', group = 'Signal Settings', inline = '0')
+dot_below       = input.int(0, title = '', group = 'Signal Settings', inline = '0')
+dot_above       = input.int(0, title = '', group = 'Signal Settings', inline = '0')
+
+wtChannelLen    = input(9, title='WT Channel Length', group = 'Signal Settings', inline = '1')
+wtAverageLen    = input(12, title='WT Average Length', group = 'Signal Settings', inline = '2')
+wtMASource      = input(hlc3, title='WT MA Source  ', group = 'Signal Settings', inline = '3')
+wtMALen         = input(3, title='WT MA Length  ', group = 'Signal Settings', inline = '4')
+
+// timeframes for dots
+use_chart_dots  = input.bool(true, title = 'Chart Dots', group = 'Timeframe Settings', inline = '1')
+
+use_tf1  = input.bool(true, title = 'TF 1', group = 'Timeframe Settings', inline = '2')
+tf_1     = input.timeframe('240', title = '', group = 'Timeframe Settings', inline = '2')
+tf1_lbl  = input.string('4hr', title = '', group = 'Timeframe Settings', inline = '2')
+
+use_tf2  = input.bool(true, title = 'TF 2', group = 'Timeframe Settings', inline = '3')
+tf_2     = input.timeframe('D', title = '', group = 'Timeframe Settings', inline = '3')
+tf2_lbl  = input.string('D', title = '', group = 'Timeframe Settings', inline = '3')
+
+use_tf3  = input.bool(false, title = 'TF 3', group = 'Timeframe Settings', inline = '4')
+tf_3     = input.timeframe('W', title = '', group = 'Timeframe Settings', inline = '4')
+tf3_lbl  = input.string('W', title = '', group = 'Timeframe Settings', inline = '4')
+
+use_tf4  = input.bool(false, title = 'TF 4', group = 'Timeframe Settings', inline = '5')
+tf_4     = input.timeframe('5', title = '', group = 'Timeframe Settings', inline = '5')
+tf4_lbl  = input.string('5min', title = '', group = 'Timeframe Settings', inline = '5')
+
+use_tf5  = input.bool(false, title = 'TF 5', group = 'Timeframe Settings', inline = '6')
+tf_5     = input.timeframe('60', title = '', group = 'Timeframe Settings', inline = '6')
+tf5_lbl  = input.string('1hr', title = '', group = 'Timeframe Settings', inline = '6')
+// } PARAMETERS
+
+
+
+// check errors
+// if use_tf1 and timeframe.in_seconds() >= timeframe.in_seconds(tf_1)
+//     runtime.error("TF1 cannot be less than the current chart timeframe")
+// if use_tf2 and timeframe.in_seconds() >= timeframe.in_seconds(tf_2)
+//     runtime.error("TF2 cannot be less than the current chart timeframe")
+// if use_tf3 and timeframe.in_seconds() >= timeframe.in_seconds(tf_3)
+//     runtime.error("TF3 cannot be less than the current chart timeframe")
+// if use_tf4 and timeframe.in_seconds() >= timeframe.in_seconds(tf_4)
+//     runtime.error("TF4 cannot be less than the current chart timeframe")
+// if use_tf5 and timeframe.in_seconds() >= timeframe.in_seconds(tf_5)
+//     runtime.error("TF5 cannot be less than the current chart timeframe")
+
+
+
+// FUNCTIONS {
+// WaveTrend
+f_wavetrend(src, chlen, avg, malen, use_tf) =>
+    var float wt1 = 0.00
+    var float wt2 = 0.00
+    var bool wtCross = false
+    var bool dot_buy_signal = false
+    var bool dot_sell_signal = false
+
+    if use_tf
+        tfsrc = src
+        esa = ta.ema(tfsrc, chlen)
+        de = ta.ema(math.abs(tfsrc - esa), chlen)
+        ci = (tfsrc - esa) / (0.015 * de)
+
+        wt1 := math.round(ta.ema(ci, avg),2)
+        wt2 := math.round(ta.sma(wt1, malen),2)
+        wtVwap = wt1 - wt2
+        wtCross := ta.cross(wt1, wt2)
+        signal_side = wt2 - wt1 > 0 ? -1 : 1
+
+        dot_buy_signal := wtCross and signal_side == 1 and (wt2 < dot_below or not use_trade_cond1)
+        dot_sell_signal := wtCross and signal_side == -1 and (wt2 > dot_above or not use_trade_cond1)
+    else
+        wt1 := na
+        wt2 := na
+        wtCross := na
+        dot_buy_signal := na
+        dot_sell_signal := na
+
+    [wt1, wt2, wtCross, dot_buy_signal, dot_sell_signal]
+// } FUNCTIONS  
+
+
+
+
+// CHART DOTS
+[wt1, wt2, wtCross, dot_buy_signal, dot_sell_signal] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen, true)
+signal_side = wt2 - wt1 > 0 ? -1 : 1 
+plot(dot_buy_signal ? low : na, title='Bull circle',
+ color=color.new(bull_color1,15), style=plot.style_circles, linewidth=3, display = use_chart_dots ? display.all : display.none)
+plot(dot_sell_signal ? high : na, title='Bear circle',
+ color=color.new(bear_color1,15), style=plot.style_circles, linewidth=3, display = use_chart_dots ? display.all : display.none)
+
+plot(wtCross and signal_side == 1 and not dot_buy_signal ? low : na, title='Other Bull circle', color=color.new(bull_color1,35), style=plot.style_circles, linewidth=3, display = display.none)
+plot(wtCross and signal_side == -1 and not dot_sell_signal ? high : na, title='Other Bear circle', color=color.new(bear_color1,35), style=plot.style_circles, linewidth=3, display = display.none)
+
+
+
+
+// DRAW SIGNAL LABEL
+f_draw_label(buy_signal, sell_signal, tf_text, buy_color, sell_color) =>
+    if buy_signal and not buy_signal[1]
+        label.new(bar_index, low, xloc = xloc.bar_index, yloc = yloc.belowbar, text = tf_text,
+         color = buy_color, style = label.style_label_up, textcolor = color.white, size = size.small)
+    else if sell_signal and not sell_signal[1]
+        label.new(bar_index, high, xloc = xloc.bar_index, yloc = yloc.abovebar, text = tf_text,
+         color = sell_color, style = label.style_label_down, textcolor = color.white, size = size.small)
+
+
+f_mtf_label(buy_signal, sell_signal, tf_text, buy_color, sell_color) =>
+    if buy_signal and not buy_signal[1]
+        label.new(bar_index, low, xloc = xloc.bar_index, yloc = yloc.belowbar, text = tf_text,
+         color = buy_color, style = label.style_label_center, textcolor = color.white, size = size.small)
+    else if sell_signal and not sell_signal[1]
+        label.new(bar_index, high, xloc = xloc.bar_index, yloc = yloc.abovebar, text = tf_text,
+         color = sell_color, style = label.style_label_center, textcolor = color.white, size = size.small)
+
+
+
+
+// CALCULATE MTF DOTS
+[tf1_wt1, tf1_wt2, tf1_wtCross, tf1_dot_buy_signal, tf1_dot_sell_signal] = 
+         request.security(syminfo.ticker, tf_1, f_wavetrend(wtMASource[1], wtChannelLen, wtAverageLen, wtMALen, use_tf1), lookahead = barmerge.lookahead_on)
+[tf2_wt1, tf2_wt2, tf2_wtCross, tf2_dot_buy_signal, tf2_dot_sell_signal] = 
+         request.security(syminfo.ticker, tf_2, f_wavetrend(wtMASource[1], wtChannelLen, wtAverageLen, wtMALen, use_tf2), lookahead = barmerge.lookahead_on)
+[tf3_wt1, tf3_wt2, tf3_wtCross, tf3_dot_buy_signal, tf3_dot_sell_signal] = 
+         request.security(syminfo.ticker, tf_3, f_wavetrend(wtMASource[1], wtChannelLen, wtAverageLen, wtMALen, use_tf3), lookahead = barmerge.lookahead_on)
+[tf4_wt1, tf4_wt2, tf4_wtCross, tf4_dot_buy_signal, tf4_dot_sell_signal] = 
+         request.security(syminfo.ticker, tf_4, f_wavetrend(wtMASource[1], wtChannelLen, wtAverageLen, wtMALen, use_tf4), lookahead = barmerge.lookahead_on)
+[tf5_wt1, tf5_wt2, tf5_wtCross, tf5_dot_buy_signal, tf5_dot_sell_signal] = 
+         request.security(syminfo.ticker, tf_5, f_wavetrend(wtMASource[1], wtChannelLen, wtAverageLen, wtMALen, use_tf5), lookahead = barmerge.lookahead_on)
+
+
+
+// CREATE SIGNALS
+can_calculate_tf1 = use_tf1 and timeframe.in_seconds() < timeframe.in_seconds(tf_1)
+can_calculate_tf2 = use_tf2 and timeframe.in_seconds() < timeframe.in_seconds(tf_2)
+can_calculate_tf3 = use_tf3 and timeframe.in_seconds() < timeframe.in_seconds(tf_3)
+can_calculate_tf4 = use_tf4 and timeframe.in_seconds() < timeframe.in_seconds(tf_4)
+can_calculate_tf5 = use_tf5 and timeframe.in_seconds() < timeframe.in_seconds(tf_5)
+
+tf1_buy = tf1_dot_buy_signal and not tf1_dot_buy_signal[1] and can_calculate_tf1
+tf2_buy = tf2_dot_buy_signal and not tf2_dot_buy_signal[1] and can_calculate_tf2
+tf3_buy = tf3_dot_buy_signal and not tf3_dot_buy_signal[1] and can_calculate_tf3
+tf4_buy = tf4_dot_buy_signal and not tf4_dot_buy_signal[1] and can_calculate_tf4
+tf5_buy = tf5_dot_buy_signal and not tf5_dot_buy_signal[1] and can_calculate_tf5
+
+tf1_sell = tf1_dot_sell_signal and not tf1_dot_sell_signal[1] and can_calculate_tf1
+tf2_sell = tf2_dot_sell_signal and not tf2_dot_sell_signal[1] and can_calculate_tf2
+tf3_sell = tf3_dot_sell_signal and not tf3_dot_sell_signal[1] and can_calculate_tf3
+tf4_sell = tf4_dot_sell_signal and not tf4_dot_sell_signal[1] and can_calculate_tf4
+tf5_sell = tf5_dot_sell_signal and not tf5_dot_sell_signal[1] and can_calculate_tf5
+
+
+
+var int chart_last = 0
+var int tf1_last = 0
+var int tf2_last = 0
+var int tf3_last = 0
+var int tf4_last = 0
+var int tf5_last = 0
+
+
+chart_last := dot_buy_signal ? 1 : dot_sell_signal ? -1 : chart_last[1]
+tf1_last := tf1_buy ? 1 : tf1_sell ? -1 : nz(tf1_last[1], 0)
+tf2_last := tf2_buy ? 1 : tf2_sell ? -1 : nz(tf2_last[1], 0)
+tf3_last := tf3_buy ? 1 : tf3_sell ? -1 : nz(tf3_last[1], 0)
+tf4_last := tf4_buy ? 1 : tf4_sell ? -1 : nz(tf4_last[1], 0)
+tf5_last := tf5_buy ? 1 : tf5_sell ? -1 : nz(tf5_last[1], 0)
+
+
+// DISPLAY LABELS
+if can_calculate_tf1
+    f_draw_label(tf1_buy, tf1_sell, tf1_lbl, bull_color2, bear_color2)
+
+if can_calculate_tf2
+    f_draw_label(tf2_buy, tf2_sell, tf2_lbl, bull_color2, bear_color2)
+
+if can_calculate_tf3
+    f_draw_label(tf3_buy, tf3_sell, tf3_lbl, bull_color2, bear_color2)
+
+if can_calculate_tf4
+    f_draw_label(tf4_buy, tf4_sell, tf4_lbl, bull_color2, bear_color2)
+
+if can_calculate_tf5
+    f_draw_label(tf5_buy, tf5_sell, tf5_lbl, bull_color2, bear_color2)
+
+
+
+var bool buy_align = false
+var bool sell_align = false
+
+var bool tf_align_buy = false
+var bool tf_align_sell = false
+
+
+buy_align := tf1_last >= 0 and tf2_last >= 0 and tf3_last >= 0 and tf4_last >= 0 and tf5_last >= 0
+sell_align := tf1_last <= 0 and tf2_last <= 0 and tf3_last <= 0 and tf4_last <= 0 and tf5_last <= 0
+
+tf_align_buy := buy_align and not buy_align[1]
+tf_align_sell := sell_align and not sell_align[1]
+
+
+if (can_calculate_tf1 or can_calculate_tf2 or can_calculate_tf3 or can_calculate_tf4 or can_calculate_tf5)
+    f_mtf_label(tf_align_buy, tf_align_sell, "MTF's ALIGN", bull_color2, bear_color2)
+
+
+
+
+// DISPLAY TABLE
+var table = table.new(position = position.bottom_right, columns = 1, rows = 7,
+     bgcolor = chart.bg_color, frame_color = color.new(chart.fg_color, 70), frame_width = 2,
+     border_color = color.new(chart.fg_color, 70), border_width = 1)
+
+
+if barstate.islast
+    table.clear(table, 0,0, 0,6)
+
+    table.cell(table, 0, 0, text = 'Cipher Dots', text_color = chart.fg_color, bgcolor = chart.bg_color, text_size = size.small)
+
+    if use_chart_dots
+        table.cell(table, 0, 1, text = 'CHART', text_color = chart.fg_color, text_size = size.small,
+             bgcolor = chart_last == 1 ? bull_color2 : bear_color2)
+
+    if can_calculate_tf1
+        table.cell(table, 0, 2, text = str.upper(tf1_lbl), text_color = chart.fg_color, text_size = size.small,
+             bgcolor = tf1_last == 1 ? bull_color2 : bear_color2)
+
+    if can_calculate_tf2
+        table.cell(table, 0, 3, text = str.upper(tf2_lbl), text_color = chart.fg_color, text_size = size.small,
+             bgcolor = tf2_last == 1 ? bull_color2 : bear_color2)
+
+    if can_calculate_tf3
+        table.cell(table, 0, 4, text = str.upper(tf3_lbl), text_color = chart.fg_color, text_size = size.small,
+             bgcolor = tf3_last == 1 ? bull_color2 : bear_color2)
+
+    if can_calculate_tf4
+        table.cell(table, 0, 5, text = str.upper(tf4_lbl), text_color = chart.fg_color, text_size = size.small,
+             bgcolor = tf4_last == 1 ? bull_color2 : bear_color2)
+
+    if can_calculate_tf5
+        table.cell(table, 0, 6, text = str.upper(tf5_lbl), text_color = chart.fg_color, text_size = size.small,
+             bgcolor = tf5_last == 1 ? bull_color2 : bear_color2)
+
+
+
+
+// ALERTS
+if tf_align_buy
+    alert("BUY MTF ALIGN")
+if tf_align_sell
+    alert("SELL MTF ALIGN")

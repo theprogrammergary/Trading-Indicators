@@ -1,0 +1,244 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © JerryTravels 
+
+
+//@version=5
+indicator("Jerry Buy Sell Indicator Premium")
+
+//MACD DATA
+price =input.source(close, title = "Price", group = "MACD Settings")
+bblength = input.int(10, minval = 1, title = "BB Length", group = "MACD Settings")
+bbnum_dev = input.float(1.00, minval = 0.00, title = "BB Deviation", group = "MACD Settings")
+macdfastlength = input.int(12, minval = 1, title = "MACD Fast Length", group = "MACD Settings")
+macdslowlength = input.int(26, minval = 1, title = "MACD Slow Length", group = "MACD Settings")
+macdlength = input.int(5, minval = 1, title = "MACD Length", group = "MACD Settings")
+
+[macdLine, signalLine, histLine] = ta.macd(close, macdfastlength, macdslowlength, macdlength)
+[bb_midline, bb_upper, bb_lower] = ta.bb(macdLine, bblength, bbnum_dev)
+
+macd_line_color = macdLine > macdLine[1] and macdLine >= bb_upper ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine >= bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine <= bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine <= bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+macd_dots_color = macdLine > macdLine[1] and macdLine > bb_upper and macdLine < 0 ? color.new(#fbfb06,0) : macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0 ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine > bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine < bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine < bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+macd_dots = plot(macdLine, title = "MACD_Dots", color = macd_dots_color, style = plot.style_circles, linewidth = 3)
+macd_line = plot(macdLine, title = "MACD_Line", color = macd_line_color)
+zero = plot(0, title = "Zero", color = macdLine < 0 ? color.new(#fc0404,0) : color.new(#04fc04,0), linewidth = 2)
+
+//KELTNER DATA
+displace = input.int(0, title = "Displace", group = "Squeeze Cloud Settings")
+factor = input.float(1.50, title = "Factor", group = "Squeeze Cloud Settings")
+length = input.int(20, title = "Displace", group = "Squeeze Cloud Settings")
+averagetype = input.string(defval="EMA", title = "Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+trueRangeAverageType = input.string(defval="EMA", title = "True Range Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+
+
+ma(averagetype, price, length) => 
+    if averagetype == "WILDERS"
+        ta.rma(price, length)
+    else
+        if averagetype == "SMA"
+            ta.sma(price, length)
+        else 
+            if averagetype == "EMA"
+                ta.ema(price, length)
+            else 
+                if averagetype == "WMA"
+                    ta.wma(price, length)
+				else
+					if averagetype == "HullMA"
+				        ta.wma(2 * ta.wma(price, length / 2) - ta.wma(price, length), math.round(math.sqrt(length)))
+					else
+                        price
+
+shift = factor * ma(trueRangeAverageType, ta.tr, length)
+average = ma(averagetype, price, length)
+avg = average[-displace]
+upper_band = average[-displace] + shift[-displace]
+lower_band = average[-displace] - shift[-displace]
+
+//Bollinger Bands
+bblength2 = input.int(20, title = "BB Length 2", group = "Squeeze Cloud Settings")
+bbnum_dev2 = input.float(2.00, minval = 0.00, title = "BB Deviation", group = "Squeeze Cloud Settings")
+bb_averagetype = input.string(defval="SMA", title = "BB Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+
+sdev = ta.stdev(price[-displace], bblength2)
+midline = ma(bb_averagetype, price[-displace], bblength2)
+lowerband = midline + (-bbnum_dev2) * sdev
+upperband = midline + bbnum_dev2 * sdev
+
+
+//FUNCTION FOR MTF
+
+function(timeframe) =>
+
+    [f_macdLine, f_signalLine, f_histLine] = request.security(syminfo.tickerid, timeframe, ta.macd(close, macdfastlength, macdslowlength, macdlength), lookahead=barmerge.lookahead_on)
+    [f_bb_midline, f_bb_upper, f_bb_lower] = request.security(syminfo.tickerid, timeframe, ta.bb(macdLine, bblength, bbnum_dev), lookahead=barmerge.lookahead_on)
+    
+    f_shift = factor * ma(trueRangeAverageType, request.security(syminfo.tickerid, timeframe, ta.tr, lookahead=barmerge.lookahead_on), length)
+    f_average = ma(averagetype, request.security(syminfo.tickerid, timeframe, price, lookahead=barmerge.lookahead_on), length)
+    f_avg = f_average[-displace]
+    f_upper_band = f_average[-displace] + f_shift[-displace]
+    f_lower_band = f_average[-displace] - f_shift[-displace]
+    
+    f_sdev = request.security(syminfo.tickerid, timeframe, ta.stdev(price[-displace], bblength2), lookahead=barmerge.lookahead_on)
+    f_midline = ma(bb_averagetype, request.security(syminfo.tickerid, timeframe, price[-displace], lookahead=barmerge.lookahead_on), bblength2)
+    f_lowerband = f_midline + (-bbnum_dev2) * f_sdev
+    f_upperband = f_midline + bbnum_dev2 * f_sdev
+    
+    f_buy_alert1 = (f_macdLine > f_bb_upper and ta.crossover(f_macdLine,0)) or (ta.crossover(f_macdLine, f_bb_upper) and f_macdLine > 0)
+    f_buy_alert2 = (ta.crossover(f_macdLine, f_bb_upper) and f_macdLine < 0 and request.security(syminfo.tickerid, timeframe, close > ta.ema(close, 9), lookahead=barmerge.lookahead_on))
+    f_sell_alert = ta.crossunder(f_macdLine, f_bb_lower)
+    
+    f_buy_zone = f_macdLine > f_macdLine[1] and f_macdLine > f_bb_upper and f_macdLine > 0
+    f_get_ready = f_macdLine > f_macdLine[1] and f_macdLine > f_bb_upper and f_macdLine < 0
+    f_warning_zone = f_macdLine <= f_bb_lower
+    
+    // #type
+    // #red or buy warning zone = 4
+    // #green or buy zone = 3
+    // #grey or neutral (not red or green) = 2
+    // # white or buy signal = 1
+    type =  f_warning_zone ? 4 : f_buy_zone or f_get_ready ? 3 : f_buy_alert1 ? 1 : 2
+    type
+
+//CALL Function
+usetf1 = input.bool(true, " ", group = "MTF TFs", inline = '1')
+usetf2 = input.bool(true, " ", group = "MTF TFs", inline = '2')
+usetf3 = input.bool(true, " ", group = "MTF TFs", inline = '3')
+usetf4 = input.bool(true, " ", group = "MTF TFs", inline = '4')
+usetf5 = input.bool(true, " ", group = "MTF TFs", inline = '5')
+usetf6 = input.bool(true, " ", group = "MTF TFs", inline = '6')
+
+timeframe_1 = input.timeframe("15", "Timeframe 1", group = "MTF TFs", inline = '1')
+timeframe_2 = input.timeframe("60", "Timeframe 2", group = "MTF TFs", inline = '2')
+timeframe_3 = input.timeframe("240", "Timeframe 3", group = "MTF TFs", inline = '3')
+timeframe_4 = input.timeframe("D", "Timeframe 4", group = "MTF TFs", inline = '4')
+timeframe_5 = input.timeframe("W", "Timeframe 5", group = "MTF TFs", inline = '5')
+timeframe_6 = input.timeframe("M", "Timeframe 6", group = "MTF TFs", inline = '6')
+
+tf1 = function(timeframe_1)
+tf2 = function(timeframe_2)
+tf3 = function(timeframe_3)
+tf4 = function(timeframe_4)
+tf5 = function(timeframe_5)
+tf6 = function(timeframe_6)
+
+
+chart_in_minutes() => 
+    _resInMinutes = timeframe.multiplier * (
+      timeframe.isseconds ? 1. / 60             :
+      timeframe.isminutes ? 1.                  :
+      timeframe.isdaily   ? 60. * 24            :
+      timeframe.isweekly  ? 60. * 24 * 7        :
+      timeframe.ismonthly ? 60. * 24 * 30.4375  : na)
+chart_minutes = chart_in_minutes()
+
+timeframe_in_minutes(tf) =>
+    _resInMinutes = 
+     tf == "D" ? 60. * 24 :
+     tf == "W" ? 60. * 24 * 7 :
+     tf == "M" ? 60. * 24 * 30.4375 : str.tonumber(tf)
+    _resInMinutes >=  chart_minutes
+    
+tf1_okay = usetf1 and timeframe_in_minutes(timeframe_1)
+tf2_okay = usetf2 and timeframe_in_minutes(timeframe_2)
+tf3_okay = usetf3 and timeframe_in_minutes(timeframe_3)
+tf4_okay = usetf4 and timeframe_in_minutes(timeframe_4)
+tf5_okay = usetf5 and timeframe_in_minutes(timeframe_5)
+tf6_okay = usetf6 and timeframe_in_minutes(timeframe_6)
+
+//Cloud
+upper_bb = plot(bb_upper, title = "BB Upper")
+lower_bb = plot(bb_lower, title = "BB Lower")
+fill(upper_bb,lower_bb, color =  upperband <= upper_band and lowerband >= lower_band ? color.new(#fbfb06,70) : color.new(#ff3f00,70), title = "Cloud")
+
+//Visual Inputs
+show_buy_sell_alert = input.bool(true, title = "Show Buy/Sell Alerts", group = "Visual Settings")
+label_text_color = input.color(#000000, title = "Label Text Color", group = "Visual Settings")
+
+//Buy and Sell Arrows
+buy_alert1 = (macdLine > bb_upper and ta.crossover(macdLine,0)) or (ta.crossover(macdLine, bb_upper) and macdLine > 0)
+buy_alert2 = (ta.crossover(macdLine, bb_upper) and macdLine < 0 and close > ta.ema(close, 9))
+sell_alert = ta.crossunder(macdLine, bb_lower)
+
+plotshape( buy_alert1 ? bb_lower : na, title = "Buy Arrow 1", style = shape.labelup, location = location.absolute, size = size.auto, text = "Buy", textcolor = label_text_color, color = color.white)
+plotshape( buy_alert2 ? bb_lower : na, title = "Buy Arrow 2", style = shape.labelup, location = location.absolute, size = size.auto, text = "Early", textcolor = label_text_color, color = color.new(#ff01fe,0))
+plotshape( sell_alert ? bb_upper : na, title = "Sell Arrow", style = shape.labeldown, location = location.absolute, size = size.auto, text = "Sell", textcolor = label_text_color, color = color.new(#ffc800,0))
+
+
+//VERTICAL LINES
+//could use bgcolor but not the same
+
+//Trend Label
+trend_label_text = ""
+trend_label_text := macdLine > macdLine[1] and macdLine > bb_upper ? "Trend Bullish" : macdLine < macdLine[1] and macdLine > bb_upper ? " Trend Bullish (fading)" : macdLine < macdLine[1] and macdLine < bb_lower ? "Trend Bearish" : macdLine > macdLine[1] and macdLine < bb_lower ? "Trend Bearish (reversing)" : "Trend Neutral"
+
+trend_label_color = color.new(color.black,100)
+trend_label_color := macdLine > macdLine[1] and macdLine > bb_upper ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine > bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine < bb_lower ? color.new(#fc0404,0)  : macdLine > macdLine[1] and macdLine < bb_lower ? color.new(#94140c,0) : color.new(#fbfb06,0)
+
+
+//TABLE
+LabelSize = input.string(defval="small", options=["small", "medium", "large"], group = "Visual Settings", title = "Label Size")
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+
+buysignal_color = input.color(color.white, "Buy Signal")
+buyzone_color = input.color(color.new(#04fc04,0), "Buy Zone")
+neutral_color = input.color(color.gray, "Neutral")
+warning_color = input.color(color.new(#fc0404,0), "Warning Zone")
+
+//Get Ready / Buy Zone
+buy_zone = macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0
+get_ready = macdLine > macdLine[1] and macdLine > bb_upper and macdLine < 0
+warning_zone = macdLine <= bb_lower
+
+warning_zone_text = warning_zone ? "Warning Zone" : ""
+warning_zone_color = warning_zone ? warning_color: color.new(#000000,0)
+
+buy_zone_text = buy_zone ? "Buy Zone" : get_ready ? "Get Ready, Early Entry or High Conviction" : ""
+buy_zone_color = buy_zone ? buyzone_color : get_ready ? color.new(#fbfb06,0) : color.new(#000000,0)
+
+alert_text = buy_alert1 ? "Buy Alert" : buy_alert2 ? "Early Buy Alert" : sell_alert ? "Sell Alert" : ""
+alert_color = buy_alert1 ? buysignal_color : buy_alert2 ? color.new(#ff01fe,0) : sell_alert ? color.new(#ff0000,0) : color.new(#000000,0)
+
+color_function_for_mtf(value) =>
+    color_return = value == 4 ?warning_color : value == 3 ? buyzone_color : value == 2 ? neutral_color :  value == 1 ? buysignal_color : na
+    color_return
+    
+tf1_color = color_function_for_mtf(tf1)
+tf2_color = color_function_for_mtf(tf2)
+tf3_color = color_function_for_mtf(tf3)
+tf4_color = color_function_for_mtf(tf4)
+tf5_color = color_function_for_mtf(tf5)
+tf6_color = color_function_for_mtf(tf6)
+
+
+var table t = table.new(position.bottom_right, 10, 1, border_width = 1, frame_color = #000000)
+ 
+
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = tf1_okay ? timeframe_1 : "", width = 0, bgcolor = tf1_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 1, 0, text = tf2_okay ? timeframe_2 : "", width = 0, bgcolor = tf2_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 2, 0, text = tf3_okay ? timeframe_3 : "", width = 0, bgcolor = tf3_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 3, 0, text = tf4_okay ? timeframe_4 : "", width = 0, bgcolor = tf4_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 4, 0, text = tf5_okay ? timeframe_5 : "", width = 0, bgcolor = tf5_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 5, 0, text = tf6_okay ? timeframe_6 : "", width = 0, bgcolor = tf6_color, text_size = label_size, text_color = label_text_color)
+
+    table.cell(t, 6, 0, text = trend_label_text, width = 0, bgcolor = trend_label_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 7, 0, text = warning_zone_text, width = 0, bgcolor = warning_zone_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 8, 0, text = buy_zone_text, width = 0, bgcolor = buy_zone_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 9, 0, text = show_buy_sell_alert ? alert_text : "", width = 0, bgcolor = alert_color, text_size = label_size, text_color = label_text_color)    
+    
+    
+//ALERT CONDITIONS / SCANS
+alertcondition(buy_alert1, "Buy Alert", "Buy Alert")
+alertcondition(buy_alert2, "Early Buy Alert", "Early Buy Alert")
+alertcondition(sell_alert, "Sell Alert", "Sell Alert")
+
+//Basically same thing as buy arrow 1 and sell arrow
+alertcondition(ta.crossover(macdLine, bb_upper), "Dots Cross Above Cloud", "Dots Cross Above Cloud")
+alertcondition(ta.crossunder(macdLine, bb_lower), "Dots Cross Below Cloud", "Dots Cross Below Cloud")
+
+alertcondition(macdLine >= bb_upper and macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0, "Green Dot SCAN", "Green Dot SCAN")
+alertcondition(macdLine <= bb_lower, "Red Dot SCAN", "Red Dot SCAN")
+
+//BG COLOR
+bgcolor( (macdLine >= bb_upper and macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0) ?  color.new(#00ff0a,70) :  macdLine <= bb_lower ? color.new(#ff0000,70)  : na, title = "BG Color")
+

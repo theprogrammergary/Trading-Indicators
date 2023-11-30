@@ -1,0 +1,17 @@
+#CHANGE
+input end_time = 1010;
+
+input volume_low = 400000;
+input volume_high = 800000;
+
+#IGNORE BELOW
+def new_day = GetDay() != GetDay()[1];
+rec sumofvolume = compoundvalue(1, if new_day then volume else sumofvolume[1] + volume,0);
+
+def cumulative_volume = sumofvolume;
+def isEndTime = secondsFromTime(end_time) > 0;
+
+def cumulative_volume_at = if new_day then Double.NaN else if isEndTime and !isEndTime[1] then cumulative_volume[1] else cumulative_volume_at[1];
+def cumulative_volume_at_time = cumulative_volume_at;
+
+plot triggered = cumulative_volume_at_time >= volume_low and cumulative_volume_at_time <= volume_high;

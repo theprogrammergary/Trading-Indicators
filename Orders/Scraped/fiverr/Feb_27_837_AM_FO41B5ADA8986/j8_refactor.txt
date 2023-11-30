@@ -1,0 +1,390 @@
+#J8_30_123_SPY_Scalping_PRO_2_REFACTOR
+declare upper;
+
+
+
+
+# label settings
+input _1 = {default "SETTINGS"};
+input show_dash_labels = yes;
+input use_alerts = no; 
+#hint show_dash_labels: This indicator is for DAYTRADING_labels_only and designed for time frames of 5 minutes or less.
+#hint use_alerts: Default NO. Turns on alert for Bear and Bull Spreads.
+
+
+
+
+# exit settings
+input _2 = {default "EXIT SETTINGS"};
+input use_z_exits = yes;
+input use_trailingstop_exits = yes;
+input close_trades_eod = yes; 
+#hint use_z_exits: Must select 1 or 2 exit strategies. DEFAULT YES
+#hint use_trailingstop_exits: Must select 1 or 2 exit strategies. DEFAULT YES
+#hint close_trades_eod: Yes for daytrading.
+
+
+
+
+
+# criteria 1 SUPERTREND 
+input _3 = {default "SUPERTREND SETTINGS"};
+input st_colorbars = yes;
+input st_atr_mult = 1.0; 
+input st_atr_length = 4;
+input st_avgtype = AverageType.HULL;
+input st_showarrows = yes;
+input st_arrowcount = 2;
+#hint st_colorbars: Yes to PAINT the trend candlesticks.  Default YES
+#hint ts_atr_mult: This is a trend setting. Default = 1
+#hint st_atr_length: This is a trend setting. Default = 4
+#hint st_avgtype: Default HULL
+#hint st_showarrows: Shows most recent cross over when price crosses the trend.
+
+def st_atr = MovingAverage(st_avgtype, TrueRange(high, close, low), st_atr_length);
+def st_up = HL2 + (st_atr_mult * st_atr);
+def st_dn = HL2 + (-st_atr_mult * st_atr);
+def st_calc = if close < st_calc[1] then st_up else st_dn;
+plot supertrend = st_calc;
+supertrend.Hide(); supertrend.AssignValueColor(if close < st_calc then Color.DARK_ORANGE else Color.LIME);
+def st_bull = close > supertrend; 
+def st_bear = close < supertrend;
+AssignPriceColor(if !st_colorbars then color.current else if st_bear then color.red else if st_bull then Color.GREEN else Color.CURRENT);
+
+def st_cond = if close crosses supertrend then 1 else Double.NaN;
+def st_datacount = CompoundValue(1, if !IsNaN(st_cond) then st_datacount[1] + 1 else st_datacount[1], 0);
+def st_arrowokaytoshow = if HighestAll(st_datacount) - st_datacount <= st_arrowcount - 1 then 1 else Double.NaN;
+
+plot st_arrowup = if st_showarrows and st_arrowokaytoshow and close crosses above supertrend then low[1] else Double.NaN;
+st_arrowup.SetPaintingStrategy(PaintingStrategy.ARROW_UP); st_arrowup.SetDefaultColor(Color.DARK_GREEN); st_arrowup.SetLineWeight(5);
+
+plot st_arrowdown = if st_showarrows and st_arrowokaytoshow and close crosses below supertrend then high[1] else Double.NaN;
+st_arrowdown.SetPaintingStrategy(PaintingStrategy.ARROW_DOWN); st_arrowdown.SetDefaultColor(Color.DARK_RED); st_arrowdown.SetLineWeight(5);
+
+
+
+
+# criteria 2 MA trend
+input _4 = {default "MA TREND SETTINGS"};
+input ma_price = close;
+input ma_length1 = 13; 
+input ma_length2 = 50;  
+input ma_length3 = 75;
+input ma_averagetype = AverageType.EXPONENTIAL;
+#hint ma_length1: Default 13 scalping. Can try 10 for scalping
+#hint ma_length2: Default 50 scalping. Long Term 50, 100, 200. Short Term = 2, 5, 8, 20
+#hint ma_length3: Default 75 scalping. Try 100 for fewer signals
+
+plot ma1 = MovingAverage(ma_averagetype, ma_price, ma_length1); ma1.SetDefaultColor(Color.CYAN); #ma1.Hide();
+plot ma2 = MovingAverage(ma_averagetype, ma_price, ma_length2); ma2.SetDefaultColor(Color.RED); #ma2.Hide();
+plot ma3 = MovingAverage(ma_averagetype, ma_price, ma_length3); ma3.SetDefaultColor(Color.PINK);
+
+def ma_bullish =  ma1 > ma2 and ma1 > ma3 and ma3 > ma3[1];
+def ma_bearish =  ma1 < ma2  and ma1 < ma3 and ma3 < ma3[1]; 
+
+
+
+# criteria 3 rsi_value
+input _5 = {default "rsi_value SETTINGS"};
+input show_rsi_label = no ; 
+input rsi_ob = 70 ; 
+input rsi_os = 35 ;
+input rsi_length = 12 ; 
+#hint show_rsi_label: Default NO
+#hint rsi_ob: Default 70. Consider entering spreads between then OB and OS range.
+#hint rsi_os: Default 35 Consider entering spreads between then OB and OS range.
+#hint rsi_length: Default 12. Consdier 14 for testing
+
+def rsi_value = reference rsi("price" = close, "length" = rsi_length);
+
+
+
+
+# criteria 4 MACD DOTS used for IRON CONDOR on SPY & MACD DOT Not red or green for trend/momentum
+input _6 = {default "MACD DOTS SETTINGS"};
+input md_label = no;
+input md_bb_length = 10; 
+input md_bb_dev = 1.0; 
+input md_fastlength = 12; 
+input md_slowlength = 26; 
+input md_macdlength = 5; 
+#hint md_label: USED FOR SCALPING ON SPY and TESTING ONLY
+#hint md_bb_length: Default 10
+#hint md_bb_dev: Default 1
+#hint md_fastlength: Default 12
+#hint md_slowlength: Default 26
+#hint md_macdlength: Default 5. Consider testing 9 and 15
+
+def macd_dots = macd(fastLength = md_fastlength, slowLength = md_slowlength, macdlength = md_macdlength);
+def bb_upper = reference BollingerBands(price = macd_dots, length = md_bb_length, Num_Dev_Dn = -md_bb_dev, Num_Dev_Up = md_bb_dev).UpperBand;
+def bb_lower = reference BollingerBands(price = macd_dots, length = md_bb_length, Num_Dev_Dn = -md_bb_dev, Num_Dev_Up = md_bb_dev).Lowerband;
+def bb_midline = reference BollingerBands(price = macd_dots, length = md_bb_length, Num_Dev_Dn = -md_bb_dev, Num_Dev_Up = md_bb_dev);
+
+# jerry macd Dot color: 1 = yellow, 2 = green, 3 = dark green, 4 = red, 5 = dark red, 6 = gray
+def macd_dot_color = if macd_dots > macd_dots[1] and macd_dots > bb_upper and macd_dots < 0 then 1 
+   else if macd_dots > macd_dots[1] and macd_dots > bb_upper and macd_dots > 0 then 2
+   else if macd_dots < macd_dots[1] and macd_dots > bb_upper then 3
+   else if macd_dots < macd_dots[1] and macd_dots < bb_lower then 4 
+   else if macd_dots > macd_dots[1] and macd_dots < bb_lower then 5 
+   else 6;
+
+def macd_dot_not_red = macd_dot_color != 4 and macd_dot_color != 5;
+def macd_dot_not_green = macd_dot_color > 3;
+
+AddLabel(md_label, "MACD Dot = " + Round(macd_dots, 3), Color.WHITE);
+
+
+
+
+# criteria iron condor 
+input _7 = {default "SPY IRON CONDOR SETTINGS"};
+input show_ic_label = YES;
+input ic_md_value = .25; 
+input ic_md_exit_value = .50; 
+#hint ic_md_value: macd dots must be between this value and the - value. Default .25
+#hint ic_md_exit_value: Consider exiting iron condor if above this value. 
+#hint show_ic_label: Default NO. This labels shows enter or exit IC
+
+def macd_dot0 = macd_dots between -ic_md_value  and ic_md_value;
+def chart_is_SPY = GetSymbol() == "SPY";
+def entry_iron_condor = chart_is_SPY and macd_dot0 is true within 5 bars;
+def exit_iron_condor = chart_is_SPY and macd_dots crosses above ic_md_exit_value;
+
+AddLabel(show_ic_label, 
+ if entry_iron_condor then "Enter IC" else 
+ if exit_iron_condor then "Exit IC" else "", 
+ if entry_iron_condor then Color.WHITE else 
+ if exit_iron_condor then Color.RED else Color.GRAY);
+
+
+
+
+# mtf supertrend 1 (Criteria for the “Bull_Put_Spread” and “Bear_Call_Spread”.)
+input _8 = {default "MTF SUPERTREND SETTINGS"};
+input mtf1_st_timeframe = AggregationPeriod.THIRTY_MIN; 
+def mtf1_st_mult = 1.0;
+def mtf1_st_atr_length = 4;
+def mtf1_st_avgtype = AverageType.HULL;
+
+# to prevent repainting you have to reference the previous timeframe which is [1]
+def mtf1_high = high(period = mtf1_st_timeframe)[1]; # set to [0] for current bar which repaints
+def mtf1_low = low(period = mtf1_st_timeframe)[1]; # set to [0] for current bar which repaints
+def mtf1_close = close(period = mtf1_st_timeframe)[1]; # set to [0] for current bar which repaints
+def mtf1_hl2 = hl2(period = mtf1_st_timeframe)[1]; # set to [0] for current bar which repaints
+
+def mtf1_atr = MovingAverage(mtf1_st_avgtype, TrueRange(mtf1_high, mtf1_close, mtf1_low), mtf1_st_atr_length);
+def mtf1_up = mtf1_hl2 + (mtf1_st_mult * mtf1_atr);
+def mtf1_dn = mtf1_hl2 + (-mtf1_st_mult * mtf1_atr);
+def mtf1_st = if mtf1_close < mtf1_st[1] then mtf1_up else mtf1_dn;
+
+def mtf1_supertrend_side = if mtf1_close > mtf1_st then 1 else if mtf1_close < mtf1_st then -1 else mtf1_supertrend_side[1];
+def bull_put_spread = st_bull and ma_bullish and rsi_value >= 50 and macd_dot_not_red and mtf1_supertrend_side == 1; 
+def bear_call_spread = st_bear and ma_bearish and  rsi_value <= 50 and macd_dot_not_green and mtf1_supertrend_side == -1; 
+
+Alert(use_alerts and bear_call_spread, "SELL Bear Call Spread", Alert.BAR, Sound.Ding);
+Alert(use_alerts and bull_put_spread, "SELL Bull Spread", Alert.BAR, Sound.Ding);
+
+
+
+
+# criteria zlsma
+input _9 = {default "ZLSMA SETTINGS"};
+input zlsma_length_1 = 50; 
+input zlsma_length_2 = 5; 
+#hint zlsma_length_1: Default 50
+#hint zlsma_length_2: Default 5
+
+def lsma = Inertia(close, zlsma_length_1);
+def lsma2 = Inertia(lsma, zlsma_length_1);
+def b = lsma - lsma2;
+def z_2 = lsma + b;
+def trig2 = ExpAverage(z_2, zlsma_length_2);
+
+def bull_put_spread_exit = use_z_exits and z_2 crosses below trig2;
+def bear_call_spread_exit = use_z_exits and z_2 crosses above trig2;
+
+
+
+
+# create signals
+input _10 = {default "TRADING SETTINGS"};
+input use_trading_hours = Yes;
+input trading_start = 1000;
+input trading_end = 1557;
+input long_trades = yes;
+input short_trades = yes;
+input trade_size = 100; 
+input initial_capital = 100000; 
+#hint use_trading_hours: Is ignored if chart timeframe is greater than or equal to daily timeframe.
+#hint trading_start: Default 1000 (1st 30 minutes are too volatile)
+#hint trading_end: Default 1557 (Use 1557 for 3 minute chart. Needed to close at EOD (end of day)). If you use a 5 minute chart set to 1555, etc. 
+#hint long_trades: Default YES. Needed to trade both directions.
+#hint short_trades: Default NO. Needed to trade both directions.
+#hint trade_size: Default 100. Number of shares, contracts, etc.
+#hint initial_capital: For calculations on Net Profit % and Max Drawdown Labels. For SPY scalping this part is not used but can be helpful if studied.
+
+def is_greater_than_daily = GetAggregationPeriod() >= AggregationPeriod.DAY;
+def trading_hours_cond = is_greater_than_daily or !use_trading_hours or (SecondsFromTime(trading_start) >= 0 and SecondsTillTime(trading_end) > 0);
+
+def long_entry = long_trades and bull_put_spread and trading_hours_cond;
+def long_exit = long_trades and bull_put_spread_exit;
+
+def short_entry = short_trades and bear_call_spread and trading_hours_cond;
+def short_exit = short_trades and bear_call_spread_exit;
+
+
+
+
+# orders - normal entries and exits
+AddOrder(OrderType.BUY_AUTO, long_entry, price = open[-1], tradesize = trade_size, name = "SELL BULL PS ", tickcolor = Color.YELLOW);
+AddOrder(OrderType.SELL_AUTO, short_entry, price = open[-1], tradesize = trade_size, name = "SELL BEAR CS", tickcolor = Color.YELLOW);
+AddOrder(OrderType.SELL_TO_CLOSE, long_exit, price = open[-1], tradesize = trade_size, name = "Closed", tickcolor = Color.YELLOW);
+AddOrder(OrderType.BUY_TO_CLOSE, short_exit, price = open[-1], tradesize = trade_size, name = "Closed", tickcolor = Color.YELLOW); 
+
+
+
+# orders - trailing stops
+input _11 = {default "TRAILING STOP SETTINGS"};
+input use_ts_atr = yes; 
+input ts_atr_mult = 2.00; 
+input ts_atr_length = 14; 
+input ts_atr_avgtype = AverageType.WILDERS;
+#hint use_ts_atr: Default YES
+#hint ts_atr_mult: Default 2.00
+#hint ts_atr_length: Default 14
+#hint ts_atr_avgtype: default WILDERS
+
+def atr_calculation = MovingAverage(ts_atr_avgtype, TrueRange(high, close, low), ts_atr_length); 
+def J8_TS = MovingAverage(ts_atr_avgtype, TrueRange(high, close, low), ts_atr_length) / close * 100 * ts_atr_mult; 
+AddLabel (yes, "J8 TS: " + Round(J8_TS, 2) + "%", Color.PINK);
+
+def entry_price = entryprice();
+plot average_price = if IsNaN(close[-1]) then entry_price[1] else entry_price;
+average_price.Hide(); 
+average_price.SetPaintingStrategy(PaintingStrategy.HORIZONTAL);
+average_price.SetDefaultColor(Color.GRAY);
+
+def long_price = if long_entry[1] then average_price else if !IsNaN(average_price) then Max(high, long_price[1]) else Double.NaN;
+def short_price = if short_entry[1] then average_price else if !IsNaN(average_price) then Min(low, short_price[1]) else Double.NaN;
+
+def long_ts_price = if long_entry[1] then average_price - atr_calculation else if !IsNaN(average_price) then Max(long_ts_price[1], high - atr_calculation) else Double.NaN;
+def short_ts_price = if short_entry[1] then average_price + atr_calculation else if !IsNaN(average_price) then Min(short_ts_price[1], low + atr_calculation) else Double.NaN;
+
+plot trailingstop_Price = if !IsNaN(long_ts_price) and use_ts_atr then long_ts_price else if !IsNaN(short_ts_price) and use_ts_atr then short_ts_price else Double.NaN;
+trailingstop_Price.Hide();
+trailingstop_Price.SetPaintingStrategy(PaintingStrategy.LINE_VS_POINTS);
+trailingstop_Price.SetDefaultColor(Color.MAGENTA);
+
+def long_ts_exit = use_trailingstop_exits and use_ts_atr and low <= long_ts_price;
+def short_ts_exit = use_trailingstop_exits and use_ts_atr and high >= short_ts_price;
+
+AddOrder(OrderType.SELL_TO_CLOSE, long_ts_exit, tickcolor = Color.YELLOW, arrowcolor = Color.LIGHT_GRAY, name = "L_TS");
+AddOrder(OrderType.BUY_TO_CLOSE, short_ts_exit, tickcolor = Color.YELLOW, arrowcolor = Color.LIGHT_GRAY, name = "SS_TS");
+
+
+
+
+# orders - eod exit
+AddOrder(OrderType.SELL_TO_CLOSE, use_trading_hours and !trading_hours_cond[-1], close[-1], name = "EOD", Color.ORANGE); 
+AddOrder(OrderType.BUY_TO_CLOSE, use_trading_hours and !trading_hours_cond[-1], close[-1], name = "EOD", Color.ORANGE); 
+
+
+
+
+
+# alerts
+#Alert(long_entry, "Long Entry", Alert.BAR, Sound.Ding);
+#Alert(long_exit, "Close Position", Alert.BAR, Sound.Ding);
+#Alert(short_entry, "Long Entry", Alert.BAR, Sound.Ding);
+#Alert(short_exit, "Close Position", Alert.BAR, Sound.Ding);
+
+
+
+
+
+# dashboard 
+input _12 = {default "DASHBOARD SETTINGS"};
+
+
+def dash_long_entry = long_entry and !long_entry[1];
+def dash_short_entry = short_entry and !short_entry[1];
+
+def track_entry = if IsNaN(entry_price) then 0 else entry_price; #fix nan track_entry
+def last_side = if BarNumber() == 1 then 0 else if long_entry[1] then 1 else if short_entry[1] then -1 else if track_entry == 0 then 0 else last_side[1];
+def fix_last_side_nan = if IsNaN(last_side) then fix_last_side_nan[1] else last_side;
+
+#custom FPL TRACKER
+def bn = BarNumber();
+
+def same_side_trade = fix_last_side_nan == fix_last_side_nan[1] and track_entry != track_entry[1] and track_entry != 0;
+def new_open_trade =  (fix_last_side_nan == 1 and (fix_last_side_nan[1] == -1 or fix_last_side_nan[1] == 0)) or (fix_last_side_nan == -1 and (fix_last_side_nan[1] == 1 or fix_last_side_nan[1] == 0)) or same_side_trade;
+def new_close_trade =  if bn == 1 then no else if ((fix_last_side_nan == 1 and fix_last_side_nan[1] == -1) or (fix_last_side_nan == -1 and fix_last_side_nan[1] == 1) or (fix_last_side_nan == 0 and fix_last_side_nan[1] != 0) or (track_entry != track_entry[1] and track_entry == 0)) and !new_close_trade[1] then yes else no;
+def new_trade_count = if bn == 1 then 0 else if new_close_trade then new_trade_count[1] + 1 else new_trade_count[1];
+
+def new_long_trade = new_open_trade and fix_last_side_nan == 1;
+def new_short_trade = new_open_trade and fix_last_side_nan == -1;
+def new_track_entry = if bn == 1 then 0 else if new_long_trade or new_short_trade then open else if new_close_trade then 0 else new_track_entry[1];
+
+def new_long_trade_pnl = if new_close_trade and fix_last_side_nan[1] == 1 then (open - new_track_entry[1]) * trade_size else 0;
+def long_trades_pnl = if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == 1 then new_long_trade_pnl + long_trades_pnl[1]  else long_trades_pnl[1];
+
+def new_short_trade_pnl = if new_close_trade and fix_last_side_nan[1] == -1 then (new_track_entry[1] - open) * trade_size else 0;
+def short_trades_pnl =  if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == -1 then new_short_trade_pnl + short_trades_pnl[1] else short_trades_pnl[1];
+
+def combined_pnl = if bn == 1 then 0 else if ( new_close_trade and fix_last_side_nan[1] == 1 or  new_close_trade and fix_last_side_nan[1] == -1) then long_trades_pnl + short_trades_pnl else combined_pnl[1];
+
+def new_long_trade_in_dollars = if new_close_trade and fix_last_side_nan[1] == 1 then new_track_entry[1] * trade_size else 0;
+def long_trades_dollars = if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == 1 then new_long_trade_in_dollars + long_trades_dollars[1]  else long_trades_dollars[1];
+
+def new_short_trade_in_dollars = if new_close_trade and fix_last_side_nan[1] == -1 then new_track_entry[1] * trade_size else 0;
+def short_trades_dollars = if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == -1 then new_short_trade_in_dollars + short_trades_dollars[1]  else short_trades_dollars[1];
+
+def combined_dollars = if bn == 1 then 0 else if ( new_close_trade and fix_last_side_nan[1] == 1 or  new_close_trade and fix_last_side_nan[1] == -1) then long_trades_dollars + short_trades_dollars else combined_dollars[1];
+
+def wins_combined_dollars = if bn == 1 then 0 else if new_close_trade and combined_pnl > combined_pnl[1] then  new_track_entry[1] * trade_size + wins_combined_dollars[1] else wins_combined_dollars[1];
+
+def losses_combined_dollars = if bn == 1 then 0 else if new_close_trade and combined_pnl < combined_pnl[1] then  new_track_entry[1] * trade_size + losses_combined_dollars[1] else losses_combined_dollars[1];
+
+#counter starts at 2 to match the way trading view counts
+def new_trade_duration_count_long = if bn == 1 then 0 else if new_long_trade then 2 else if fix_last_side_nan == 1 then new_trade_duration_count_long[1] + 1 else 0;
+def new_trade_duration_count_short = if bn == 1 then 0 else if new_short_trade then 2 else if fix_last_side_nan == -1 then new_trade_duration_count_short[1] + 1 else 0;
+
+def new_long_trade_duration = if new_close_trade and fix_last_side_nan[1] == 1 then new_trade_duration_count_long[1] else 0;
+def long_trades_duration = if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == 1 then new_trade_duration_count_long[1] + long_trades_duration[1]  else long_trades_duration[1];
+
+def new_short_trade_duration = if new_close_trade and fix_last_side_nan[1] == -1 then new_trade_duration_count_short[1] else 0;
+def short_trades_duration =  if bn == 1 then 0 else if new_close_trade and fix_last_side_nan[1] == -1 then new_trade_duration_count_short[1] + short_trades_duration[1] else short_trades_duration[1];
+
+def combined_duration = if bn == 1 then 0 else if ( new_close_trade and fix_last_side_nan[1] == 1 or  new_close_trade and fix_last_side_nan[1] == -1) then long_trades_duration + short_trades_duration else combined_duration[1];
+
+def wins_combined_duration = if bn == 1 then 0 else if new_close_trade and combined_pnl > combined_pnl[1] then Max(new_long_trade_duration, new_short_trade_duration) + wins_combined_duration[1] else wins_combined_duration[1];
+
+def losses_combined_duration = if bn == 1 then 0 else if new_close_trade and combined_pnl < combined_pnl[1] then Max(new_long_trade_duration, new_short_trade_duration) + losses_combined_duration[1] else losses_combined_duration[1];
+
+#TOTAL CLOSED TRADES
+input show_total_closed_trades = yes;
+def total_closed_orders = if bn == 1 then 0 else if new_close_trade  then total_closed_orders[1] + 1 else total_closed_orders[1];
+AddLabel(show_dash_labels and show_total_closed_trades, "J8 Total: " + total_closed_orders, Color.WHITE);
+
+#TOTAL WINNING/LOSING TRADES
+input show_winning_losing_trades_counter = yes;
+def winning_trades = if bn == 1 then 0 else if new_close_trade and ((fix_last_side_nan[1] == 1 and new_long_trade_pnl > 0) or (fix_last_side_nan[1] == -1 and new_short_trade_pnl > 0)) then winning_trades[1] + 1 else winning_trades[1];
+def losing_trades = if bn == 1 then 0 else if new_close_trade and ((fix_last_side_nan[1] == 1 and new_long_trade_pnl < 0) or (fix_last_side_nan[1] == -1 and new_short_trade_pnl < 0)) then losing_trades[1] + 1 else losing_trades[1];
+AddLabel(show_dash_labels and show_winning_losing_trades_counter, "W: " + winning_trades + " | L: " + losing_trades, if winning_trades > losing_trades then Color.GREEN else if losing_trades >= winning_trades then Color.LIGHT_RED else Color.WHITE);
+
+#NET PROFIT ON CAPITAL$ AND % - % is based off account size
+input target_ROI_On_Capital = 20.00; 
+#hint target_ROI_On_Capital: What ROI on your trading capital do you want? (This will color net profit WHITE if condition is met)
+def AVG_Trade_Size = Round(combined_dollars / total_closed_orders, 0);
+input show_net_profit = yes;
+
+def net_profit_ROI_PCT = Round(combined_pnl / AVG_Trade_Size * 100 , 1);
+AddLabel(show_dash_labels and show_net_profit, "Net Profit: $" + Round(combined_pnl, 0) + " on $" + AVG_Trade_Size + " | ROI " + net_profit_ROI_PCT + "%", 
+    if combined_pnl > 0 and net_profit_ROI_PCT > target_ROI_On_Capital then Color.WHITE else if net_profit_ROI_PCT < target_ROI_On_Capital and net_profit_ROI_PCT > 0 then Color.GREEN else Color.LIGHT_RED); # if combined_pnl > 0 then Color.GREEN else Color.RED); 
+
+#OPEN TRADE PNL
+input show_open_trade = yes;
+def open_trade = if bn == 1 then no else if new_open_trade then yes else if new_close_trade and !new_open_trade then no else open_trade[1];
+def open_trade_pnl = if open_trade and fix_last_side_nan == 1 then (close - new_track_entry) * trade_size else if open_trade and fix_last_side_nan == -1 then (new_track_entry - close) * trade_size else 0;
+def open_trade_pct = if open_trade then Round(open_trade_pnl /  (new_track_entry * trade_size) * 100, 2) else 0;
+AddLabel(show_dash_labels and show_open_trade and Round(open_trade, 0) != 0, "OpenT: $" + open_trade_pnl + " | "  +  open_trade_pct + "%", if open_trade_pnl > 0 then Color.GREEN else if open_trade_pnl < 0 then Color.LIGHT_RED else Color.WHITE);

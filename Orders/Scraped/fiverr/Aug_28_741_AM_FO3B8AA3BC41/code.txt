@@ -1,0 +1,481 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Mrhyh21_Levels", overlay = true)
+
+
+//----------------------------------------}
+//Previous day/week high/low
+//----------------------------------------{
+//Daily
+
+input_premhtime = input.session('0000-0930', title = 'Pre-Market Hours (EST)'
+ , group = 'Levels')
+ 
+show_premh = input.bool(true, title = ''
+ , group = 'Levels', inline = '1', tooltip = 'Pre-Market High')
+
+premh_text = input.string('Pre-Hi', title = ''
+ , group = 'Levels', inline = '1')
+
+premh_css = input.color(color.rgb(234, 133, 133), title = ''
+ , group = 'Levels', inline = '1')
+
+premh_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '1'
+  , group = 'Levels')
+
+show_preml = input.bool(true, title = ''
+ , group = 'Levels', inline = '2', tooltip = 'Pre-Market Low')
+
+preml_text = input.string('Pre-Lo', title = ''
+ , group = 'Levels', inline = '2')
+
+preml_css = input.color(color.rgb(128, 186, 133), title = ''
+ , group = 'Levels', inline = '2')
+
+preml_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '2'
+  , group = 'Levels')
+
+
+show_pdh = input.bool(true, title = ''
+ , group = 'Levels', inline = '3', tooltip = 'Prior-Day High')
+
+pdh_text = input.string('PDH', title = ''
+ , group = 'Levels', inline = '3')
+
+pdh_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '3')
+
+pdh_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '3'
+  , group = 'Levels')
+
+show_pdl = input.bool(true, title = ''
+ , group = 'Levels', inline = '4', tooltip = 'Prior-Day Low')
+
+pdl_text = input.string('PDL', title = ''
+ , group = 'Levels', inline = '4')
+
+pdl_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '4')
+
+pdl_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '4'
+  , group = 'Levels')
+
+
+show_pwh = input.bool(false, title = ''
+ , group = 'Levels', inline = '5', tooltip = 'Prior-Week High')
+pwh_text = input.string('PWH', title = ''
+ , group = 'Levels', inline = '5')
+pwh_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '5')
+pwh_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '5'
+  , group = 'Levels')
+
+show_pwl = input.bool(false, title = ''
+ , group = 'Levels', inline = '6', tooltip = 'Prior-Week Low')
+pwl_text = input.string('PWL', title = ''
+ , group = 'Levels', inline = '6')
+pwl_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '6')
+pwl_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '6'
+  , group = 'Levels')
+
+
+show_pmh = input.bool(false, title = ''
+ , group = 'Levels', inline = '7', tooltip = 'Prior-Month High')
+pmh_text = input.string('PMH', title = ''
+ , group = 'Levels', inline = '7')
+pmh_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '7')
+pmh_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '7'
+  , group = 'Levels')
+
+show_pml = input.bool(false, title = ''
+ , group = 'Levels', inline = '8', tooltip = 'Prior-Month Low')
+pml_text = input.string('PML', title = ''
+ , group = 'Levels', inline = '8')
+pml_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Levels', inline = '8')
+pml_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '8'
+  , group = 'Levels')
+
+//-----------------------------------------------------------------------------}
+//Opening Ranges
+//-----------------------------------------------------------------------------{
+show_or1 = input.bool(false, title = 'OR 1'
+ , group = 'Opening Range', inline = '1', tooltip = 'Opening Range 1')
+or1_session = input.session('0930-0935', title = ''
+  , group = 'Opening Range', inline = '1')
+
+orh1_text = input.string('5min ORH', title = ''
+ , group = 'Opening Range', inline = '2')
+orh1_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '2')
+orh1_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '2'
+  , group = 'Opening Range')
+
+orl1_text = input.string('5min ORL', title = ''
+ , group = 'Opening Range', inline = '3')
+orl1_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '3')
+orl1_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '3'
+  , group = 'Opening Range')
+
+
+show_or2 = input.bool(false, title = 'OR 2'
+ , group = 'Opening Range', inline = '4', tooltip = 'Opening Range 2')
+or2_session = input.session('0930-1000', title = ''
+  , group = 'Opening Range', inline = '4')
+
+orh2_text = input.string('30min ORH', title = ''
+ , group = 'Opening Range', inline = '5')
+orh2_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '5')
+orh2_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '5'
+  , group = 'Opening Range')
+
+orl2_text = input.string('30min ORL', title = ''
+ , group = 'Opening Range', inline = '6')
+orl2_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '6')
+orl2_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '6'
+  , group = 'Opening Range')
+
+
+
+show_or3 = input.bool(false, title = 'OR 3'
+ , group = 'Opening Range', inline = '7', tooltip = 'Opening Range 2')
+or3_session = input.session('0930-1030', title = ''
+  , group = 'Opening Range', inline = '7')
+
+orh3_text = input.string('60min ORH', title = ''
+ , group = 'Opening Range', inline = '8')
+orh3_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '8')
+orh3_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '8'
+  , group = 'Opening Range')
+
+orl3_text = input.string('60min ORL', title = ''
+ , group = 'Opening Range', inline = '9')
+orl3_css = input.color(color.rgb(133, 148, 234), title = ''
+ , group = 'Opening Range', inline = '9')
+orl3_style = input.string('⎯⎯⎯', ''
+  , options = ['⎯⎯⎯', '----', '····']
+  , inline = '9'
+  , group = 'Opening Range')
+
+
+    
+//Line Style function
+get_line_style(style) =>
+    out = switch style
+        '⎯⎯⎯'  => line.style_solid
+        '----' => line.style_dashed
+        '····' => line.style_dotted
+
+
+display_premarket(is_premarket, premarket_value, premarket_startbn, premarket_endbn
+ , premarket_color, premarket_text, premarket_style) =>
+
+    var line premarket_line = na
+    var label premarket_label = na
+    
+    if barstate.islast and na(premarket_line)
+        premarket_line := line.new(x1=premarket_startbn, y1=premarket_value, x2=bar_index+20, y2=premarket_value
+         , style = get_line_style(premarket_style), color = premarket_color, xloc = xloc.bar_index)
+        line.set_xy1(premarket_line[1], premarket_startbn, premarket_value)
+        line.set_xy2(premarket_line[1], bar_index+20, premarket_value)
+
+        premarket_label := label.new(x=line.get_x2(premarket_line)+5, y=line.get_y2(premarket_line), xloc = xloc.bar_index
+         , text=premarket_text +  ' ' + str.tostring(premarket_value), textcolor=premarket_color, color = color.new(#000000,100)
+         , size = size.small, textalign = text.align_left, style = label.style_label_left)
+
+        label.set_x(premarket_label[1], line.get_x2(premarket_line)+5)
+        label.set_y(premarket_label[1], line.get_y2(premarket_line))
+        label.set_text(premarket_label[1], premarket_text +  ' ' + str.tostring(premarket_value))
+
+    else if is_premarket
+        if not is_premarket[1]
+            line.delete(premarket_line[1])
+            label.delete(premarket_label[1])
+
+            premarket_line := line.new(x1=premarket_startbn, y1=premarket_value, x2=premarket_startbn+20, y2=premarket_value
+             , style = get_line_style(premarket_style), color = premarket_color, xloc = xloc.bar_index)
+            premarket_label := label.new(x=line.get_x2(premarket_line)+5, y=line.get_y2(premarket_line), xloc = xloc.bar_index
+             , text=premarket_text+  ' ' + str.tostring(premarket_value), textcolor=premarket_color, color = color.new(#000000,100)
+             , size = size.small, textalign = text.align_left, style = label.style_label_left)
+
+        line.set_xy1(premarket_line[1], premarket_startbn, premarket_value)
+        line.set_xy2(premarket_line[1], premarket_endbn+20, premarket_value)
+
+        label.set_x(premarket_label[1], line.get_x2(premarket_line)+5)
+        label.set_y(premarket_label[1], line.get_y2(premarket_line))
+        label.set_text(premarket_label[1], premarket_text +  ' ' + str.tostring(premarket_value))
+
+    else
+        line.set_xy1(premarket_line[1], premarket_startbn, premarket_value)
+        line.set_xy2(premarket_line[1], bar_index+20, premarket_value)
+
+        label.set_x(premarket_label[1], line.get_x2(premarket_line)+5)
+        label.set_y(premarket_label[1], line.get_y2(premarket_line))
+        label.set_text(premarket_label[1], premarket_text +  ' ' + str.tostring(premarket_value))
+
+
+
+display_mtf(timeframe, start_bn
+ , show_high, high_css, high_text, high_style
+ , show_low, low_css, low_text, low_style) =>
+
+
+    var line mtf_hline = na
+    var label mtf_hlabel = na
+    var line mtf_lline = na
+    var label mtf_llabel = na
+
+    if bar_index == start_bn
+        line.delete(mtf_hline[1])
+        label.delete(mtf_hlabel[1])
+        line.delete(mtf_lline[1])
+        label.delete(mtf_llabel[1])
+
+    [high_value, low_value] = request.security(syminfo.ticker, timeframe, [high[1], low[1]], lookahead=barmerge.lookahead_on)
+
+    if barstate.islast
+        line.delete(mtf_hline[1])
+        label.delete(mtf_hlabel[1])
+        line.delete(mtf_lline[1])
+        label.delete(mtf_llabel[1])
+
+        if show_high
+            mtf_hline := line.new(x1=start_bn, y1=high_value, x2=start_bn+20, y2=high_value
+             , style = get_line_style(high_style), color = high_css, xloc = xloc.bar_index, extend = extend.none)
+
+            mtf_hlabel := label.new(x=line.get_x2(mtf_hline)+5, y=line.get_y2(mtf_hline), xloc = xloc.bar_index
+             , text=high_text +  ' ' + str.tostring(high_value), textcolor=high_css, color = color.new(#000000,100)
+             , size = size.small, textalign = text.align_left, style = label.style_label_left)
+            line.set_x2(mtf_hline, bar_index+20)
+            label.set_x(mtf_hlabel, line.get_x2(mtf_hline)+5)
+            label.set_text(mtf_hlabel, high_text +  ' ' + str.tostring(high_value))
+        
+        if show_low
+            mtf_lline := line.new(x1=start_bn, y1=low_value, x2=start_bn+20, y2=low_value
+             , style = get_line_style(low_style), color = low_css, xloc = xloc.bar_index, extend = extend.none)
+
+            mtf_llabel := label.new(x=line.get_x2(mtf_lline)+5, y=line.get_y2(mtf_lline), xloc = xloc.bar_index
+             , text=low_text +  ' ' + str.tostring(low_value), textcolor=low_css, color = color.new(#000000,100)
+             , size = size.small, textalign = text.align_left, style = label.style_label_left)
+            line.set_x2(mtf_lline, bar_index+20)
+            label.set_x(mtf_llabel, line.get_x2(mtf_lline)+5)
+            label.set_text(mtf_llabel, low_text +  ' ' + str.tostring(low_value))
+        
+
+display_or(is_openingrange, openingrange_value, openingrange_startbn, openingrange_endbn
+ , openingrange_color, openingrange_text, openingrange_style) =>
+
+    var line openingrange_line = na
+    var label openingrange_label = na
+    
+    if barstate.islast and na(openingrange_line)
+        openingrange_line := line.new(x1=openingrange_startbn, y1=openingrange_value, x2=bar_index+20, y2=openingrange_value
+         , style = get_line_style(openingrange_style), color = openingrange_color, xloc = xloc.bar_index)
+        line.set_xy1(openingrange_line[1], openingrange_startbn, openingrange_value)
+        line.set_xy2(openingrange_line[1], bar_index+20, openingrange_value)
+
+        openingrange_label := label.new(x=line.get_x2(openingrange_line)+5, y=line.get_y2(openingrange_line), xloc = xloc.bar_index
+         , text=openingrange_text +  ' ' + str.tostring(openingrange_value), textcolor=openingrange_color, color = color.new(#000000,100)
+         , size = size.small, textalign = text.align_left, style = label.style_label_left)
+
+        label.set_x(openingrange_label[1], line.get_x2(openingrange_line)+5)
+        label.set_y(openingrange_label[1], line.get_y2(openingrange_line))
+        label.set_text(openingrange_label[1], openingrange_text +  ' ' + str.tostring(openingrange_value))
+
+    else if is_openingrange
+        if not is_openingrange[1]
+            line.delete(openingrange_line[1])
+            label.delete(openingrange_label[1])
+
+            openingrange_line := line.new(x1=openingrange_startbn, y1=openingrange_value, x2=openingrange_startbn+20, y2=openingrange_value
+             , style = get_line_style(openingrange_style), color = openingrange_color, xloc = xloc.bar_index)
+            openingrange_label := label.new(x=line.get_x2(openingrange_line)+5, y=line.get_y2(openingrange_line), xloc = xloc.bar_index
+             , text=openingrange_text +  ' ' + str.tostring(openingrange_value), textcolor=openingrange_color, color = color.new(#000000,100)
+             , size = size.small, textalign = text.align_left, style = label.style_label_left)
+
+        line.set_xy1(openingrange_line[1], openingrange_startbn, openingrange_value)
+        line.set_xy2(openingrange_line[1], openingrange_endbn+20, openingrange_value)
+
+        label.set_x(openingrange_label[1], line.get_x2(openingrange_line)+5)
+        label.set_y(openingrange_label[1], line.get_y2(openingrange_line))
+        label.set_text(openingrange_label[1], openingrange_text +  ' ' + str.tostring(openingrange_value))
+
+    else
+        line.set_xy1(openingrange_line[1], openingrange_startbn, openingrange_value)
+        line.set_xy2(openingrange_line[1], bar_index+20, openingrange_value)
+
+        label.set_x(openingrange_label[1], line.get_x2(openingrange_line)+5)
+        label.set_y(openingrange_label[1], line.get_y2(openingrange_line))
+        label.set_text(openingrange_label[1], openingrange_text +  ' ' + str.tostring(openingrange_value))
+
+//-----------------------------------------------------------------------------}
+// Levels
+//-----------------------------------------------------------------------------{
+is_premarket = time(timeframe.period, input_premhtime, "America/New_York")
+
+var float premarket_high = na
+var float premarket_low = na
+
+var int premarket_startbn = na
+var int premarket_endbn = na
+
+var line premarket_highline = na
+var line premarket_lowline = na
+var label premarket_highlabel = na
+var label premarket_lowlabel = na
+
+premarket_startbn := is_premarket and not is_premarket[1] ? bar_index
+ : premarket_startbn[1]
+
+premarket_endbn := is_premarket ? bar_index
+ : premarket_endbn[1]
+
+if show_premh
+    premarket_high := is_premarket and not is_premarket[1] ? high
+     : is_premarket ? math.max(high, premarket_high[1])
+     : premarket_high[1]
+
+    display_premarket(is_premarket, premarket_high, premarket_startbn, premarket_endbn
+     , premh_css, premh_text, premh_style)
+
+if show_preml
+    premarket_low := is_premarket and not is_premarket[1] ? low
+     : is_premarket ? math.min(low, premarket_low[1])
+     : premarket_low[1]
+
+    display_premarket(is_premarket, premarket_low, premarket_startbn, premarket_endbn
+     , preml_css, preml_text, preml_style)
+
+
+var int day_bn_start = 0
+day_bn_start := ta.change(time('D')) ? bar_index : day_bn_start[1]
+
+var int week_bn_start = 0
+week_bn_start := ta.change(time('W')) ? bar_index : day_bn_start[1]
+
+var int month_bn_start = 0
+month_bn_start := ta.change(time('M')) ? bar_index : day_bn_start[1]
+
+
+if barstate.islast
+    display_mtf("D", day_bn_start
+     , show_pdh, pdh_css, pdh_text, pdh_style
+     , show_pdl, pdl_css, pdl_text, pdl_style)
+    display_mtf("W", week_bn_start
+     , show_pwh, pwh_css, pwh_text, pwh_style
+     , show_pwl, pwl_css, pwl_text, pwl_style)
+    display_mtf("M", month_bn_start
+     , show_pmh, pmh_css, pmh_text, pmh_style
+     , show_pml, pml_css, pml_text, pml_style)
+
+
+//-----------------------------------------------------------------------------}
+// Opening Range
+//-----------------------------------------------------------------------------{
+or_session1 = time(timeframe.period, str.format('{0}:1234567', or1_session), 'America/New_York')
+or_session2 = time(timeframe.period, str.format('{0}:1234567', or2_session), 'America/New_York')
+or_session3 = time(timeframe.period, str.format('{0}:1234567', or3_session), 'America/New_York')
+
+var float orh_1 = na
+var float orh_2 = na
+var float orh_3 = na
+
+var float orl_1 = na
+var float orl_2 = na
+var float orl_3 = na
+
+var int or1_startbn = na
+var int or2_startbn = na
+var int or3_startbn = na
+
+var int or1_endbn = na
+var int or2_endbn = na
+var int or3_endbn = na
+
+
+if or_session1 and show_or1
+    if not or_session1[1]
+        orl_1 := low
+        orh_1 := high
+        orh_1 := high
+        or1_endbn := bar_index
+        or1_startbn := bar_index
+    else
+        orl_1 := math.min(low, orl_1)
+        orh_1 := math.max(high, orh_1)
+        or1_endbn := bar_index
+
+if show_or1
+    display_or(or_session1, orl_1, or1_startbn, or1_endbn, orl1_css, orl1_text, orl1_style)
+    display_or(or_session1, orh_1, or1_startbn, or1_endbn, orh1_css, orh1_text, orh1_style)
+    
+if or_session2 and show_or2
+    if not or_session2[1]
+        orl_2 := low
+        orh_2 := high
+        orh_2 := high
+        or2_endbn := bar_index
+        or2_startbn := bar_index
+    else
+        orl_2 := math.min(low, orl_2)
+        orh_2 := math.max(high, orh_2)
+        or2_endbn := bar_index
+
+if show_or2
+    display_or(or_session2, orl_2, or2_startbn, or2_endbn, orl2_css, orl2_text, orl2_style)
+    display_or(or_session2, orh_2, or2_startbn, or2_endbn, orh2_css, orh2_text, orh2_style)
+    
+
+if or_session3 and show_or3
+    if not or_session3[1]
+        orl_3 := low
+        orh_3 := high
+        orh_3 := high
+        or3_endbn := bar_index
+        or3_startbn := bar_index
+    else
+        orl_3 := math.min(low, orl_3)
+        orh_3 := math.max(high, orh_3)
+        or3_endbn := bar_index
+
+if show_or3
+    display_or(or_session3, orl_3, or3_startbn, or3_endbn, orl3_css, orl3_text, orl3_style)
+    display_or(or_session3, orh_3, or3_startbn, or3_endbn, orh3_css, orh3_text, orh3_style)
+
+
+
+// combine labels

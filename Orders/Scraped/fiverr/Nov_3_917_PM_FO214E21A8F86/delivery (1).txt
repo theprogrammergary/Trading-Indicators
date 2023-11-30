@@ -1,0 +1,1 @@
+You already have access to the code. As far as adding in your own signals you can do that with the code I gave you, but there could be some nuances depending on the signal.1. Go to edit studies / edit strategies.2. Add the indicator / strategy to the chart3. Next to the name there is a scroll. Click that and it opens the source code.

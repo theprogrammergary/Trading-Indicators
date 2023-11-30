@@ -1,0 +1,1 @@
+This might be the best we can do. Except it will not show history of divergences. Only current. Basically it takes the slope of price data and stochastic data over x number of bars. If price data slope is positive and stochastic data slope is negative there is divergence. Or vice versa. This works in a scan, and the trendlines are drawn automatically.

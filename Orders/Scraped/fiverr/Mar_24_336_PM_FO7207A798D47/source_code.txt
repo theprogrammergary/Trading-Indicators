@@ -1,0 +1,74 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("S/R Average", overlay = true)
+
+//Auto Support / Resistance
+sr_length = input.int(10, minval = 1, title = "Pivot Length", inline='1', group='S/R Settings')
+
+number_of_levels_to_store = input.int(20, minval = 1, title = "Number of Levels", inline='2', group='S/R Settings')
+plot_sr_lines = input.bool(false, title = "Plot S/R Lines", inline = '3', group = 'S/R Settings')
+plot_avg_sr_lines = input.bool(true, title = "Plot Avg. Lines", inline = '4', group = 'S/R Settings')
+
+resistance_color = input.color(color.new(#ff0014,0), title = "Resistance Color", inline = '5', group = 'S/R Settings')
+support_color = input.color(color.new(#00f10b,0), title = "Support Color", inline = '6', group = 'S/R Settings')
+
+
+//PIVOTS
+createLines(srcHigh, srcLow, strength) =>
+    pivotHigh = ta.pivothigh(srcHigh, strength, strength)
+    pivotLow = ta.pivotlow(srcLow, strength, strength)
+
+    levelHigh = ta.valuewhen(pivotHigh, srcHigh[strength], 0)
+    levelLow = ta.valuewhen(pivotLow, srcLow[strength], 0)
+
+    [pivotHigh, pivotLow, levelHigh, levelLow]
+    
+[is_bear_fractal, is_bull_fractal, high_level, low_level] = request.security(syminfo.tickerid, '', createLines(high, low, sr_length))
+
+plotshape(is_bear_fractal, title = "Pivot High", style = shape.triangledown, location = location.abovebar, color = resistance_color, size = size.tiny, offset = -sr_length)
+plotshape(is_bull_fractal, title = "Pivot Low", style = shape.triangleup, location = location.belowbar, color = support_color, size = size.tiny, offset = -sr_length)
+
+//STORE LEVELS
+var float[] resistance_levels = array.new_float(number_of_levels_to_store, 0.0)
+var resistance_lines = array.new_line()
+
+if is_bear_fractal
+    array.unshift(resistance_levels, high_level)
+    array.remove(resistance_levels, number_of_levels_to_store)
+    if plot_sr_lines
+        array.push(resistance_lines, line.new(bar_index[1], high_level, bar_index, high_level, extend = extend.both, color = color.new(resistance_color,70)))
+
+var float[] support_levels = array.new_float(number_of_levels_to_store, 0.0)
+var support_lines = array.new_line()
+
+if is_bull_fractal
+    array.unshift(support_levels, low_level)
+    array.remove(support_levels, number_of_levels_to_store)
+    if plot_sr_lines
+        array.push(support_lines, line.new(bar_index[1], low_level, bar_index, low_level, extend = extend.both, color = color.new(support_color,70)))
+    
+//DELETE LINES
+if array.size(resistance_lines) > number_of_levels_to_store
+    resistance_ln = array.shift(resistance_lines)
+	line.delete(resistance_ln)
+	
+if array.size(support_lines) > number_of_levels_to_store
+    support_ln = array.shift(support_lines)
+	line.delete(support_ln)
+
+//AVERAGE
+plot(plot_avg_sr_lines ? array.avg(resistance_levels) : na, title = 'Average Resistance', color = resistance_color, linewidth = 3)
+plot(plot_avg_sr_lines ? array.avg(support_levels) : na, title = 'Average Support', color = support_color, linewidth = 3)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

@@ -1,0 +1,142 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Twin Range + BG", overlay = true)
+
+
+UseMATrendFilter = true
+MAType = input.string("SMA","MA Type", options = ["SMA", "EMA", "VWMA", "RMA" , "Hull"],group="Moving Average Trend Filter",inline="Ind1")
+MASource = input.source(close,"MA Source",group="Moving Average Trend Filter",inline="Ind1")
+
+MATrendPeriod = input.int(200, 'MA Trend Filter Period', minval=1,group="Moving Average Trend Filter")
+
+UseMASlopeTrendFilter = input(true, 'Use SMA Slope Trend Filter | ',group="Moving Average Trend Filter",inline="Ind12")
+SMATrendLevel = input.int(5, 'Trend Level %', minval=0, maxval=100, step=5,group="Moving Average Trend Filter",inline="Ind12")
+
+UseAroonTrendFilter = input.bool(false, 'Use Aroon Trend Filter',group="Aroon Trend Filter")
+AroonTFLen = input.int(50, 'Aroon Trend Filter Period', minval=1,group="Aroon Trend Filter",inline="Ind2")
+AroonTFLevel = input.float(50.0, 'Aroon Trend Level', minval=1, maxval=100, step=5,group="Aroon Trend Filter",inline="Ind2")
+
+
+// SMA Trend Function
+MATrend(MAType, Source, MALength, UseSlope, Percentile) =>
+    MAValue = MAType == "SMA" ? ta.sma(Source, MALength) : MAType == "EMA" ? ta.ema(Source, MALength) : MAType == "VWMA" ? ta.vwma(Source, MALength) : MAType == "RMA" ? ta.rma(Source, MALength) : MAType == "Hull" ? ta.wma(2*ta.wma(Source, MALength/2)-ta.wma(Source, MALength), math.floor(math.sqrt(MALength))) :na
+    
+    MASlope = ta.change(MAValue)
+    MAPercentRankOK = ta.percentrank(math.abs(MASlope), 200) > Percentile
+
+    MA_Uptrend = UseSlope ? MAPercentRankOK and MASlope > 0 : close > MAValue
+    MA_Downtrend = UseSlope ? MAPercentRankOK and MASlope < 0 : close < MAValue
+
+    if MA_Uptrend and MA_Downtrend
+        MA_Uptrend := false
+        MA_Downtrend := false
+        MA_Downtrend
+    [MA_Uptrend, MA_Downtrend,MAValue]
+
+[MAUptrend, MADowntrend,MAValue] = MATrend(MAType,MASource,MATrendPeriod, UseMASlopeTrendFilter, SMATrendLevel)
+
+// Aroon Trend Function
+AroonTrend(AroonLength, AroonTrendLevel) =>
+    upper = 100 * (ta.highestbars(high, AroonLength + 1) + AroonLength) / AroonLength
+    lower = 100 * (ta.lowestbars(low, AroonLength + 1) + AroonLength) / AroonLength
+
+    Aroon_Uptrend = upper >= AroonTrendLevel
+    Aroon_Downtrend = lower >= AroonTrendLevel
+
+    if Aroon_Uptrend and Aroon_Downtrend
+        Aroon_Uptrend := false
+        Aroon_Downtrend := false
+        Aroon_Downtrend
+    [Aroon_Uptrend, Aroon_Downtrend]
+
+[AroonUptrend, AroonDowntrend] = AroonTrend(AroonTFLen, AroonTFLevel)
+
+
+// Define Trend
+Uptrend = UseMATrendFilter and UseAroonTrendFilter ? AroonUptrend and MAUptrend : (AroonUptrend or not UseAroonTrendFilter) and (MAUptrend or not UseMATrendFilter)
+Downtrend = UseMATrendFilter and UseAroonTrendFilter ? AroonDowntrend and MADowntrend : (AroonDowntrend or not UseAroonTrendFilter) and (MADowntrend or not UseMATrendFilter)
+
+
+bgcolor(Uptrend ? color.new(color.green, 80) : Downtrend ? color.new(color.red, 80) : na, title='Up Trend')
+plot(UseMATrendFilter?MAValue:na)
+
+
+
+
+
+
+
+// TWIN RANGE   
+
+source = input.source(defval=close, title="Source")
+
+// Smooth Average Range
+per1 = input.int(defval=27, minval=1, title="Fast period")
+mult1 = input.float(defval=1.6, minval=0.1, title="Fast range")
+
+per2 = input.int(defval=55, minval=1, title="Slow period")
+mult2 = input.float(defval=2, minval=0.1, title="Slow range")
+
+smoothrng(x, t, m) =>
+    wper = t * 2 - 1
+    avrng = ta.ema(math.abs(x - x[1]), t)
+    smoothrng = ta.ema(avrng, wper) * m
+    smoothrng
+smrng1 = smoothrng(source, per1, mult1)
+smrng2 = smoothrng(source, per2, mult2)
+smrng = (smrng1 + smrng2) / 2
+
+
+// Range Filter
+rngfilt(x, r) =>
+    rngfilt = x
+    rngfilt := x > nz(rngfilt[1]) ? x - r < nz(rngfilt[1]) ? nz(rngfilt[1]) : x - r : 
+       x + r > nz(rngfilt[1]) ? nz(rngfilt[1]) : x + r
+    rngfilt
+filt = rngfilt(source, smrng)
+
+upward = 0.0
+upward := filt > filt[1] ? nz(upward[1]) + 1 : filt < filt[1] ? 0 : nz(upward[1])
+downward = 0.0
+downward := filt < filt[1] ? nz(downward[1]) + 1 : filt > filt[1] ? 0 : nz(downward[1])
+
+hband = filt + smrng
+lband = filt - smrng
+
+var bool longCond = na
+var bool shortCond = na
+longCond := source > filt and source > source[1] and upward > 0 or source > filt and source < source[1] and upward > 0
+shortCond := source < filt and source < source[1] and downward > 0 or source < filt and source > source[1] and downward > 0
+
+CondIni = 0
+CondIni := longCond ? 1 : shortCond ? -1 : CondIni[1]
+
+long = longCond and CondIni[1] == -1
+short = shortCond and CondIni[1] == 1
+
+var bool long_entry = na
+var bool short_entry = na
+var bool long_exit = na
+var bool short_exit = na
+
+long_entry := long and Uptrend
+short_entry := short and Downtrend
+long_exit := short and not Downtrend
+short_exit := long and not Uptrend
+
+// Plotting
+plotshape(long_entry, title="Long", text="Long", style=shape.labelup, textcolor=color.black, size=size.tiny, location=location.belowbar, color=color.lime)
+plotshape(short_entry, title="Short", text="Short", style=shape.labeldown, textcolor=color.white, size=size.tiny, location=location.abovebar, color=color.red)
+
+plotshape(long_exit, title="Long Exit", text="Exit", style=shape.labeldown, textcolor=color.black, size=size.tiny, location=location.abovebar, color=color.white)
+plotshape(short_exit, title="Short Exit", text="Exit", style=shape.labelup, textcolor=color.black, size=size.tiny, location=location.belowbar, color=color.white)
+
+
+// Alerts
+alertcondition(long_entry, title="Long", message="Long")
+alertcondition(short_entry, title="Short", message="Short")
+
+alertcondition(long_exit, title="Long Exit", message="Long Exit")
+alertcondition(short_exit, title="Short Exit", message="Short Exit")

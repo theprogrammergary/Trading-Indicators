@@ -1,0 +1,154 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Pro In Out Divergence", max_lines_count = 500)
+
+pro_length = input.int(28, title = 'Pro Length')
+overbought_oversold = input.float(1.2, title = 'Overbought/Oversold')
+generate_alerts = input.bool(false, title = 'Generate Alerts')
+alert_requires_aim = input.bool(true, title = 'Alert Requires Aim')
+
+stochastic_full(k_period, d_period, slowing_period) =>
+    lowest_k = ta.lowest(low, k_period)
+    c1 = close - lowest_k
+    c2 = ta.highest(high, k_period) - lowest_k
+    fast_k = c2 != 0 ? c1 / c2 * 100 : 0
+    
+    fullk = ta.ema(fast_k, slowing_period)
+    fulld = ta.ema(fullk, d_period)
+    
+    fullk
+    
+k1v = math.max(-100, math.min(100, (stochastic_full(5,10,3))) - 50) / 50.01
+k2v = math.max(-100, math.min(100, (stochastic_full(8,10,5))) - 50) / 50.01
+k3v = math.max(-100, math.min(100, (stochastic_full(17,10,5))) - 50) / 50.01
+
+
+ema1 = ta.ema(close, pro_length)
+ema2 = ta.ema(ema1, pro_length)
+ema3 = ta.ema(ema2, pro_length)
+tavg = 3 * (ema1 - ema2) + ema3
+savg = tavg[math.floor(pro_length/2)]
+matr = 0.5*ta.atr(10)
+savgstate = low > savg + matr ? 1 : high < savg - matr ? -1 : 0
+
+[diplus, diminus, adx] = ta.dmi(math.floor(pro_length/2), math.floor(pro_length/2))
+hh = adx
+state1_color = input.color(color.new(#00ff0a,0) , title = 'State 1', group = 'Colors')
+state2_color = input.color(color.new(#ff0000,0) , title = 'State 2', group = 'Colors')
+state3_color = input.color(color.new(color.yellow,0) , title = 'State 3', group = 'Colors')
+plotshape(hh <= hh[1] or hh[1] > hh[2] ? na : 0, title = 'HH Sig', color = savgstate == 1 ? state1_color : savgstate == -1 ? state2_color: state3_color, style =  shape.square, size = size.small, location = location.absolute)
+plot(0, title = 'Zero Line', color = savgstate == 1 ? state1_color : savgstate == -1 ? state2_color  : state3_color, linewidth  = 2)
+
+overbought_oversold_color = input.color(color.white, title = 'Overbought/Oversold Lines', group = 'Colors')
+plot(overbought_oversold, title = 'Overbought', color = overbought_oversold_color)
+plot(-overbought_oversold, title = 'Oversold', color = overbought_oversold_color)
+
+var int count_chg = 0
+var float sc = 0.00
+
+if k2v > 0
+    count_chg := k1v <= k2v and k1v[1] > k2v[1] and k2v[1] > 0 ? -1 : 0
+    sc := math.min(0, nz(sc[1],sc)) + count_chg
+else 
+    count_chg := k1v >= k2v and k1v[1] < k2v[1] and k2v[1] <= 0 ? 1 : 0
+    sc := math.max(0, nz(sc[1],sc)) + count_chg
+
+vline(BarIndex, Color, LineStyle, LineWidth) => 
+    line.new(BarIndex, -overbought_oversold*2, BarIndex, overbought_oversold*2,  xloc.bar_index, extend.both, Color, LineStyle, LineWidth)
+    
+new_line = ((k2v > 0 and k1v <= k2v and k1v[1] > k2v[1]) or (k2v < 0 and k1v >= k2v and k1v[1] < k2v[1]))
+var color line_color = na
+
+aim_buy_color = input.color(color.new(#00ff0a,0), title = 'Aim Buy', group = 'Colors')
+ready_buy_color = input.color(color.new(#1b5e20,0), title = 'Ready Buy', group = 'Colors')
+aim_sell_color = input.color(color.new(#ff0000,0), title = 'Aim Sell', group = 'Colors')
+ready_sell_color = input.color(color.new(#aa1e2a,0), title = 'Ready Sell', group = 'Colors')
+
+if sc > 1
+    line_color := aim_buy_color
+else if sc == 1
+    line_color := ready_buy_color
+else if sc < -1
+    line_color := aim_sell_color
+else 
+    line_color := ready_sell_color
+    
+plotchar(new_line and math.abs(sc) > 1, char = "A", title = 'AIM', color = line_color, location = location.bottom, size = size.small)
+plotchar(new_line and math.abs(sc) <= 1, char = "R", title = 'READY', color = line_color, location = location.bottom, size = size.small)
+
+if(new_line)
+    vline(bar_index, line_color, line.style_dashed, 1) 
+    
+var float f3 = 0.00
+f3 := na(0.5 * (math.log((1 + k3v) / (1 - k3v)) + nz(f3[1],f3))) ? nz(f3[1],f3) : 0.5 * (math.log((1 + k3v) / (1 - k3v)) + nz(f3[1],f3))              
+
+major_color = input.color(color.new(color.fuchsia,0), title = 'Major', group = 'Colors')
+majorbuy_color = input.color(color.new(color.fuchsia,0), title = 'Major Buy', group = 'Colors')
+majorsell_color = input.color(color.new(color.fuchsia,0), title = 'Major Sell', group = 'Colors')
+bg_transparency = input.int(60, minval = 1, maxval = 100, title = 'Background Transparency')
+major_value = na(close) ? na : f3
+major_buy_value = (math.sign (f3 - f3[1]) > math.sign (f3[1] - f3[2])) and not na(close) ? f3[1] : na
+major_sell_value = (math.sign (f3 - f3[1]) < math.sign (f3[1] - f3[2])) and not na(close) ? f3[1] : na
+plot(major_value, title = 'Major', color = major_color, linewidth = 2)
+plotshape(major_buy_value, title = 'Major Buy', color = majorbuy_color, style =  shape.triangleup, size = size.small, location = location.absolute)
+plotshape(major_sell_value ? f3[1] : na, title = 'Major Sell', color = majorsell_color, style =  shape.triangledown, size = size.small, location = location.absolute)
+
+BuyCloudL = sc>1 ? overbought_oversold : sc == 1 ? -overbought_oversold : na
+BuyCloudL_plot = plot(BuyCloudL, display = display.none, editable=  false)
+BuyCloudH = sc>1 ? -overbought_oversold : sc == 1 ? overbought_oversold : na
+BuyCloudH_plot = plot(BuyCloudH, display = display.none, editable = false)
+fill(BuyCloudL_plot, BuyCloudH_plot, color = BuyCloudL > BuyCloudH ? color.new(aim_buy_color,bg_transparency) : color.new(ready_buy_color,80))
+
+SellCloudL = sc<-1 ? overbought_oversold : sc == -1 ? -overbought_oversold : na
+SellCloudL_plot = plot(SellCloudL, display = display.none, editable=  false)
+SellCloudH = sc<-1 ? -overbought_oversold : sc == -1 ? overbought_oversold : na
+SellCloudH_plot = plot(SellCloudH, display = display.none, editable = false)
+fill(SellCloudL_plot, SellCloudH_plot, color = SellCloudL > SellCloudH ? color.new(aim_sell_color,bg_transparency) : color.new(ready_sell_color,80))
+
+alertcondition(generate_alerts and(alert_requires_aim == false or sc>1) and major_buy_value<=0-overbought_oversold, "Ready, Aim, Fire! Buy", "Ready, Aim, Fire! Buy")
+alertcondition(generate_alerts and(alert_requires_aim == false or sc<-1) and major_sell_value>=overbought_oversold, "Ready, Aim, Fire! Sell", "Ready, Aim, Fire! Sell")
+
+// Bearish DIVERGENCE
+var float MajorH = 0.00
+MajorH := ta.pivothigh(f3,1,1) ? f3[1] : MajorH[1]
+RAFhigh = MajorH
+
+var PriceH = 0.00
+PriceH := MajorH == f3[1] ? high : nz(PriceH[1], PriceH)
+PriceHigh = PriceH
+
+PriceHHpre = PriceHigh > PriceHigh[1] ? 1 : 0
+PriceHH = PriceHHpre
+
+RAFhhPre = RAFhigh > RAFhigh[1] ? 1 : 0
+RAFhh = RAFhhPre
+
+BearDivA = PriceHH == 1 and RAFhh == 0 ? 1 : 0
+if(BearDivA == 1)
+    vline(bar_index, aim_sell_color, line.style_solid, 1) 
+
+
+//Bullish DIVERGENCE
+var float MajorL = 0.00
+MajorL := ta.pivotlow(f3,1,1) ? f3[1] : MajorL[1]
+RAFlow = MajorL
+
+var PriceL = 0.00
+PriceL := MajorL == f3[1] ? low : nz(PriceL[1],PriceL)
+PriceLow = PriceL
+
+PriceLLpre = PriceLow < PriceLow[1] ? 1 : 0
+PriceLL = PriceLLpre
+
+RAFLLPre = RAFlow < RAFlow[1] ? 1 : 0
+RAFLL = RAFLLPre
+
+BullDivA = PriceLL == 1 and RAFLL == 0 ? 1 : 0
+if(BullDivA == 1)
+    vline(bar_index, aim_buy_color, line.style_solid, 1) 
+    
+plotchar(BearDivA == 1, char = "D", title = 'Bear Divergence', color = aim_sell_color, location = location.bottom, size = size.small)
+plotchar(BullDivA == 1, char = "D", title = 'Bull Divergence', color = aim_buy_color, location = location.bottom, size = size.small)
+    

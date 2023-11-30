@@ -1,0 +1,136 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=5
+indicator("Jerry Buy Zone")
+
+//MACD DATA
+price =input.source(close, title = "Price", group = "MACD Settings")
+bblength = input.int(10, minval = 1, title = "BB Length", group = "MACD Settings")
+bbnum_dev = input.float(1.00, minval = 0.00, title = "BB Deviation", group = "MACD Settings")
+macdfastlength = input.int(12, minval = 1, title = "MACD Fast Length", group = "MACD Settings")
+macdslowlength = input.int(26, minval = 1, title = "MACD Slow Length", group = "MACD Settings")
+macdlength = input.int(5, minval = 1, title = "MACD Length", group = "MACD Settings")
+
+[macdLine, signalLine, histLine] = ta.macd(close, macdfastlength, macdslowlength, macdlength)
+[bb_midline, bb_upper, bb_lower] = ta.bb(macdLine, bblength, bbnum_dev)
+
+macd_line_color = macdLine > macdLine[1] and macdLine >= bb_upper ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine >= bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine <= bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine <= bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+macd_dots_color = macdLine > macdLine[1] and macdLine > bb_upper and macdLine < 0 ? color.new(#fbfb06,0) : macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0 ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine > bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine < bb_lower ? color.new(#fc0404,0) : macdLine > macdLine[1] and macdLine < bb_lower ? color.new(#94140c,0) : color.new(#808181,0)
+macd_dots = plot(macdLine, title = "MACD_Dots", color = macd_dots_color, style = plot.style_circles, linewidth = 3)
+macd_line = plot(macdLine, title = "MACD_Line", color = macd_line_color)
+zero = plot(0, title = "Zero", color = macdLine < 0 ? color.new(#fc0404,0) : color.new(#04fc04,0), linewidth = 2)
+
+//KELTNER DATA
+displace = input.int(0, title = "Displace", group = "Squeeze Cloud Settings")
+factor = input.float(1.50, title = "Factor", group = "Squeeze Cloud Settings")
+length = input.int(20, title = "Displace", group = "Squeeze Cloud Settings")
+averagetype = input.string(defval="EMA", title = "Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+trueRangeAverageType = input.string(defval="EMA", title = "True Range Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+
+
+ma(averagetype, price, length) => 
+    if averagetype == "WILDERS"
+        ta.rma(price, length)
+    else
+        if averagetype == "SMA"
+            ta.sma(price, length)
+        else 
+            if averagetype == "EMA"
+                ta.ema(price, length)
+            else 
+                if averagetype == "WMA"
+                    ta.wma(price, length)
+				else
+					if averagetype == "HullMA"
+				        ta.wma(2 * ta.wma(price, length / 2) - ta.wma(price, length), math.round(math.sqrt(length)))
+					else
+                        price
+
+shift = factor * ma(trueRangeAverageType, ta.tr, length)
+average = ma(averagetype, price, length)
+avg = average[-displace]
+upper_band = average[-displace] + shift[-displace]
+lower_band = average[-displace] - shift[-displace]
+
+//Bollinger Bands
+bblength2 = input.int(20, title = "BB Length 2", group = "Squeeze Cloud Settings")
+bbnum_dev2 = input.float(2.00, minval = 0.00, title = "BB Deviation", group = "Squeeze Cloud Settings")
+bb_averagetype = input.string(defval="SMA", title = "BB Average Type", options=["WILDERS", "SMA", "EMA", "WMA", "HullMA"], group = "Squeeze Cloud Settings")
+
+sdev = ta.stdev(price[-displace], bblength2)
+midline = ma(bb_averagetype, price[-displace], bblength2)
+lowerband = midline + (-bbnum_dev2) * sdev
+upperband = midline + bbnum_dev2 * sdev
+
+//Cloud
+upper_bb = plot(bb_upper, title = "BB Upper")
+lower_bb = plot(bb_lower, title = "BB Lower")
+fill(upper_bb,lower_bb, color =  upperband <= upper_band and lowerband >= lower_band ? color.new(#fbfb06,70) : color.new(#ff3f00,70), title = "Cloud")
+
+//Visual Inputs
+show_buy_sell_alert = input.bool(true, title = "Show Buy/Sell Alerts", group = "Visual Settings")
+label_text_color = input.color(#000000, title = "Label Text Color", group = "Visual Settings")
+
+//Buy and Sell Arrows
+buy_alert1 = (macdLine > bb_upper and ta.crossover(macdLine,0)) or (ta.crossover(macdLine, bb_upper) and macdLine > 0)
+buy_alert2 = (ta.crossover(macdLine, bb_upper) and macdLine < 0 and close > ta.ema(close, 9))
+sell_alert = ta.crossunder(macdLine, bb_lower)
+
+plotshape( buy_alert1 ? bb_lower : na, title = "Buy Arrow 1", style = shape.labelup, location = location.absolute, size = size.auto, text = "Buy", textcolor = label_text_color, color = color.white)
+plotshape( buy_alert2 ? bb_lower : na, title = "Buy Arrow 2", style = shape.labelup, location = location.absolute, size = size.auto, text = "Early", textcolor = label_text_color, color = color.new(#ff01fe,0))
+plotshape( sell_alert ? bb_upper : na, title = "Sell Arrow", style = shape.labeldown, location = location.absolute, size = size.auto, text = "Sell", textcolor = label_text_color, color = color.new(#ffc800,0))
+
+
+//VERTICAL LINES
+//could use bgcolor but not the same
+
+//Trend Label
+trend_label_text = ""
+trend_label_text := macdLine > macdLine[1] and macdLine > bb_upper ? "Trend Bullish" : macdLine < macdLine[1] and macdLine > bb_upper ? " Trend Bullish (fading)" : macdLine < macdLine[1] and macdLine < bb_lower ? "Trend Bearish" : macdLine > macdLine[1] and macdLine < bb_lower ? "Trend Bearish (reversing)" : "Trend Neutral"
+
+trend_label_color = color.new(color.black,100)
+trend_label_color := macdLine > macdLine[1] and macdLine > bb_upper ? color.new(#04fc04,0) : macdLine < macdLine[1] and macdLine > bb_upper ? color.new(#046404,0) : macdLine < macdLine[1] and macdLine < bb_lower ? color.new(#fc0404,0)  : macdLine > macdLine[1] and macdLine < bb_lower ? color.new(#94140c,0) : color.new(#fbfb06,0)
+
+//Get Ready / Buy Zone
+buy_zone = macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0
+get_ready = macdLine > macdLine[1] and macdLine > bb_upper and macdLine < 0
+warning_zone = macdLine <= bb_lower
+
+warning_zone_text = warning_zone ? "Warning Zone" : ""
+warning_zone_color = warning_zone ? color.new(#fc0404,0) : color.new(#000000,0)
+
+buy_zone_text = buy_zone ? "Buy Zone" : get_ready ? "Get Ready or Early Entry" : ""
+buy_zone_color = buy_zone ? color.new(#90ee90,0) : get_ready ? color.new(#fbfb06,0) : color.new(#000000,0)
+
+alert_text = buy_alert1 ? "Buy Alert" : buy_alert2 ? "Early Buy Alert" : sell_alert ? "Sell Alert" : ""
+alert_color = buy_alert1 ? color.new(#90ee90,0) : buy_alert2 ? color.new(#006400,0) : sell_alert ? color.new(#ff0000,0) : color.new(#000000,0)
+
+//TABLE
+LabelSize = input.string(defval="small", options=["small", "medium", "large"], group = "Visual Settings", title = "Label Size")
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+var table t = table.new(position.bottom_right, 5, 1, border_width = 1, frame_color = #000000)
+ 
+ 
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = trend_label_text, width = 0, bgcolor = trend_label_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 1, 0, text = warning_zone_text, width = 0, bgcolor = warning_zone_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 2, 0, text = buy_zone_text, width = 0, bgcolor = buy_zone_color, text_size = label_size, text_color = label_text_color)
+    table.cell(t, 3, 0, text = show_buy_sell_alert ? alert_text : "", width = 0, bgcolor = alert_color, text_size = label_size, text_color = label_text_color)    
+    
+    
+//ALERT CONDITIONS / SCANS
+alertcondition(buy_alert1, "Buy Alert", "Buy Alert")
+alertcondition(buy_alert2, "Early Buy Alert", "Early Buy Alert")
+alertcondition(sell_alert, "Sell Alert", "Sell Alert")
+
+//Basically same thing as buy arrow 1 and sell arrow
+alertcondition(ta.crossover(macdLine, bb_upper), "Dots Cross Above Cloud", "Dots Cross Above Cloud")
+alertcondition(ta.crossunder(macdLine, bb_lower), "Dots Cross Below Cloud", "Dots Cross Below Cloud")
+
+alertcondition(macdLine >= bb_upper and macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0, "Green Dot SCAN", "Green Dot SCAN")
+alertcondition(macdLine <= bb_lower, "Red Dot SCAN", "Red Dot SCAN")
+
+//BG COLOR
+bgcolor( (macdLine >= bb_upper and macdLine > macdLine[1] and macdLine > bb_upper and macdLine > 0) ?  color.new(#00ff0a,70) :  macdLine <= bb_lower ? color.new(#ff0000,70)  : na, title = "BG Color")
+

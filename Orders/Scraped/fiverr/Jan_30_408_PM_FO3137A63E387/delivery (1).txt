@@ -1,0 +1,11 @@
+So I was correct the reasoning is tradingview auto combines afterhours data into daily data. Take a look at the screenshot.
+
+green = yesterdays high
+white = yesterdays close
+red = yesterdays low
+
+
+You can see where the arrows are at that yesterdays lows are different. On tradestation it is correct because it only uses market hours data. Tradingview uses both.
+
+
+So you tell me what you want to do...

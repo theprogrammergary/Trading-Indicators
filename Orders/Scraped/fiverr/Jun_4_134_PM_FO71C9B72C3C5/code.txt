@@ -1,0 +1,85 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("for_max97", overlay = true, max_lines_count=50)
+
+
+draw_lines = input.bool(false, title = 'Draw Lines')
+show_labels = input.bool(false, title = 'Show Line Labels')
+
+_level1 = input.float(0.00, title = 'Fib Level 1', group = 'Levels', inline = '1')
+_level2 = input.float(0.148, title = 'Fib Level 2', group = 'Levels', inline = '2')
+_level3 = input.float(0.79, title = 'Fib Level 3', group = 'Levels', inline = '3')
+_level4 = input.float(1.00, title = 'Fib Level 4', group = 'Levels', inline = '4')
+
+line_color1 = input.color(color.white, " ", group = 'Levels', inline = '1')
+line_color2 = input.color(color.white, " ", group = 'Levels', inline = '2')
+line_color3 = input.color(color.white, " ", group = 'Levels', inline = '3')
+line_color4 = input.color(color.white, " ", group = 'Levels', inline = '4')
+
+
+f_draw_lines(line_value, fib_value, line_color) =>
+    line1 = line.new(bar_index, line_value, bar_index + 5, y2 = line_value, extend = extend.right, color = line_color, style = line.style_solid, width = 1)
+    line.delete(line1[1])
+    
+    if show_labels
+        label1 = label.new(bar_index-1, line_value, text= str.tostring(fib_value) + "(" + str.tostring(line_value) + ")", style=label.style_none, textcolor = line_color, textalign =  text.align_right)
+        label.delete(label1[1])
+ 
+candle_range = high - low
+level1_value = low + math.round_to_mintick(_level1 * candle_range)
+level2_value = low + math.round_to_mintick(_level2 * candle_range)
+level3_value = low + math.round_to_mintick(_level3 * candle_range)
+level4_value = low + math.round_to_mintick(_level4 * candle_range)
+
+if draw_lines and barstate.islast
+    f_draw_lines(level1_value, _level1, line_color1)
+    f_draw_lines(level2_value, _level2, line_color2)
+    f_draw_lines(level3_value, _level3, line_color3)
+    f_draw_lines(level4_value, _level4, line_color4)
+
+
+show_dashboard = input.bool(title='Dashboard', defval=true, inline='1', group='Dashboard Settings')
+dashboardsize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title=' | Size', inline='1', group='Dashboard Settings')
+dashboad_size = dashboardsize == 'Small' ? size.small : dashboardsize == 'Medium' ? size.normal : dashboardsize == 'Large' ? size.large : size.small
+positioning = position.bottom_right 
+
+dashboard_color = input.color(color.new(color.white, 0), title='BG Color', inline='2', group='Dashboard Settings')
+dashboard_border_color = input.color(color.new(#000000, 0), title='Border Color', inline='2', group='Dashboard Settings')
+dashboard_text = input.color(#000000, title='Text Color', inline='2', group='Dashboard Settings')
+
+
+//TABLE
+var table t = table.new(positioning, 2, 7,frame_color=dashboard_border_color, frame_width=2, border_color=dashboard_border_color, border_width=2)
+if barstate.islast and show_dashboard
+    
+    //Title Row
+    table.cell(t, 0, 0, text='ARGAND MAX Dashboard', width=0, bgcolor=color.new(#3179f5,0), text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.cell(t, 1, 0, text='', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)
+    table.merge_cells(t, 0, 0, 1, 0) //merge first row
+
+    //#1
+    table.cell(t, 0, 1, text='EN COURS ' + str.tostring(_level2) + "%   ", width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 1, text=str.tostring(level2_value), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  
+    
+    //#2
+    table.cell(t, 0, 2, text='EN COURS ' + str.tostring(_level3) + "%   ", width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 2, text=str.tostring(level3_value), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  
+    
+    //#5
+    table.cell(t, 0, 3, text='      Différences ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 3, text=str.tostring(math.abs(level3_value - level2_value)), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  
+    
+    
+    //#3
+    table.cell(t, 0, 4, text='FERMER ' + str.tostring(_level2) + "%", width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 4, text=str.tostring(level2_value[1]), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  
+    
+    //#4
+    table.cell(t, 0, 5, text='FERMER ' + str.tostring(_level3) + "%", width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 5, text=str.tostring(level3_value[1]), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  
+    
+    //#6
+    table.cell(t, 0, 6, text='      Différences ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_left)    
+    table.cell(t, 1, 6, text=str.tostring(math.abs(level3_value[1] - level2_value[1])), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=dashboad_size, text_halign=text.align_center)  

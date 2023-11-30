@@ -1,0 +1,345 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("for_Roony515_121222", overlay = true, max_lines_count = 500, max_labels_count = 500)
+// --INPUTS-- //
+// --MAIN SETTINGS -- //
+volume1_time = input.session("1100-1101", title = 'Time 1 (EST)', group = 'Main Settings', inline = '2')
+volume2_time = input.session("1400-1401", title = 'Time 2 (EST)', group = 'Main Settings', inline = '3')
+
+show_ma = input.bool(title='MA Filter', defval=true, group='Main Settings', inline = '6')
+ma_length = input.int(defval=50, title=' ', minval=1,  group='Main Settings', inline = '6')
+ma_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'],  group='Main Settings', inline = '6')
+ma_tf = input.timeframe(title=' ', defval='', group='Main Settings', inline = '6')
+// --MAIN SETTINGS -- //
+
+// --LEVEL SETTINGS-- //
+rounding_value = input.float(1000, title = 'Rounding Value ', group = 'Level Settings', inline = '1')
+price_offset = input.float(0.0021, title = 'Price Offset    ', minval = 0.0000, group = 'Level Settings', inline = '2')
+use_qtr_levels = input.bool(true, title = 'Quarter Levels', group = 'Level Settings', inline = '3')
+css_qtr = input.color(color.new(color.yellow,70), title = '', group = 'Level Settings', inline = '3')
+style_qtr = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '3')
+width_qtr = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '3')
+
+use_half_levels = input.bool(true, title = 'Half Levels   ', group = 'Level Settings', inline = '4')
+css_half = input.color(color.new(color.yellow,35), title = '', group = 'Level Settings', inline = '4')
+style_half = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '4')
+width_half = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '4')
+
+use_whole_levels = input.bool(true, title = 'Whole Levels ', group = 'Level Settings', inline = '5')
+css_whole = input.color(color.yellow, title = '', group = 'Level Settings', inline = '5')
+style_whole = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '5')
+width_whole = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '5')
+// --LEVEL SETTINGS-- //
+
+// --RISK MANAGEMENT -- //
+use_tp = input.bool(true, title = 'Target   ', group = 'Risk Management', inline = '1')
+tp_amount = input.float(1.00, title = '', group = 'Risk Management', inline = '1')
+tp_type = input.string('Percent', title = '', options = ['Percent', 'Price', 'Next Level'], group = 'Risk Management', inline = '1')
+
+use_sl = input.bool(true, title = 'Stop Loss', group = 'Risk Management', inline = '2')
+sl_amount = input.float(1.00, title = '', group = 'Risk Management', inline = '2')
+sl_type = input.string('Percent', title = '', options = ['Percent', 'Price'], group = 'Risk Management', inline = '2')
+// --RISK MANAGEMENT -- //
+
+// --POSITION LINES-- // 
+line_showing = input.string('Current & Past', title = 'Position Tool', options = ['None', 'Current', 'Current & Past'], group = 'Position Line Settings', inline = '1')
+
+css_targetline = input.color(color.new(color.green,80), title = 'Profit', group = 'Position Line Settings', inline = '2')
+css_stopline = input.color(color.new(color.red,80), title = 'Loss', group = 'Position Line Settings', inline = '2')
+css_toolcolor = input.color(color.white, title = 'Text', group = 'Position Line Settings', inline = '2')
+// --POSITION LINES-- // 
+
+// --INPUTS-- //
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+f_draw_lines(lines, baseline, half_value, qtr_value) =>
+    
+    // clear
+    array_size = array.size(lines) 
+    if array_size > 0
+        for i = 0 to array_size- 1
+            line.delete(array.get(lines, i))
+        array.clear(lines)
+
+
+    for i = 0 to 10
+
+        if use_whole_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+(i*rounding_value), x2 = bar_index + 1, y2 = baseline+(i*rounding_value), extend = extend.both, width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-(i*rounding_value), x2 = bar_index + 1, y2 = baseline-(i*rounding_value), extend = extend.both,  width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+
+        if use_half_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+half_value+(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline+half_value+(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-half_value-(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline-half_value-(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+
+        if use_qtr_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+qtr_value+(i*(half_value)), x2 = bar_index + 1, y2 = baseline+qtr_value+(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-qtr_value-(i*(half_value)), x2 = bar_index + 1, y2 = baseline-qtr_value-(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+
+
+// --FUNCTION TO LOOP THROUGH LINES TO CHECK FOR NEW SIGNAL -- //
+f_entrynearline(lines) =>
+    
+    var bool near_line = false
+
+    // if we use level lines then loop through them to see if we are close
+    if use_qtr_levels or use_half_levels or use_whole_levels
+        for i = 0 to array.size(lines) - 1
+            line_value = line.get_y2( array.get(lines, i) )
+            near_line := price_offset > 0 ? math.abs(close - line_value) <= price_offset : true
+            break
+    else
+        near_line := true
+
+    near_line
+// --FUNCTION TO LOOP THROUGH LINES TO CHECK FOR NEW SIGNAL -- //
+
+
+// --FUNCTION TO LOOP THROUGH LINES TO GET TARGET LEVEL -- //
+f_target_level(lines, entry_price, long_cond, short_cond, min_increment) =>
+
+    var float target_level = 0.00
+    var temp_values = array.new<float>()
+    
+     // if we use level lines then loop through them to get correct target value
+    if (use_qtr_levels or use_half_levels or use_whole_levels)
+
+        if long_cond[1] or short_cond[1]
+
+            // clear old temp_values 
+            array_size = array.size(temp_values) 
+            if array_size > 0
+                for i = 0 to array_size- 1
+                    array.clear(temp_values)
+
+            // loop through line values and add to array
+            for i = 0 to array.size(lines) - 1
+                line_value = line.get_y2( array.get(lines, i) )
+
+                if long_cond[1] and line_value > entry_price + (min_increment/2)
+                    array.unshift(temp_values, line_value)
+                else if short_cond[1] and line_value < entry_price - (min_increment/2)
+                    array.unshift(temp_values, line_value)
+            
+            // sort array and depending on signal assign it to target value
+            if long_cond[1]
+                array.sort(temp_values, order.ascending)
+                target_level := array.get(temp_values, 0)
+            else if short_cond[1]
+                array.sort(temp_values, order.descending)
+                target_level := array.get(temp_values, 0)
+
+        else 
+            target_level := target_level[1]
+            
+    else
+        target_level := na
+
+    target_level
+// --FUNCTION TO LOOP THROUGH LINES TO GET TARGET LEVEL -- //
+
+
+// --FUNCTION TO CALCULATE MA-- //
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+// --FUNCTION TO CALCULATE MA-- //
+
+
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+
+// draw lines
+var lines = array.new_line(100, na)
+baseline = math.round( close / rounding_value) * rounding_value
+whole_value = rounding_value
+half_value = (rounding_value/2)
+qtr_value = (half_value/2)
+min_increment = use_qtr_levels ? qtr_value : use_half_levels ? half_value : use_whole_levels ? whole_value : na
+if barstate.isfirst or baseline != baseline[1]
+    f_draw_lines(lines, baseline, half_value, qtr_value) 
+
+// look for new signals
+near_line_cond = f_entrynearline(lines)
+
+//calculate ma
+ma_value = request.security(syminfo.tickerid, ma_tf, getMA(close[1], ma_length, ma_type), lookahead=barmerge.lookahead_on)
+ma_buy = (close >= ma_value) or not show_ma
+ma_sell = (close < ma_value) or not show_ma
+
+plot(ma_value, title = 'Filter MA', color = color.white, display = display.none)
+
+
+// --MAIN CODE-- //
+var in_trade = false
+var trade_side = 0
+
+var target = 99999999.99
+var stop = 0.000000
+var entry_price = 0.00
+
+var long_entry = false
+var short_entry = false
+
+var tgt_hit = false
+var stop_hit = false
+
+var long_exit = false
+var short_exit = false
+
+var float time1_volume = 0 
+var float time2_volume = 0 
+
+istime1 = time(timeframe.period, volume1_time, "America/New_York")
+istime2 = time(timeframe.period, volume2_time, "America/New_York")
+time1_volume := istime1 ? volume : time1_volume[1]
+time2_volume := istime2 ? volume : time2_volume[1]
+// bgcolor(istime1 or istime2 ? color.new(color.white,90) : na, title = 'Is Time')
+
+long_entry := istime2 and near_line_cond and ma_buy and time1_volume > time2_volume and trade_side != 1
+short_entry := istime2 and near_line_cond and ma_sell and time1_volume < time2_volume and trade_side != -1
+
+entry_price := long_entry[1] or short_entry[1] ? open :  in_trade == true ? entry_price[1] : na
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]
+
+next_level = f_target_level(lines, entry_price, long_entry, short_entry, min_increment)
+
+
+if use_tp
+    target := trade_side == 1 ? ( tp_type == 'Next Level' ? next_level : tp_type == 'Percent' ? (entry_price + (entry_price * (tp_amount/100))) : entry_price + tp_amount ) 
+     : trade_side == -1 ? ( tp_type == 'Next Level' ? next_level : tp_type == 'Percent' ? (entry_price - (entry_price * (tp_amount/100))) : entry_price - tp_amount ) : na
+else
+    target := na
+    
+if use_sl    
+    stop := trade_side == 1 ?  ( sl_type == 'Percent' ? (entry_price - (entry_price * (sl_amount/100))) : entry_price - sl_amount ) : trade_side == -1 ? ( sl_type == 'Percent' ? (entry_price + (entry_price * (sl_amount/100))) : entry_price + sl_amount ) : na
+else    
+    stop := na
+
+tgt_hit := trade_side == 1 and high >= target or trade_side == -1 and low <= target
+stop_hit := trade_side == 1 and low <= stop or trade_side == -1 and high >= stop
+
+long_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == 1
+short_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == -1   
+
+in_trade := long_entry or short_entry ? true : long_exit or short_exit ?  false : in_trade[1]
+
+//  calculate variables for text
+profit_pct = math.round(math.abs((target - entry_price) / target * 100),2)
+stop_pct = math.round(math.abs((stop - entry_price) / stop * 100),2)
+
+target_text = 'TGT: ' + str.tostring(math.round_to_mintick(target)) + ' (' + str.tostring(profit_pct) + '%)'
+stoploss_text = 'SL: ' + str.tostring(math.round_to_mintick(stop)) + ' (' + str.tostring(stop_pct) + '%)'
+// --MAIN CODE-- //
+
+
+// --TRADE POSIITION LINES-- //
+var line current_entryline = na
+var line current_targetline = na
+var line current_stopline = na
+
+previous_entrylines = array.new_line(50, na)
+previous_targetlines = array.new_line(50, na)
+previous_stoplines = array.new_line(50, na)
+
+//////////////////
+
+var box profit_box = na
+var box loss_box = na
+
+previous_profit_box = array.new_box(50,na)
+previous_loss_box = array.new_box(50,na)
+
+show_position_tool = line_showing != 'None' 
+show_previous = line_showing == 'Past' or line_showing == 'Current & Past'
+
+// --FUNCTION TO COPY LINE TO STORED ARRAY-- //
+f_copy_n_store(current_line, storing_array) =>
+
+    if show_previous
+        copied_line = line.copy(current_line)
+        line.set_extend(copied_line, extend.none)
+        line.set_x2(copied_line, bar_index)
+        f_array_add_pop(storing_array, copied_line)
+
+    line.delete(current_line)
+// --FUNCTION TO COPY LINE TO STORED ARRAY-- //
+
+
+// --FUNCTION TO COPY BOX TO STORED ARRAY-- //
+f_copy_n_storebox(current_box, storing_array, box_type, valign_type) =>
+
+    if show_previous
+        copied_box = box.copy(current_box)
+        box.set_extend(copied_box, extend.none)
+        box.set_right(copied_box, bar_index)
+        box.set_text(copied_box, box_type == 1 ? target_text : stoploss_text)
+        box.set_text_color(copied_box, css_toolcolor)
+        box.set_text_size(copied_box, size.small)
+        box.set_text_valign(copied_box, valign_type == 1 ? text.align_top : text.align_bottom)
+    
+        f_array_add_pop(storing_array, copied_box)
+
+    box.delete(current_box)
+// --FUNCTION TO COPY LINE TO STORED ARRAY-- //
+
+
+// --TRADE POSIITION LINES-- //
+// new lines
+if long_entry[1] or short_entry[1] and show_position_tool
+
+    // if we were in a trade and flipped side
+    if entry_price[1] != 0
+
+        f_copy_n_storebox(profit_box, previous_profit_box, 1,long_entry[1] ? 1 : -1)
+        f_copy_n_storebox(loss_box, previous_loss_box, -1, long_entry[1] ? -1 : 1)
+
+    profit_box := box.new(left = bar_index, top = target, right = bar_index + 1, bottom = entry_price, border_color = color.new(css_targetline, 50), border_width = 1, border_style = line.style_solid,
+     extend = extend.right, bgcolor = css_targetline, text = target_text, text_size = size.small, text_color = css_toolcolor, text_halign = text.align_center, text_valign = long_entry[1] ? text.align_top : text.align_bottom)
+    
+    loss_box := box.new(left = bar_index, top = entry_price, right = bar_index + 1, bottom = stop, border_color = color.new(css_stopline, 50), border_width = 1, border_style = line.style_solid,
+     extend = extend.right, bgcolor = css_stopline, text = stoploss_text, text_size = size.small, text_color = css_toolcolor, text_halign = text.align_center, text_valign =  long_entry[1] ?text.align_bottom : text.align_top)
+    
+// manage lines
+if long_exit or short_exit
+
+    f_copy_n_storebox(profit_box, previous_profit_box, 1, long_exit ? 1 : -1)
+    f_copy_n_storebox(loss_box, previous_loss_box, -1, long_exit ? -1 : 1)
+else
+    box.set_right(profit_box, bar_index)
+    box.set_right(loss_box, bar_index)
+// --TRADE POSIITION LINES-- //
+
+
+// --PLOT SIGNALS-- //
+plotshape(long_entry[1] , style = shape.triangleup, location = location.belowbar, color=color.new(color.green, 30), size=size.small, title = 'Long Entry')
+plotshape(short_entry[1] , style = shape.triangledown, location = location.abovebar, color=color.new(color.red, 30), size=size.small, title = 'SS Entry')
+
+plotshape(short_exit, style = shape.triangleup, location = location.belowbar, color=color.new(color.gray, 30), size=size.small, title = 'SS Exit')
+plotshape(long_exit, style = shape.triangledown, location = location.abovebar, color=color.new(color.gray, 30), size=size.small, title = 'Long Exit')
+// --PLOT SIGNALS-- //
+
+
+// --ALERTS-- //
+alertcondition(long_entry, title = 'Long Entry', message = 'Long Entry')
+alertcondition(short_entry, title = 'Short Entry', message = 'Short Entry')
+alertcondition(long_exit, title = 'Long Exit', message = 'Long Exit')
+alertcondition(short_exit, title = 'Short Exit', message = 'Short Exit')
+// --ALERTS-- //
+
+
+// debug
+// bgcolor(long_entry[1] ? color.new(color.green,70) : short_entry[1] ? color.new(color.red,70) : long_exit ? color.new(color.blue,70) : short_exit ? color.new(color.fuchsia,70) : na)
+
+

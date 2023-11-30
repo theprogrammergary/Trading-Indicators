@@ -1,0 +1,1 @@
+For the scale adjustment you have to have long, new_long, short, and new_short "show plot" unchecked

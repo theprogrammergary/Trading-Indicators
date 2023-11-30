@@ -1,0 +1,80 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("MTF CCI & SAR")
+
+
+//INPUTS
+
+//timeframes
+tf1 = input.timeframe("1", title = 'Timeframe 1', group = 'Strategy Settings', inline = '1')
+tf2 = input.timeframe("30", title = 'Timeframe 2', group = 'Strategy Settings', inline = '2')
+tf3 = input.timeframe("60", title = 'Timeframe 3', group = 'Strategy Settings', inline = '3')
+tf4 = input.timeframe("240", title = 'Timeframe 4', group = 'Strategy Settings', inline = '4')
+
+//cci
+cci_length = input.int(200, minval=1, title = 'CCI Length', group = 'Strategy Settings', inline = '5')
+cci_src = input(hlc3, title="CCI Source", group = 'Strategy Settings', inline = '6')
+
+cci_1 = request.security(syminfo.tickerid, tf1, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_2 = request.security(syminfo.tickerid, tf2, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_3 = request.security(syminfo.tickerid, tf3, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+cci_4 = request.security(syminfo.tickerid, tf4, ta.cci(cci_src, cci_length)[1], lookahead = barmerge.lookahead_on)
+
+// sar
+sar_start = input(0.02, title = 'SAR Start', group = 'Strategy Settings', inline = '7')
+sar_increment = input(0.02, title = 'SAR Increment', group = 'Strategy Settings', inline = '8')
+sar_maximum = input(0.2, title = 'SAR Maximum', group = 'Strategy Settings', inline = '9')
+
+sar_1 = request.security(syminfo.tickerid, tf1, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_2 = request.security(syminfo.tickerid, tf2, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_3 = request.security(syminfo.tickerid, tf3, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+sar_4 = request.security(syminfo.tickerid, tf4, ta.sar(sar_start, sar_increment, sar_maximum)[1], lookahead = barmerge.lookahead_on)
+
+
+//ENTRY
+cci_entry_value = input.int(175,  title = 'CCI Entry Level', group = 'Strategy Settings', inline = '10')
+cci_exit_value = input.int(-50, title = 'CCI Exit Level', group = 'Strategy Settings', inline = '11')
+
+var long_cond = false
+var long_entry = false
+long_cond := (cci_1 > cci_entry_value) and (cci_2 > cci_entry_value) and (cci_3 > cci_entry_value) and (cci_4 > cci_entry_value) 
+     and (close < sar_1) and (close < sar_2) and (close < sar_3) and (close < sar_4) ? true : false
+long_entry := long_cond and not long_cond[1] ? true : false
+
+var short_cond = false
+var short_entry = false
+short_cond := (cci_1 > cci_entry_value) and (cci_2 > cci_entry_value) and (cci_3 > cci_entry_value) and (cci_4 > cci_entry_value) 
+     and (close < sar_1) and (close < sar_2) and (close < sar_3) and (close < sar_4) ? true : false
+short_entry := short_cond and not short_cond[1] ? true : false
+
+entry_color = input.color(color.new(color.yellow,0), title = 'Entry Color', group = 'Strategy Settings', inline = '12')
+no_color = input.color(color.new(color.white,0), title = 'No Entry Color', group = 'Strategy Settings', inline = '12')
+
+
+sar_color1 = close < sar_1 ? entry_color : no_color
+sar_color2 = close < sar_2 ? entry_color : no_color
+sar_color3 = close < sar_3 ? entry_color : no_color
+sar_color4 = close < sar_4 ? entry_color : no_color
+
+cci_color1 = cci_1 > cci_entry_value ? entry_color : no_color
+cci_color2 = cci_2 > cci_entry_value ? entry_color : no_color
+cci_color3 = cci_3 > cci_entry_value ? entry_color : no_color
+cci_color4 = cci_4 > cci_entry_value ? entry_color : no_color
+
+plot(cci_1, title = 'CCI 1', color = cci_color1, linewidth = 1, style = plot.style_stepline)
+plot(cci_2, title = 'CCI 2', color = cci_color2, linewidth = 1, style = plot.style_stepline)
+plot(cci_3, title = 'CCI 3', color = cci_color3, linewidth = 1, style = plot.style_stepline)
+plot(cci_4, title = 'CCI 4', color = cci_color4, linewidth = 1, style = plot.style_stepline)
+
+plot(sar_1, color = sar_color1, linewidth = 1, style = plot.style_stepline)
+plot(sar_2, color = sar_color2, linewidth = 1, style = plot.style_stepline)
+plot(sar_3, color = sar_color3, linewidth = 1, style = plot.style_stepline)
+plot(sar_4, color = sar_color4, linewidth = 1, style = plot.style_stepline)
+
+bgcolor(long_cond ? color.new(entry_color,80) : na)
+// bgcolor(short_cond ? entry_color : no_color)
+
+hline(cci_entry_value, title = 'CCI Entry', color = color.gray, linestyle = hline.style_dotted)
+hline(cci_exit_value, title = 'CCI Exit', color = color.gray, linestyle = hline.style_dotted)

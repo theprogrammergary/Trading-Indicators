@@ -1,0 +1,1 @@
+You set the timezone in the image I attached, but the thing is I adjusted mine and still was not able to re-create the results you are seeing. You really need to start from a fresh chart with no indicators and see if the error pops up.

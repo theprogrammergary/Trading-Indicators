@@ -1,0 +1,297 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("ORB_twisted_m", overlay = true, default_qty_type = strategy.fixed, default_qty_value = 3, initial_capital = 1000000, calc_on_order_fills = true)
+
+// inputs
+_orb_session        = input.session('0930-0945', title = 'ORB Session (EST)')
+_trade_session      = input.session('0945-1400', title = 'Trade Session (EST)') 
+_tp_amount1         = input.float(0.50, title = 'Extension 1 of Opening Range', minval = 0.00)    
+_tp_amount2         = input.float(1.00, title = 'Extension 2 of Opening Range', minval = 0.00)
+_tp3_length         = input.int(3, title = 'TP3 / Trail Line')
+_color_candles      = input.bool(false, title = 'Color Candles')
+
+if _tp_amount2 < _tp_amount1
+    runtime.error("TP Amount 2 cannot be less than TP Amount 1")
+
+
+// calculate orb
+or_session = time(timeframe.period, str.format('{0}:1234567', _orb_session), 'America/New_York')
+var or_high = 0.0
+var or_low = 0.0
+var or_mid = 0.0
+var days_open = 0.0
+
+var float orh_ext1 = 0.00
+var float orh_ext2 = 0.00
+
+var float orl_ext1 = 0.00
+var float orl_ext2 = 0.00
+
+var float or_size  = 0.00
+var float tp1_amount = 0.00
+var float tp2_amount = 0.00
+
+if or_session
+    if not or_session[1]
+        or_low := low
+        or_high := high
+        days_open := open
+        or_size := math.round_to_mintick(or_high - or_low)
+        tp1_amount := or_size * _tp_amount1
+        tp2_amount := or_size * _tp_amount2
+    else 
+        or_low := math.min(low, or_low)
+        or_high := math.max(high, or_high)
+        or_size := math.round_to_mintick(or_high - or_low)
+        tp1_amount := or_size * _tp_amount1
+        tp2_amount := or_size * _tp_amount2
+else if dayofweek != dayofweek[1]
+    or_low := na
+    or_high := na
+    days_open := na
+    or_size := na
+    tp1_amount := na
+    tp2_amount := na
+
+
+
+
+
+
+
+
+// calculate ma
+high_ma_value = ta.sma(high, _tp3_length)
+low_ma_value = ta.sma(low, _tp3_length)
+
+
+
+
+// create trade signals / manage trades
+var bool time_to_trade  = na
+var bool orh_break      = na
+var bool orl_break      = na
+
+var bool orh_ext1_break = na
+var bool orl_ext1_break = na
+var bool orh_ext2_break = na
+var bool orl_ext2_break = na
+
+var bool moved_to_breakeven = na
+var bool start_trail_stop   = na
+
+var float long_stop         = na
+var float short_stop        = na
+
+
+time_to_trade := time(timeframe.period, str.format('{0}:1234567', _trade_session), 'America/New_York')
+orh_break := time_to_trade and ta.crossover(close, or_high)
+orl_break := time_to_trade and ta.crossunder(close, or_low)
+new_position = (strategy.position_size > 0 and strategy.position_size[1] <= 0) or (strategy.position_size < 0 and strategy.position_size[1] >= 0)
+
+
+orh_ext1 :=  strategy.position_size > 0 ? math.round_to_mintick(strategy.position_avg_price + tp1_amount) : strategy.position_size > 0 ? orh_ext1[1] : na
+orh_ext2 :=  strategy.position_size > 0 ? math.round_to_mintick(strategy.position_avg_price + tp2_amount) : strategy.position_size > 0 ? orh_ext2[1] : na
+
+orl_ext1 :=  strategy.position_size < 0 ? math.round_to_mintick(strategy.position_avg_price - tp1_amount) : strategy.position_size < 0 ? orl_ext1[1] : na
+orl_ext2 :=  strategy.position_size < 0 ? math.round_to_mintick(strategy.position_avg_price - tp2_amount) : strategy.position_size < 0 ? orl_ext2[1] : na
+
+
+// plot(orl_ext1, color = color.yellow, style=plot.style_circles)
+// barcolor(new_position and strategy.position_size > 0 ? color.yellow : na)
+// barcolor(strategy.position_size > 0 ? color.lime : strategy.position_size < 0 ? color.rgb(255, 0, 0) : na)
+// plot(orh_ext1, color = color.orange, style= plot.style_line)
+// bgcolor(na(tp1_amount) ? color.orange : na)
+
+orh_ext1_break := ta.crossover(high, orh_ext1)
+orl_ext1_break := ta.crossunder(low, orl_ext1)
+orh_ext2_break := ta.crossover(high, orh_ext2)
+orl_ext2_break := ta.crossunder(low, orl_ext2)
+
+
+moved_to_breakeven := new_position ? false 
+ : strategy.position_size > 0 and orh_ext1_break ? true
+ : strategy.position_size < 0 and orl_ext1_break ? true
+ : moved_to_breakeven[1]
+
+start_trail_stop := new_position ? false
+ : strategy.position_size > 0 and orh_ext2_break ? true
+ : strategy.position_size < 0 and orl_ext2_break ? true
+ : start_trail_stop[1]
+
+long_stop := not (strategy.position_size > 0) ? na
+ : start_trail_stop ? strategy.position_avg_price
+ : moved_to_breakeven ? strategy.position_avg_price
+ : or_low
+short_stop := not (strategy.position_size < 0) ? na
+ : start_trail_stop ? strategy.position_avg_price
+ : moved_to_breakeven ? strategy.position_avg_price
+ : or_high
+
+
+
+var bool long_trail_hit = na
+var bool short_trail_hit = na
+long_trail_hit := new_position ? na
+  : strategy.position_size > 0 and start_trail_stop and close < low_ma_value and barstate.isconfirmed ? true
+  : false
+short_trail_hit := new_position ? na
+  : strategy.position_size < 0 and start_trail_stop and close > high_ma_value and barstate.isconfirmed ? true
+  : false
+
+
+
+// send orders
+if orh_break
+    strategy.entry("LE", strategy.long, comment = 'LE')
+if orl_break
+    strategy.entry("SS_E", strategy.short, comment = 'SS_E')
+
+if strategy.position_size > 0
+    strategy.exit('L_TP1', 'LE', qty = strategy.position_size / 3, limit = orh_ext1, stop = long_stop, comment_profit = 'L_TP1', comment_loss = 'L_SL1')
+    strategy.exit('L_TP2', 'LE', qty = strategy.position_size / 2, limit = orh_ext2, stop = long_stop, comment_profit = 'L_TP2', comment_loss = 'L_SL2')
+    strategy.exit('L_TP3', 'LE', qty = strategy.position_size, limit = na, stop = long_stop, comment_profit = 'L_TP3', comment_loss = 'L_SL3')
+else if strategy.position_size < 0
+    strategy.exit('SS_TP1', 'SS_E', qty = strategy.position_size / 3, limit = orl_ext1, stop = short_stop, comment_profit = 'SS_TP1', comment_loss = 'SS_SL1')
+    strategy.exit('SS_TP2', 'SS_E', qty = strategy.position_size / 2, limit = orl_ext2, stop = short_stop, comment_profit = 'SS_TP2', comment_loss = 'SS_SL2')
+    strategy.exit('SS_TP3', 'SS_E', qty = strategy.position_size , limit = na, stop = short_stop, comment_profit = 'SS_TP3', comment_loss = 'SS_SL3')
+
+if long_trail_hit
+    strategy.close('LE', 'L_TS', immediately = true)
+if short_trail_hit
+    strategy.close('SS_E', 'SS_TS', immediately = true)
+
+
+// visualize trade
+entry_plot = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+lstop_plot = plot(long_stop, title = 'Long Stop', color = color.fuchsia, style = plot.style_circles)
+ssstop_plot = plot(short_stop, title = 'Short Stop', color = color.fuchsia, style = plot.style_circles)
+
+
+
+// visualize orb
+or_high_plot = plot(not or_session ? or_high : na, title='ORH', 
+ color=color.new(color.white, 70), linewidth=2, style=plot.style_linebr, offset = 0)
+or_low_plot = plot(not or_session ? or_low : na, title='ORL', 
+ color=color.new(color.white, 70), linewidth=2, style=plot.style_linebr, offset = 0)
+fill(or_high_plot, or_low_plot, title='OR Fill', color=color.new(color.silver, 95))
+
+orh_ext1_plot = plot(strategy.position_size > 0 ? orh_ext1 : na, title='ORH TP 1', 
+ color=color.new(color.maroon, 0) , linewidth=1, style=plot.style_circles, offset = 0)
+orh_ext2_plot = plot(strategy.position_size > 0 ? orh_ext2 : na, title='ORH TP 2', 
+ color=color.new(color.maroon, 0), linewidth=1, style=plot.style_circles, offset = 0)
+
+orl_ext1_plot = plot(strategy.position_size < 0 ? orl_ext1 : na, title='ORL TP 1', 
+ color=color.new(color.green, 0), linewidth=1, style=plot.style_circles, offset = 0)
+orl_ext2_plot = plot(strategy.position_size < 0 ? orl_ext2 : na, title='ORL TP 2', 
+ color=color.new(color.green, 0), linewidth=1, style=plot.style_circles, offset = 0)
+
+plot(low_ma_value, title = 'Low MA', color = strategy.position_size > 0 and start_trail_stop ? color.new(color.fuchsia, 0) : color.new(color.red, 50), style = plot.style_steplinebr)
+plot(high_ma_value, title = 'High MA', color = strategy.position_size < 0 and start_trail_stop ? color.new(color.fuchsia, 0) : color.new(color.green, 50), style = plot.style_steplinebr)
+
+
+
+
+orb_color = not _color_candles ? na 
+ : not or_session and na(or_high) ? color.gray
+ : or_session ? color.white
+ : close > or_high ? color.lime
+ : close < or_low ? color.red 
+ : color.yellow
+barcolor(orb_color)
+
+
+
+// display risk
+var float long_tp1_dollar = 0.00
+var float long_tp2_dollar = 0.00
+var float long_sl_dollar = 0.00
+
+long_tp1_dollar := not (strategy.position_size > 0) ? na 
+ : new_position ? (orh_ext1 - strategy.position_avg_price) * syminfo.pointvalue * math.floor(strategy.position_size / 3)
+ : long_tp1_dollar[1]
+
+long_tp2_dollar := not (strategy.position_size > 0) ? na 
+ : new_position ? (orh_ext2 - strategy.position_avg_price) * syminfo.pointvalue * math.floor(strategy.position_size / 3)
+ : long_tp2_dollar[1]
+
+long_sl_dollar := not (strategy.position_size > 0) ? na 
+ : (long_stop - strategy.position_avg_price) * syminfo.pointvalue * strategy.position_size
+
+
+var float short_tp1_dollar = 0.00
+var float short_tp2_dollar = 0.00
+var float short_sl_dollar = 0.00
+
+short_tp1_dollar := not (strategy.position_size < 0) ? na 
+ : new_position ? (orl_ext1 - strategy.position_avg_price) * syminfo.pointvalue * math.floor(strategy.position_size / 3)
+ : short_tp1_dollar[1]
+
+short_tp2_dollar := not (strategy.position_size < 0) ? na 
+ : new_position ? (orl_ext2 - strategy.position_avg_price) * syminfo.pointvalue * math.floor(strategy.position_size / 3)
+ : short_tp2_dollar[1]
+
+short_sl_dollar := not (strategy.position_size < 0) ? na 
+ : (short_stop - strategy.position_avg_price) * syminfo.pointvalue * strategy.position_size
+
+
+var label long_tp1_label = na
+var label long_tp2_label = na
+var label long_sl_label = na
+
+var label short_tp1_label = na
+var label short_tp2_label = na
+var label short_sl_label = na
+
+if strategy.position_size > 0
+    if new_position
+        long_tp1_label := label.new(bar_index + 1, orh_ext1, text = "$"+str.tostring(long_tp1_dollar, format.mintick), color = color.rgb(43, 94, 45),
+         style = label.style_label_left, textcolor = color.white)
+        long_tp2_label := label.new(bar_index + 1, orh_ext2, text = "$"+str.tostring(long_tp2_dollar, format.mintick), color = color.rgb(43, 94, 45),
+         style = label.style_label_left, textcolor = color.white)
+        long_sl_label := label.new(bar_index + 1, long_stop, text = "$"+str.tostring(long_sl_dollar, format.mintick), color = color.rgb(172, 33, 33),
+         style = label.style_label_left, textcolor = color.white)
+    else
+        label.set_x(long_tp1_label, bar_index+1)
+        label.set_x(long_tp2_label, bar_index+1)
+        label.set_xy(long_sl_label, bar_index+1, long_stop)
+        label.set_text(long_sl_label, "$"+str.tostring(long_sl_dollar, format.mintick))
+        label.set_color(long_sl_label, long_sl_dollar > 0 ? color.rgb(109, 170, 111) : color.rgb(172, 33, 33))
+
+if strategy.position_size < 0
+    if new_position
+        short_tp1_label := label.new(bar_index + 1, orl_ext1, text = "$"+str.tostring(short_tp1_dollar, format.mintick), color = color.rgb(43, 94, 45),
+         style = label.style_label_left, textcolor = color.white)
+        short_tp2_label := label.new(bar_index + 1, orl_ext2, text = "$"+str.tostring(short_tp2_dollar, format.mintick), color = color.rgb(43, 94, 45),
+         style = label.style_label_left, textcolor = color.white)
+        short_sl_label := label.new(bar_index + 1, short_stop, text = "$"+str.tostring(short_sl_dollar, format.mintick), color = color.rgb(172, 33, 33),
+         style = label.style_label_left, textcolor = color.white)
+    else
+        label.set_x(short_tp1_label, bar_index+1)
+        label.set_x(short_tp2_label, bar_index+1)
+        label.set_xy(short_sl_label, bar_index+1, short_stop)
+        label.set_text(short_sl_label, "$"+str.tostring(short_sl_dollar, format.mintick))
+        label.set_color(short_sl_label, short_sl_dollar > 0 ? color.rgb(109, 170, 111) : color.rgb(172, 33, 33))
+
+        
+
+open_risk = strategy.position_size > 0 ? long_sl_dollar
+ : strategy.position_size < 0 ? short_sl_dollar
+ : na 
+open_reward = strategy.position_size > 0 ? (moved_to_breakeven ? 0 : long_tp1_dollar) + (start_trail_stop ? 0 : long_tp2_dollar) + (start_trail_stop ? strategy.openprofit : long_tp2_dollar) 
+ : strategy.position_size < 0 ? (moved_to_breakeven ? 0 : short_tp1_dollar) + (start_trail_stop ? 0 : short_tp2_dollar) + (start_trail_stop ? strategy.openprofit : short_tp2_dollar) 
+ : na 
+
+
+
+var t = table.new(position = position.bottom_right, columns = 1, rows = 4, bgcolor = color.black, border_width = 1)
+if barstate.islast
+    table.clear(t,0,0,0,3)
+
+    if strategy.position_size != 0
+        table.cell(t,0,0, text = 'Entry ' + str.tostring(strategy.position_size) + ' @ ' + str.tostring(strategy.position_avg_price), bgcolor = color.rgb(30, 91, 141), text_color = color.white, text_halign = text.align_left)
+        table.cell(t,0,1, text = 'Open$ ' + str.tostring(strategy.openprofit, format.mintick), bgcolor = strategy.openprofit > 0 ? color.rgb(43, 94, 45)  : color.rgb(172, 33, 33), text_color = color.white, text_halign = text.align_left)
+        table.cell(t,0,2, text = 'Reward$  ' + str.tostring(open_reward, format.mintick), bgcolor = open_reward > 0 ? color.rgb(43, 94, 45)  : color.rgb(172, 33, 33), text_color = color.white, text_halign = text.align_left) 
+        table.cell(t,0,3, text = 'Risk$  ' + str.tostring(open_risk, format.mintick), bgcolor = open_risk > 0 ? color.rgb(109, 170, 111)  : color.rgb(172, 33, 33), text_color = color.white, text_halign = text.align_left) 

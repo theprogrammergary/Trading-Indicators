@@ -1,0 +1,14 @@
+I went ahead and made two different scans for you.
+
+1. This is exactly how you wanted it.
+https://tos.mx/OvW5x19
+
+2. This is the same thing but there is a small change. It shows you last weeks scan. I included this just in case you wanted it as well.
+https://tos.mx/15DoOBL
+
+-You add the study to the chart to visual see scan results on chart. See the pictures.
+The two studies will be called:
+RangeScan (for scan1)
+RangeScan LastWeek (for scan2)
+
+If you have any questions let me know. Thinkorswim has had problems with the links recently so if you get an error let me know.

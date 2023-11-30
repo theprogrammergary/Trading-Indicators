@@ -1,0 +1,11 @@
+You have the up fractal lookback and the down fractal lookback set to 2.
+
+1.So we do the loop for the previous 2 fractals.
+
+2.AND then we add the high/low filter. (high for down fractals, low for up fractals)
+
+Results
+For up raids the low must be below the lowest of the last 2 fractals
+For down raids the high must be above the highest of the last 2 fractals.
+
+In the image you can see that pink/red line. It must be below that since the lookback was set to 2.

@@ -1,0 +1,135 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("MicroQuant Trend Strat +TS", overlay = true, max_labels_count = 500)
+
+price = input.source(close, title = 'Price')
+length = input.int(21, title = 'Length')
+atrPeriod = input.int(21, "ATR Length")
+factor = input.float(4.0, "Factor", step = 0.1)
+
+
+// strategy settings
+use_sess    = input.bool(true, title = 'Trading Session', group = 'Trade Settings', inline = 'sess')
+i_sess      = input.session("0700-1700", title = '', group = 'Trade Settings', inline = 'sess')
+
+use_tp      = input.bool(true, title = 'TP', group = 'Trade Settings', inline = 'tp')
+tp_amount   = input.float(20.00, title = '', group = 'Trade Settings', inline = 'tp')
+
+use_sl      = input.bool(true, title = 'SL', group = 'Trade Settings', inline = 'sl')
+sl_amount   = input.float(10.00, title = '', group = 'Trade Settings', inline = 'sl')
+
+use_ts      = input.bool(true, title = 'Trail Stop ATR %', group = 'Trail Stop Settings', inline = 'ts')
+ts_amount   = input.float(300.00, minval = 1.00, maxval = 1000, step = 50, title = '', group = 'Trail Stop Settings', inline = 'ts')
+
+use_be      = input.bool(true, title = 'Breakeven Stop starts at $', group = 'Trail Stop Settings', inline = 'be')
+start_be     = input.float(500, title = '', group = 'Trail Stop Settings', inline = 'be')
+
+
+// The same on Pine Script™
+pine_supertrend() =>
+    atr = ta.sma(ta.tr, atrPeriod)
+    lowerBand = ta.highest(ta.ema(high, length), length) - atr * factor
+    upperBand = ta.lowest(ta.ema(low, length), length) + atr * factor
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or price[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or price[1] > prevUpperBand ? upperBand : prevUpperBand
+    int direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        direction := 1
+    else if prevSuperTrend == prevUpperBand
+        direction := price > upperBand ? -1 : 1
+    else
+        direction := price < lowerBand ? 1 : -1
+    superTrend := direction == -1 ? lowerBand : upperBand
+    [superTrend, direction]
+
+[pineSupertrend, pineDirection] = pine_supertrend()
+plot(pineDirection < 0 ? pineSupertrend : na, "Up direction", color = color.green, style=plot.style_steplinebr)
+plot(pineDirection > 0 ? pineSupertrend : na, "Down direction", color = color.red, style=plot.style_steplinebr)
+
+
+var bool tradersPostBuy = na
+var bool tradersPostSell = na
+tradersPostBuy  := pineDirection < 0 and pineDirection[1] >= 0
+tradersPostSell := pineDirection > 0 and pineDirection[1] <= 0
+
+
+
+// STRATEGY SIGNALS
+var float tp_lvl = na
+var float sl_lvl = na
+
+var float trail_lvl = na
+var float be_lvl    = na
+
+var float final_sl_lvl = na
+
+// position management
+
+tp_lvl := not use_tp ? na
+     :strategy.position_size > 0 ? strategy.position_avg_price + tp_amount
+     : strategy.position_size < 0 ? strategy.position_avg_price - tp_amount
+     : na
+
+sl_lvl := not use_sl ? na
+     : strategy.position_size > 0 ? strategy.position_avg_price - sl_amount
+     : strategy.position_size < 0 ? strategy.position_avg_price + sl_amount
+     : na
+
+atr = ta.atr(atrPeriod)
+atr_percent = atr*(ts_amount/100)
+trail_lvl := not use_ts ? na
+     : strategy.position_size > 0 and strategy.position_size[1] <= 0 ? strategy.position_avg_price - atr_percent
+     : strategy.position_size < 0 and strategy.position_size[1] >= 0 ? strategy.position_avg_price + atr_percent
+     : strategy.position_size > 0 ? math.max(close - atr_percent, trail_lvl[1])
+     : strategy.position_size < 0 ? math.min(close + atr_percent, trail_lvl[1])
+     : na
+
+be_lvl := not use_be ? na
+     : strategy.opentrades.max_runup(strategy.opentrades - 1) >= start_be ? strategy.position_avg_price
+     : na
+
+
+
+
+
+final_sl_lvl := strategy.position_size > 0 ? math.max(sl_lvl, nz(trail_lvl, -999999999), nz(be_lvl, -999999999))
+     : strategy.position_size < 0 ? math.min(sl_lvl, nz(trail_lvl, 999999999), nz(be_lvl ,999999999))
+     : na
+
+
+tradeTime = time == time(timeframe.period, i_sess, "America/New_York") or not use_sess
+if tradeTime
+    // entry signals
+    if tradersPostBuy
+        strategy.entry("LE", strategy.long)
+    if tradersPostSell
+        strategy.entry("SS_E", strategy.short)
+
+    if strategy.position_size > 0
+        strategy.exit('LX', from_entry = 'LE', limit = tp_lvl, stop = final_sl_lvl, comment_profit = 'L_TP', comment_loss = 'L_SL')
+    if strategy.position_size < 0
+        strategy.exit('SS_X', from_entry = 'SS_E', limit = tp_lvl, stop = final_sl_lvl, comment_profit = 'SS_TP', comment_loss = 'SS_SL')
+        
+else
+    strategy.close_all("EOD Exit", "EOD Exit", immediately = true)
+
+
+
+
+// STYLING
+p_entry = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+p_tp = plot(tp_lvl, title = 'TP', color = color.green, style = plot.style_circles)
+p_sl = plot(final_sl_lvl, title = 'SL', color = color.red, style = plot.style_circles)
+
+// p_ts = plot(trail_lvl, style=plot.style_steplinebr, color = color.silver)
+
+
+fill(p_entry, p_tp, color = color.new(color.green,90))
+fill(p_entry, p_sl, color = color.new(color.red,90))

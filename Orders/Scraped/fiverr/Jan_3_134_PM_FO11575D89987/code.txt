@@ -1,0 +1,318 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy('TMT Overlay v1', overlay=true)
+
+
+//  BACKTESTING
+use_long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Backtest Settings", inline = '1')
+use_short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Backtest Settings", inline = '2')
+
+//Groups//
+
+gr2 = '2. Reversal Zones'
+gr4 = '3. Market Structure'
+
+//Colors//
+
+red = color.new(color.red, 0)
+lime = color.new(color.lime, 0)
+
+blue = color.new(color.blue, 0)
+orange = color.new(color.orange, 0)
+
+teal = color.new(color.teal, 0)
+fuchsia = color.new(color.fuchsia, 0)
+
+yellow = color.new(color.yellow, 0)
+purple = color.new(color.purple, 0)
+
+white = color.new(color.white, 0)
+
+
+//Signals//
+
+showsignals = input.bool(defval=true, title='Buy/Sell Signals', group='Entry Settings', inline = '1')
+showtp = input.bool(defval=true, title='Default Take Profit', group='Exit Settings', inline = '1')
+
+obtrigger = 53
+ostrigger = -53
+
+n1 = 9
+n2 = 13
+
+ap = hlc3
+esa = ta.ema(ap, n1)
+d = ta.ema(math.abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ta.ema(ci, n2)
+
+momx = tci
+momy = ta.sma(momx, 4)
+momz = momx - momy
+
+long = ta.crossover(momx, momy)
+short = ta.crossunder(momx, momy)
+
+cond1 = momy < ostrigger
+cond2 = momy > obtrigger
+
+tpshort = long and cond1
+tplong = short and cond2
+
+
+plotshape(showtp ? tpshort : na, title='Take Your Short Profits', style=shape.square, location=location.belowbar, color=color.new(lime, 0), size=size.tiny)
+plotshape(showtp ? tplong : na, title='Take Your Long Profits', style=shape.square, location=location.abovebar, color=color.new(yellow, 30), size=size.tiny)
+
+// alertcondition(tpshort, title='Take Your Short Profits', message='{{exchange}}:{{ticker}}, price = {{close}}')
+// alertcondition(tplong, title='Take Your Long Profits', message='{{exchange}}:{{ticker}}, price = {{close}}')
+
+src = hl2
+Multiplier = 3.0
+Periods = input.int(title=' ', defval=6, group='Entry Settings', inline = '1')
+
+atr = ta.atr(Periods)
+up = src - Multiplier * atr
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+dn = src + Multiplier * atr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+
+buySignal = trend == 1 and trend[1] == -1
+plotshape(buySignal and showsignals ? up : na, title='Buy', text='Buy', location=location.belowbar, style=shape.labelup, size=size.small, color=color.new(lime, 50), textcolor=white)
+
+sellSignal = trend == -1 and trend[1] == 1
+plotshape(sellSignal and showsignals ? dn : na, title='Sell', text='Sell', location=location.abovebar, style=shape.labeldown, size=size.small, color=color.new(red, 50), textcolor=white)
+
+// alertcondition(buySignal, title='Buy Signal', message='{{exchange}}:{{ticker}}, price = {{close}}')
+// alertcondition(sellSignal, title='Sell Signal', message='{{exchange}}:{{ticker}}, price = {{close}}')
+
+
+
+
+// ADD ON
+
+// ma filter
+show_ma = input.bool(title='MA Filter', defval=true, group='Entry Settings', inline = '6')
+ma_length = input.int(defval=50, title=' ', minval=1,  group='Entry Settings', inline = '6')
+ma_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'],  group='Entry Settings', inline = '6')
+ma_tf = input.timeframe(title=' ', defval='', group='Entry Settings', inline = '6')
+// --FUNCTION TO CALCULATE MA-- //
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+// --FUNCTION TO CALCULATE MA-- //
+ma_value = request.security(syminfo.tickerid, ma_tf, getMA(close[1], ma_length, ma_type), lookahead=barmerge.lookahead_on)
+ma_buy = (close >= ma_value) or not show_ma
+ma_sell = (close < ma_value) or not show_ma
+plot(ma_value, title = 'Filter MA', color = color.white, display = show_ma ? display.all : display.none)
+
+
+
+
+// entry signals
+long_entry = use_long_trades and buySignal and ma_buy
+short_entry = use_short_trades and sellSignal and ma_sell
+
+entry_price = strategy.position_avg_price
+trade_side = strategy.position_size > 0 ? 1 : strategy.position_size < 0 ? -1 : 0
+
+// targets and stops
+use_be = input.bool(true, title = 'If Using Default TP create SL at B/E', group = 'Exit Settings', inline = '2')
+
+use_tp = input.bool(false, title = 'Target   ', group = 'Exit Settings', inline = '3')
+tp_amount = input.float(1.00, step = 0.1, title = '', group = 'Exit Settings', inline = '3')
+tp_type = input.string('Percent', title = '', options = ['Percent', 'Price'], group = 'Exit Settings', inline = '3')
+
+use_sl = input.bool(true, title = 'Stop Loss', group = 'Exit Settings', inline = '4')
+sl_amount = input.float(1.00, step = 0.1, title = '', group = 'Exit Settings', inline = '4')
+sl_type = input.string('Percent', title = '', options = ['Percent', 'Price'], group = 'Exit Settings', inline = '4')
+
+
+var hit_a_tgt = false
+var target = 99999999.99
+var stop = 0.000000
+
+if use_tp
+    target := trade_side == 1 ? ( tp_type == 'Percent' ? (entry_price + (entry_price * (tp_amount/100))) : entry_price + tp_amount ) 
+     : trade_side == -1 ? ( tp_type == 'Percent' ? (entry_price - (entry_price * (tp_amount/100))) : entry_price - tp_amount ) : na
+else
+    target := na
+    
+if use_sl    
+    stop := trade_side == 1 ?  ( sl_type == 'Percent' ? (entry_price - (entry_price * (sl_amount/100))) : entry_price - sl_amount ) : trade_side == -1 ? ( sl_type == 'Percent' ? (entry_price + (entry_price * (sl_amount/100))) : entry_price + sl_amount ) : na
+else    
+    stop := na
+
+long_exit = (sellSignal)
+short_exit = (buySignal)
+
+long_tp = (showtp and tplong)
+short_tp = (showtp and tpshort)
+
+hit_a_tgt := (long_entry or short_entry) ? false : (long_tp or short_tp) ? true : hit_a_tgt[1]
+
+// breakeven
+if showtp
+    if use_be and hit_a_tgt == true
+        stop := entry_price  
+
+//  entries
+if long_entry
+    strategy.entry("LE", strategy.long)
+else if short_entry
+    strategy.entry("SS_E", strategy.short)
+
+// exits
+if long_exit
+    strategy.close("LE", comment = "LX")
+else if short_exit
+    strategy.close("SS_E", comment = "SS_X")
+
+// added tp/sl full exits
+if trade_side == 1
+    strategy.exit("LE", limit = target, stop = stop, qty_percent = 100 , comment_profit  = "TP ALL", comment_loss = "SL ALL")
+if trade_side == -1
+    strategy.exit("SS_E", limit = target, stop = stop, qty_percent = 100 , comment_profit  = "TP ALL", comment_loss = "SL ALL")
+
+// default tp exit
+if long_tp
+    strategy.close("LE", qty_percent = 50, comment = "TP")
+else if short_tp
+    strategy.close("SS_E", qty_percent = 50, comment = "TP")
+
+
+
+
+
+//Reversal Zone//
+
+showrz = input.bool(defval=true, title='Reversal Zone', group=gr2)
+showrzc = input.bool(defval=true, title='Reversal Zone Cluster', group=gr2)
+
+length = input.int(defval=42, title='Reversal Zone Width', minval=1, group=gr2)
+source = close
+
+mult = 2
+basis = ta.sma(source, length)
+
+dev1 = mult * ta.stdev(source, length)
+dev2 = (mult + 1) * ta.stdev(source, length)
+dev3 = (mult + 2) * ta.stdev(source, length)
+
+upper1 = basis + dev1
+lower1 = basis - dev1
+
+upper2 = basis + dev2
+lower2 = basis - dev2
+
+upper3 = basis + dev3
+lower3 = basis - dev3
+
+p1 = plot(showrz ? upper1 : na, editable=false, color=color.new(fuchsia, 100))
+p2 = plot(showrz ? lower1 : na, editable=false, color=color.new(teal, 100))
+p3 = plot(showrz ? upper2 : na, editable=false, color=color.new(fuchsia, 100))
+p4 = plot(showrz ? lower2 : na, editable=false, color=color.new(teal, 100))
+p5 = plot(showrz ? upper3 : na, editable=false, color=color.new(fuchsia, 100))
+p6 = plot(showrz ? lower3 : na, editable=false, color=color.new(teal, 100))
+
+fill(p1, p3, color.new(#e91e63, 90), title='RZ Fill')
+fill(p3, p5, color.new(#e91e63, 80), title='RZ Fill')
+
+fill(p2, p4, color.new(teal, 90), title='RZ Fill')
+fill(p4, p6, color.new(teal, 80), title='RZ Fill')
+
+oscluster = close < lower1
+obcluster = close > upper1
+
+plotshape(showrzc ? oscluster : na, title='Oversold Cluster', style=shape.circle, location=location.belowbar, size=size.auto, color=color.new(blue, 0))
+plotshape(showrzc ? obcluster : na, title='Overbought Cluster', style=shape.circle, location=location.abovebar, size=size.auto, color=color.new(red, 0))
+
+// alertcondition(oscluster, title='Oversold Cluster', message='{{exchange}}:{{ticker}}, price = {{close}}')
+// alertcondition(obcluster, title='Overbought Cluster', message='{{exchange}}:{{ticker}}, price = {{close}}')
+
+// MARKET STRUCTURE //
+
+ShowHHLL = input.bool(true, title='Show Market Structure Markers', group=gr4)
+ShowPrice = input.bool(true, title='Show Martet Structure Price', group=gr4)
+ShowSRLevels = input.bool(true, title='Show S/R Level Extensions', group=gr4)
+ShowFB = input.bool(true, title='Show Break of Structure', inline='BOS', group=gr4)
+maxLvlLen = 0
+
+srcH = input.source(high, title='High\'s', inline='High', group=gr4)
+leftLenH = input.int(title='L', defval=20, minval=1, inline='High', group=gr4)
+rightLenH = input.int(title='R', defval=20, minval=1, inline='High', group=gr4)
+srcL = input.source(low, title='Low\'s', inline='Low', group=gr4)
+leftLenL = input.int(title='L', defval=20, minval=1, inline='Low', group=gr4)
+rightLenL = input.int(title='R', defval=20, minval=1, inline='Low', group=gr4)
+
+colorH = color.new(#089981, 0)
+colorHT = color.new(color.white, 0)
+colorLR = color.new(#e91e63, 0)
+colorL = color.new(#e91e63, 0)
+colorLT = color.new(color.white, 0)
+colorHS = color.new(#089981, 0)
+
+ph = ta.pivothigh(srcH, leftLenH, rightLenH)
+pl = ta.pivotlow(srcL, leftLenL, rightLenL)
+
+
+valuewhen_1 = ta.valuewhen(ph, srcH[rightLenH], 1)
+valuewhen_2 = ta.valuewhen(ph, srcH[rightLenH], 0)
+higherhigh = na(ph) ? na : valuewhen_1 < valuewhen_2 ? ph : na
+valuewhen_3 = ta.valuewhen(ph, srcH[rightLenH], 1)
+valuewhen_4 = ta.valuewhen(ph, srcH[rightLenH], 0)
+lowerhigh = na(ph) ? na : valuewhen_3 > valuewhen_4 ? ph : na
+valuewhen_5 = ta.valuewhen(pl, srcL[rightLenL], 1)
+valuewhen_6 = ta.valuewhen(pl, srcL[rightLenL], 0)
+higherlow = na(pl) ? na : valuewhen_5 < valuewhen_6 ? pl : na
+valuewhen_7 = ta.valuewhen(pl, srcL[rightLenL], 1)
+valuewhen_8 = ta.valuewhen(pl, srcL[rightLenL], 0)
+lowerlow = na(pl) ? na : valuewhen_7 > valuewhen_8 ? pl : na
+
+
+drawLabel(_offset, _pivot, _style, _yloc, _color, _text) =>
+    if not na(_pivot)
+        label.new(bar_index[_offset], _pivot, text=_text + str.tostring(_pivot, format.mintick) + '', style=_style, yloc=_yloc, color=_color, textcolor=_color)
+
+drawLabel(rightLenH, ShowPrice ? higherhigh : na, label.style_none, yloc.abovebar, colorHT, '')
+drawLabel(rightLenH, ShowPrice ? higherlow : na, label.style_none, yloc.belowbar, colorLT, '')
+drawLabel(rightLenH, ShowPrice ? lowerhigh : na, label.style_none, yloc.abovebar, colorHT, '')
+drawLabel(rightLenH, ShowPrice ? lowerlow : na, label.style_none, yloc.belowbar, colorLT, '')
+
+plotshape(ShowHHLL ? higherhigh : na, title='HH', style=shape.triangledown, location=location.abovebar, color=colorHS, text='HH', textcolor=colorHT, offset=-rightLenH)
+plotshape(ShowHHLL ? higherlow : na, title='HL', style=shape.triangleup, location=location.belowbar, color=colorHS, text='HL', textcolor=colorLT, offset=-rightLenH)
+plotshape(ShowHHLL ? lowerhigh : na, title='LH', style=shape.triangledown, location=location.abovebar, color=colorLR, text='LH', textcolor=colorHT, offset=-rightLenL)
+plotshape(ShowHHLL ? lowerlow : na, title='LL', style=shape.triangleup, location=location.belowbar, color=colorLR, text='LL', textcolor=colorLT, offset=-rightLenL)
+
+countH = 0
+countL = 0
+countH := na(ph) ? nz(countH[1]) + 1 : 0
+countL := na(pl) ? nz(countL[1]) + 1 : 0
+
+pvtH = 0.0
+pvtL = 0.0
+pvtH := na(ph) ? pvtH[1] : srcH[rightLenH]
+pvtL := na(pl) ? pvtL[1] : srcL[rightLenL]
+
+HpC = pvtH != pvtH[1] ? na : colorLR
+LpC = pvtL != pvtL[1] ? na : colorHS
+
+plot(ShowSRLevels and (maxLvlLen == 0 or countH < maxLvlLen) ? pvtH : na, color=HpC, offset=-rightLenH, title='Top Levels HH,LH', style=plot.style_circles)
+plot(ShowSRLevels and (maxLvlLen == 0 or countL < maxLvlLen) ? pvtL : na, color=LpC, offset=-rightLenL, title='Bottom Levels LL,HL', style=plot.style_circles)
+
+buy = false
+sell = false
+buy := close > pvtH and open <= pvtH
+sell := close < pvtL and open >= pvtL
+
+plotshape(ShowFB and buy ? 1 : na, title='BOS', text='⤬', style=shape.triangleup, location=location.belowbar, color=color.new(#ff3bf4, 0), textcolor=color.new(#ff3bf4, 0), size=size.auto, editable=true)
+plotshape(ShowFB and sell ? -1 : na, title='BOS', text='⤬', style=shape.triangledown, location=location.abovebar, color=color.new(#ff3bf4, 0), textcolor=color.new(#ff3bf4, 0), size=size.auto, editable=true)
+
+// alertcondition(buy, title='BOS Long', message='{{exchange}}:{{ticker}}, price = {{close}}')
+// alertcondition(sell, title='BOS Short', message='{{exchange}}:{{ticker}}, price = {{close}}')
+

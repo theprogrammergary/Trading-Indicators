@@ -1,0 +1,1 @@
+How does the radarscreen look so far? The buy signal color is too bright on my screen but I didnt edit the code for colors.

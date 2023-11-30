@@ -1,0 +1,1 @@
+Fixed. It was because tradingview counts when the close is equal to open as a green candle.

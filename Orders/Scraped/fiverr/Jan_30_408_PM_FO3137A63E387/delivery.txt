@@ -1,0 +1,3 @@
+Well I can tell you without even loading to the chart it is probably referencing after hours data. The study on tradingview references by "D" to get the daily high and low. That likely just combines the entire day together and you can't change it to only use market hours.
+
+Where as on Tradestation I have it programmed to do whatever is on the chart. If you have afterhours loaded it will include it, if you dont it will not include it.

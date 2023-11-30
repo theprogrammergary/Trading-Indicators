@@ -1,0 +1,148 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("for_mouizrana", overlay=true)
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+        
+ma1_length = input.int(9, title = 'MA 1', minval = 1, group = 'Indicator Settings', inline = '1')
+ma1_type = input.string(title = "", defval = "EMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Indicator Settings", inline = '1')
+
+ma2_length = input.int(20, title = 'MA 2', minval = 1, group = 'Indicator Settings', inline = '2')
+ma2_type = input.string(title = "", defval = "EMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Indicator Settings", inline = '2')
+
+long_ma_length = input.int(200, title = 'Filter MA', group = 'Indicator Settings', inline = '3')
+long_type = input.string(title = "", defval = "EMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Indicator Settings", inline = '3')
+
+bull_color = input.color(color.green, title = 'Bull Color', group = 'Visual Settings', inline = '1')
+bear_color = input.color(color.red, title = 'Bear Color', group = 'Visual Settings', inline = '1')
+
+ma1_color = input.color(color.gray, title = 'MA 1 Color', group = 'Visual Settings', inline = '2')
+ma2_color = input.color(color.gray, title = 'MA 2 Color', group = 'Visual Settings', inline = '2')
+
+pivot_length = input.int(3, minval = 2, maxval = 5, title = 'Pivot Length', group="Indicator Settings", inline = '4')
+pivot_debug = input.bool(false, title = 'Debug', group="Indicator Settings", inline = '4')
+
+long_trades = input.bool(true, title = 'Long Trades', group="Trade Settings", inline = '1')
+short_trades = input.bool(true, title = 'Short Trades', group="Trade Settings", inline = '2')
+use_3_bar = input.bool(true, title = 'Use 3 Bar', group="Trade Settings", inline = '3')
+use_filter = input.bool(true, title = 'Use Filter', group="Trade Settings", inline = '4')
+target_mult = input.float(1.50, minval = 0.01, title = 'Tgt Amount', group="Trade Settings", inline = '5')
+
+ma1_value = ma(close, ma1_length, ma1_type)
+ma1_plot = plot(ma1_value, title = 'MA 1', color = ma1_color)
+ma2_value = ma(close, ma2_length, ma2_type)
+ma2_plot = plot(ma2_value, title = 'MA 2', color = ma2_color)
+cloud_color = ma1_value >= ma2_value ? bull_color : bear_color
+fill(ma1_plot, ma2_plot, title = 'MA Cloud', color = color.new(cloud_color,80))
+
+longma_value = ma(close, long_ma_length, long_type)
+long_color = close >= longma_value ? bull_color : bear_color
+longma_plot = plot(longma_value, title = 'MA 1', color = color.new(long_color,50))
+mid_lineplot = plot(close >= longma_value ? math.min(close,open) : math.max(close,open), title = 'Long Cloud Mid', color = color.new(#000000,100), display = display.none)
+fill(mid_lineplot, longma_plot, color = color.new(long_color,90), title = 'Long MA Cloud')
+
+heikinashi_close = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close)
+heikinashi_open = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, open)
+
+ha_trend = heikinashi_close > heikinashi_open ? 1 : -1
+ha_color = ha_trend == 1 ? bull_color : bear_color
+barcolor(ha_color)
+
+var ha_bull = 0
+ha_bull := heikinashi_close > heikinashi_open ? 1 : 0
+var ha_bear = 0
+ha_bear := heikinashi_close > heikinashi_open ? 0 : 1
+
+buy_cross = ta.crossover(ma1_value, ma2_value)
+sell_cross = ta.crossunder(ma1_value, ma2_value)
+
+var buy_cond = false
+var sell_cond = false
+
+if use_3_bar and use_filter
+    buy_cond := ma1_value >= ma2_value and close >= longma_value and buy_cross[2] and math.sum(ha_bull, 3) == 3
+    sell_cond := ma1_value < ma2_value and close < longma_value and sell_cross[2] and math.sum(ha_bear, 3) == 3
+    
+else if use_3_bar and not use_filter
+    buy_cond := ma1_value >= ma2_value and buy_cross[2] and math.sum(ha_bull, 3) == 3
+    sell_cond := ma1_value < ma2_value and sell_cross[2] and math.sum(ha_bear, 3) == 3
+    
+else if not use_3_bar and use_filter
+    buy_cond := ma1_value >= ma2_value and close >= longma_value and buy_cross
+    sell_cond := ma1_value < ma2_value and close < longma_value and sell_cross
+
+else if not use_3_bar and not use_filter
+    buy_cond := ma1_value >= ma2_value and buy_cross
+    sell_cond := ma1_value < ma2_value and sell_cross
+    
+else
+    buy_cond := false
+    sell_cond := false
+
+ph = ta.pivothigh(pivot_length, pivot_length)
+pl = ta.pivotlow(pivot_length, pivot_length)
+
+real_offset = pivot_debug ? 0 : -pivot_length
+
+plotshape(ph, title = 'Swing High', location = location.absolute, color = color.white, offset = real_offset, size = size.auto, style = shape.circle)
+plotshape(pl, title = 'Swing Low', location = location.absolute, color = color.white, offset = real_offset, size = size.auto, style = shape.circle)
+
+var last_ph = 0.00
+var last_pl = 0.00
+
+last_ph := na(ph) ? last_ph[1] : ph
+last_pl := na(pl) ? last_pl[1] : pl
+
+var stop_price = 0.00
+var profit_target = 0.00
+
+//LONGS
+if strategy.position_size > 0 
+    
+    if strategy.position_avg_price != strategy.position_avg_price[1] or na(strategy.position_avg_price[1])
+        stop_price := last_pl
+        profit_target := strategy.position_avg_price + math.abs(strategy.position_avg_price - stop_price) * target_mult
+        
+    else
+        stop_price := stop_price[1]
+        profit_target := profit_target[1]
+        
+    strategy.exit("Longs", limit = profit_target, stop = stop_price, comment = 'TP/SL')
+
+//SHORTS
+else if strategy.position_size < 0
+    
+    if strategy.position_avg_price != strategy.position_avg_price[1] or na(strategy.position_avg_price[1])
+        stop_price := last_ph
+        profit_target := strategy.position_avg_price - math.abs(strategy.position_avg_price - stop_price) * target_mult
+        
+    else
+        stop_price := stop_price[1]
+        profit_target := profit_target[1]
+        
+    strategy.exit("Shorts", limit = profit_target, stop = stop_price, comment = 'TP/SL')
+
+else
+    stop_price := na
+    profit_target := na
+    
+entry_line = plot(strategy.position_avg_price, title = 'Entry', color = color.gray, style = plot.style_cross)
+stop_line = plot(stop_price, title = 'Stop', color = bear_color, style = plot.style_cross)
+target_line = plot(profit_target, title = 'Target', color = bull_color, style = plot.style_cross)
+
+fill(target_line, entry_line, color = color.new(bull_color,95), title = 'Entry To Target')
+fill(stop_line, entry_line, color = color.new(bear_color,95), title = 'Entry To Stop')
+
+if (buy_cond and long_trades)
+    strategy.entry("LE", strategy.long)
+
+if (sell_cond and short_trades)
+    strategy.entry("SS_E", strategy.short)
+    

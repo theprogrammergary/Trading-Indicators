@@ -1,0 +1,195 @@
+#INPUTS CHANGE THESE
+
+#moving averages
+input ma1_length = 9;
+input ma1_type = averageType.EXPONENTIAL;
+
+input ma2_length = 20;
+input ma2_type = AverageType.EXPONENTIAL;
+
+#chandlier exit
+input ce_atr_period = 22;
+input ce_atr_mult = 3.00;
+input ce_use_close = yes;
+
+#rsi's
+input rsi_length1 = 25;
+input rsi_length2 = 100;
+input over_Bought = 70;
+input over_Sold = 30;
+input price = close;
+input averageType = AverageType.WILDERS;
+
+#qqe
+input qqe_RSI_Length = 6;
+input qqe_RSI_Smoothing = 5;
+input qqe_Fast_QQE_Factor = 3;
+input qqe_Threshold = 3;
+input qqe_RSI_Source = close;
+input qqe_Bollinger_Length = 50;
+input qqe_BB_Mult = 0.35;
+input qqe_RSI_Length2 = 6;
+input qqe_RSI_Smoothing2 = 5;
+input qqe_Fast_QQE_Factor2 = 1.61;
+input qqe_Threshold2 = 3;
+input qqe_RSI_Source2 = close;
+
+##
+#IGNORE BELOW
+##
+
+
+
+#MAS
+def ma1 = MovingAverage(ma1_type, close, ma1_length);
+def ma2 = MovingAverage(ma2_type, close, ma2_length);
+
+def ma_buy = ma1 >= ma2;
+def ma_sell = ma1 < ma2;
+
+
+#CE
+def atr = ce_atr_mult * MovingAverage(AverageType.WILDERS, TrueRange(high, close, low), ce_atr_period);
+def longStop = (if ce_use_close then highest(close, ce_atr_period) else highest(high, ce_atr_period)) - atr;
+def longStopPrev = if IsNan(LongStop[1]) then longStop else LongStop[1];
+def LS =if close[1] > longStopPrev then max(longStop, longStopPrev) else longStop;
+
+def shortStop = (if ce_use_close then lowest(close, ce_atr_period) else lowest(low, ce_atr_period)) + atr;
+def shortStopPrev = if IsNan(shortStop[1]) then shortStop else shortStop[1];
+def SS =if close[1] < shortStopPrev then min(shortStop, shortStopPrev) else shortStop;
+
+def dir = if close > shortStopPrev then 1 else if close < longStopPrev then -1 else dir[1];
+def direction = dir;
+
+def ce_buy = dir == 1;
+def ce_sell = dir == -1;
+
+
+
+#RSIs
+def rsi_NetChgAvg1 = MovingAverage(averageType, price - price[1], rsi_length1);
+def rsi_TotChgAvg1 = MovingAverage(averageType, AbsValue(price - price[1]), rsi_length1);
+def rsi_ChgRatio1 = if rsi_TotChgAvg1 != 0 then rsi_NetChgAvg1 / rsi_TotChgAvg1 else 0;
+
+def rsi_NetChgAvg2 = MovingAverage(averageType, price - price[1], rsi_length2);
+def rsi_TotChgAvg2 = MovingAverage(averageType, AbsValue(price - price[1]), rsi_length2);
+def rsi_ChgRatio2 = if rsi_TotChgAvg2 != 0 then rsi_NetChgAvg2 / rsi_TotChgAvg2 else 0;
+
+def RSI_1 = 50 * (rsi_ChgRatio1 + 1);
+def RSI_2 = 50 * (rsi_ChgRatio2 + 1);
+
+def rsi_buy = RSI_1 >= RSI_2;
+def rsi_sell = RSI_1 < RSI_2;
+
+
+
+#QQE MOD
+def Wilders_Period = qqe_RSI_Length * 2 - 1;
+def NetChgAvg = MovingAverage(AverageType.WILDERS, qqe_RSI_Source - qqe_RSI_Source[1], qqe_RSI_Length);
+def TotChgAvg = MovingAverage(AverageType.WILDERS, AbsValue(qqe_RSI_Source - qqe_RSI_Source[1]), qqe_RSI_Length);
+def ChgRatio = if TotChgAvg != 0 then NetChgAvg / TotChgAvg else 0;
+def RSI = 50 * (ChgRatio + 1);
+def rsima = MovingAverage(AverageType.EXPONENTIAL, RSI, qqe_RSI_Smoothing);
+def atrrsi = AbsValue(rsima[1] - rsima);
+def maatrrsi = MovingAverage(AverageType.EXPONENTIAL, atrrsi, Wilders_Period);
+def dar = MovingAverage(AverageType.EXPONENTIAL, maatrrsi, Wilders_Period) * qqe_Fast_QQE_Factor;
+
+def DeltaFastAtrRsi = dar;
+def rsindex = rsima;
+def newshortband = rsindex + DeltaFastAtrRsi;
+def newlongband = rsindex - DeltaFastAtrRsi;
+def longband = if rsindex[1] > longband[1] and rsindex > longband[1] then  Max(longband[1], newlongband) else newlongband;
+def shortband = if rsindex[1] < shortband[1] and rsindex < shortband[1] then Min(shortband[1], newshortband) else newshortband;
+def cross_1 = Crosses(longband[1], rsindex);
+def trend = if Crosses(rsindex, shortband[1]) then 1 else if cross_1 then -1 else trend[1];
+def FastAtrRsiTL = if trend == 1 then longband else shortband;
+
+def basis = MovingAverage(AverageType.SIMPLE, FastAtrRsiTL - 50, qqe_Bollinger_Length);
+def dev = qqe_BB_Mult * StDev(FastAtrRsiTL - 50, qqe_Bollinger_Length);
+def upper = basis + dev;
+def lower = basis - dev;
+
+def QQEzlong = if BarNumber() == 1 then 0 else if rsindex >= 50 then QQEzlong[1] + 1 else 0;
+def QQEzshort = if BarNumber() == 1 then 0 else if rsindex < 50 then QQEzshort[1] + 1 else 0;
+#2
+def Wilders_Period2 = qqe_RSI_Length2 * 2 - 1;
+def NetChgAvg2 = MovingAverage(AverageType.WILDERS, qqe_RSI_Source2 - qqe_RSI_Source2[1], qqe_RSI_Length2);
+def TotChgAvg2 = MovingAverage(AverageType.WILDERS, AbsValue(qqe_RSI_Source2 - qqe_RSI_Source2[1]), qqe_RSI_Length2);
+def ChgRatio2 = if TotChgAvg2 != 0 then NetChgAvg2 / TotChgAvg2 else 0;
+def RSI2 = 50 * (ChgRatio2 + 1);
+def rsima2 = MovingAverage(AverageType.EXPONENTIAL, RSI2, qqe_RSI_Smoothing2);
+def atrrsi2 = AbsValue(rsima2[1] - rsima2);
+def maatrrsi2 = MovingAverage(AverageType.EXPONENTIAL, atrrsi2, Wilders_Period2);
+def dar2 = MovingAverage(AverageType.EXPONENTIAL, maatrrsi2, Wilders_Period2) * qqe_Fast_QQE_Factor2;
+
+def DeltaFastAtrRsi2 = dar2;
+def rsindex2 = rsima2;
+
+def newshortband2 = rsindex2 + DeltaFastAtrRsi2;
+def newlongband2 = rsindex2 - DeltaFastAtrRsi2;
+
+def longband2 = if rsindex2[1] > longband2[1] and rsindex2 > longband2[1] then  Max(longband2[1], newlongband2) else newlongband2;
+def shortband2 = if rsindex2[1] < shortband2[1] and rsindex2 < shortband2[1] then Min(shortband2[1], newshortband2) else newshortband2;
+
+def cross_2 = Crosses(longband2[1], rsindex2);
+def trend2 = if Crosses(rsindex2, shortband2[1]) then 1 else if cross_2 then -1 else trend2[1];
+def FastAtrRsiTL2 = if trend2 == 1 then longband2 else shortband2;
+
+def QQEzlong2 = if BarNumber() == 1 then 0 else if rsindex2 >= 50 then QQEzlong2[1] + 1 else 0;
+def QQEzshort2 = if BarNumber() == 1 then 0 else if rsindex2 < 50 then QQEzshort2[1] + 1 else 0;
+
+def QQE_LINE = FastAtrRsiTL2 - 50;
+
+def Greenbar1 = rsima2 - 50 > qqe_Threshold2;
+def Greenbar2 = rsima - 50 > upper;
+def Redbar1 = rsima2 - 50 < 0 - qqe_Threshold2;
+def Redbar2 = rsima - 50 < lower;
+
+def HISTO2 = if rsima2 - 50 > qqe_Threshold2 then rsima2 - 50 else if rsima2 - 50 < 0 - qqe_Threshold2 then rsima2 - 50 else Double.NaN ;
+
+def qqe_buy = QQE_LINE > 0 and Greenbar1 and Greenbar2;
+def qqe_sell = QQE_LINE < 0 and Redbar1 and Redbar2;
+
+def buy_3 =  ma_buy + ce_buy + rsi_buy + qqe_buy == 3;
+def buy_4 =  ma_buy + ce_buy + rsi_buy + qqe_buy == 4;
+def sell_3 =  ma_sell + ce_sell + rsi_sell + qqe_sell == 3;
+def sell_4 =  ma_sell + ce_sell + rsi_sell + qqe_sell == 4;
+
+
+
+
+### SCAN OPTIONS ###
+
+#plot buy_3_SCAN = buy_3;
+#plot buy_4_SCAN = buy_4;
+
+#plot sell_3_SCAN = sell_3;
+#plot sell_4_SCAN = sell_4;
+
+
+#plot new_buy_3_SCAN = buy_3 and !buy_3[1];
+#plot new_buy_4_SCAN = buy_4 and !buy_4[1];
+
+#plot new_sell_3_SCAN = sell_3 and !sell_3[1];
+plot new_sell_4_SCAN = sell_4 and !sell_4[1];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,69 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Mrhyh21_buy_sell", overlay = true)
+
+
+
+start = 0.02
+increment = 0.02
+maximum = 0.2
+width = 2
+
+bull_css = input.color(color.green, title = 'Bull Color', group = 'Buy/Sell Settings', inline = '0')
+bear_css = input.color(color.red, title = 'Bear Color', group = 'Buy/Sell Settings', inline = '0')
+
+showLabels = input(title='Show Buy/Sell Labels ?', defval=true, group = 'Buy/Sell Settings', inline = '1')
+highlightState = input(title='Highlight State ?', defval=true, group = 'Buy/Sell Settings', inline = '2')
+
+psar = ta.sar(start, increment, maximum)
+dir = psar < close ? 1 : -1
+
+psarColor = dir == 1 ? bull_css : bear_css
+psarPlot = plot(highlightState ? psar : na, title='PSAR', style=plot.style_circles, linewidth=width, color=psarColor, display = display.none, editable = false)
+plotshape(highlightState and dir == 1 ? psar : na, title = 'PSAR Bull', location = location.absolute, style =shape.triangleup, color = bull_css)
+plotshape(highlightState and dir == -1 ? psar : na, title = 'PSAR Bear', location = location.absolute, style =shape.triangledown, color = bear_css)
+
+// rsi
+rsi_length = 14
+rsi_long = input.int(50, title = 'Buy Above', group = 'Buy/Sell Settings', inline = '3')
+rsi_stronglong = input.int(57, title = 'Strong Buy Above', group = 'Buy/Sell Settings', inline = '3')
+rsi_short = input.int(50, title = 'Sell Below', group = 'Buy/Sell Settings', inline = '4')
+rsi_strongshort = input.int(43, title = 'Strong Sell Below', group = 'Buy/Sell Settings', inline = '4')
+
+if rsi_stronglong < rsi_long
+    runtime.error("Strong Buy cannot be less than Buy")
+if rsi_strongshort > rsi_short
+    runtime.error("Strong Sell cannot be greater than Sell")
+
+rsi_value = ta.rsi(close, rsi_length)
+
+var color longColor = bull_css
+var color shortColor = bear_css
+var int last_signal = 0
+
+strongbuy = last_signal[1] != 1 and dir == 1 and rsi_value >= rsi_stronglong
+buySignal = last_signal[1] != 1 and dir == 1 and rsi_value >= rsi_long
+
+strongsell = last_signal[1] != -1 and dir == -1 and rsi_value <= rsi_strongshort
+sellSignal = last_signal[1] != -1 and dir == -1 and rsi_value <= rsi_short
+
+// barcolor(dir == 1 ? color.green : dir == -1 ? color.red : na)
+last_signal := barstate.isfirst ? dir : (buySignal or strongbuy) ? 1 : (sellSignal or sellSignal) ? -1 : last_signal[1]
+
+plotshape(buySignal and showLabels ? psar : na, title='Buy Label', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=color.new(color.white, 0))
+plotshape(strongbuy and showLabels ? psar : na, title='Strong Buy Label', text='Strong Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=color.new(color.white, 0))
+
+plotshape(sellSignal and showLabels ? psar : na, title='Sell Label', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=color.new(color.white, 0))
+plotshape(strongsell and showLabels ? psar : na, title='Strong Sell Label', text='Strong Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=color.new(color.white, 0))
+
+midPricePlot = plot(ohlc4, title='', display=display.none)
+
+fillColor = highlightState ? dir == 1 ? color.new(longColor,90) : color.new(shortColor,90) : color.new(#ffffff,100)
+fill(midPricePlot, psarPlot, title='Trade State Filling', color=fillColor)
+
+changeCond = dir != dir[1]
+alertcondition(changeCond, title='Alert: PSAR Direction Change', message='PSAR has changed direction!')
+alertcondition(buySignal, title='Alert: PSAR/RSI Long', message='PSAR/RSI Long')
+alertcondition(sellSignal, title='Alert: PSAR/RSI Short', message='PSAR/RSI Sell')

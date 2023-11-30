@@ -1,0 +1,6 @@
+Based on user input paints nth bar back.
+
+The correct bar to paint is calculated by determining if it is the last bar on the chart and then using indexing to reference the input for the amount of bars back.
+
+Default is 49 bars back
+Default color is white

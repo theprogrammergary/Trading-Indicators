@@ -1,0 +1,201 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Lower Forecast", overlay = false)
+
+
+//INPUTS
+lbR = 1
+lbL = lbR
+rangeUpper = 60
+rangeLower = 1
+
+
+overbought = input.int(80, title = 'Overbought')
+oversold = input.int(20, title = 'Oversold')
+priceclose = input.source(close, title = 'Price Close')
+// show_hiddendivergence = input.bool(false, title = 'Show Hidden Divergence')
+show_divergencelines = input.bool(false, title = 'Show Divergence Lines')
+show_clusters = input.bool(true, title = 'Show Clusters')
+show_intermediateconfirmation = input.bool(true, title = 'Show Intermediate Confirmation')
+show_strengthlabel = input.bool(false, title = 'Show Strength Label')
+show_informationlabels = input.bool(false, title = 'Show Information Labels')
+
+
+//MARKET FORECAST FUNCTION
+market_forecast() =>
+    
+    imedlength = 31
+    momentumlength = 5
+    nearlength = 3
+    
+    c1i = close - ta.lowest(low, imedlength)
+    c2i = ta.highest(high,imedlength) - ta.lowest(low, imedlength)
+    fastk_i = c1i / c2i * 100
+    c1n = close - ta.lowest(low, nearlength)
+    c2n = ta.highest(high,nearlength) - ta.lowest(low,nearlength)
+    fastk_n = c1n / c2n * 100
+    
+    c1m = close - ta.lowest(low,momentumlength)
+    c2m = ta.highest(high, momentumlength) - ta.lowest(low, momentumlength)
+    fastk_m = c1m / c2m * 100
+    
+    intermediate = ta.sma(fastk_i, 5)
+    nearterm = ta.sma(fastk_n,2)
+    
+    min1 = math.min(low, low[1])
+    min2 = math.min(min1, (math.min(low[2], low[3])))
+    max1 = math.max(high, math.max(high[1], math.max(high[2], high[3])))
+    
+    momentum = ((close - min1) / (max1 - min2)) * 100
+    
+    [intermediate, nearterm, momentum]
+    
+[intermediate, nearterm, momentum] = market_forecast()
+
+plot(intermediate, title = 'Intermediate', color = intermediate > intermediate[1] ? color.green : color.new(#91ef90,0), linewidth =2)
+plot(momentum, title = 'Momentum', color = color.orange, linewidth =2)
+plot(nearterm, title = 'Nearterm', color = intermediate > intermediate[1] ? color.new(#2b2d9e,0) : color.new(#2b2d9e,0), linewidth =2)
+
+
+//SHOW CLUSTERS
+bullcluster = intermediate < oversold and momentum < oversold and nearterm < oversold
+bearcluster = intermediate > overbought and momentum > overbought and nearterm > overbought
+clustermiddleline = 50
+
+plotshape(bearcluster and show_clusters ? clustermiddleline : na, title = 'Bearish Cluster', style = shape.square, color = color.red, location = location.absolute, size = size.tiny)
+plotshape(bullcluster and show_clusters ? clustermiddleline : na, title = 'Bullish Cluster', style = shape.square, color = color.new(#91ef90,0), location = location.absolute, size = size.tiny)
+
+var string posture = 'bullish'
+var int strength = 0
+
+if intermediate > overbought 
+    posture := "bullish"
+    strength := 3
+else if intermediate < oversold 
+    posture := "bearish"
+    strength := 3
+else if intermediate > clustermiddleline and intermediate > intermediate[1] 
+    posture := "bullish"
+    strength := 2
+else if intermediate > clustermiddleline and intermediate < intermediate[1] 
+    posture := "bullish"
+    strength := 1
+else if intermediate < clustermiddleline and intermediate < intermediate[1] 
+    posture := "bearish"
+    strength := 2
+else 
+    posture := "bearish"
+    strength := 1
+
+
+icbull =  posture == "bullish" and strength > 1 and momentum < oversold and nearterm < oversold ? 1 : 0
+icbear =  posture == "bearish" and strength > 1 and momentum > overbought and nearterm > overbought ? 1 : 0
+
+plotshape(icbull and show_intermediateconfirmation ? 0 : icbear and show_intermediateconfirmation ? 100 : na, title = 'Intermediate Confirmation', style = shape.square,
+     color = icbull ? color.new(#9493f5,0) : color.orange, location = location.absolute, size = size.tiny)
+
+//DIVERGENCE STUFF
+plFound = na(ta.pivotlow(nearterm, lbL, lbR)) ? false : true
+phFound = na(ta.pivothigh(nearterm, lbL, lbR)) ? false : true
+_inRange(cond) =>
+	bars = ta.barssince(cond == true)
+	rangeLower <= bars and bars <= rangeUpper
+	
+	
+bearColor = color.new(#ff0000,0)
+bullColor = color.new(#00ff0a,0)
+hiddenBullColor = color.new(#00ff0a, 80)
+hiddenBearColor = color.new(#ff0000, 80)
+textColor = color.white
+noneColor = color.new(color.white, 100)
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+
+// nearterm: Higher Low
+neartermHL = nearterm[lbR] > ta.valuewhen(plFound, nearterm[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+priceLL = low[lbR] < ta.valuewhen(plFound, low[lbR], 1)
+bullCond =  priceLL and neartermHL and plFound
+
+plot(show_divergencelines and plFound ? nearterm[lbR] : na, offset=-lbR, title="Regular Bullish", linewidth=2, color=(bullCond ? bullColor : noneColor))
+//------------------------------------------------------------------------------
+// // Hidden Bullish
+
+// // nearterm: Lower Low
+// neartermLL = nearterm[lbR] < ta.valuewhen(plFound, nearterm[lbR], 1) and _inRange(plFound[1])
+
+// // Price: Higher Low
+// priceHL = low[lbR] > ta.valuewhen(plFound, low[lbR], 1)
+// hiddenBullCond =  priceHL and neartermLL and plFound
+
+// plot(show_hiddendivergence and show_divergencelines and plFound ? nearterm[lbR] : na, offset=-lbR,title="Hidden Bullish", linewidth=2, color=(hiddenBullCond ? hiddenBullColor : noneColor))
+
+
+
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+
+// nearterm: Lower High
+neartermLH = nearterm[lbR] < ta.valuewhen(phFound, nearterm[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+priceHH = high[lbR] > ta.valuewhen(phFound, high[lbR], 1)
+bearCond =  priceHH and neartermLH and phFound
+
+plot(show_divergencelines and phFound ? nearterm[lbR] : na, offset=-lbR, title="Regular Bearish", linewidth=2, color=(bearCond ? bearColor : noneColor))
+//------------------------------------------------------------------------------
+// //Hidden Bearish
+
+// // nearterm: Higher High
+// neartermHH = nearterm[lbR] > ta.valuewhen(phFound, nearterm[lbR], 1) and _inRange(phFound[1])
+
+// // Price: Lower High
+// priceLH = high[lbR] < ta.valuewhen(phFound, high[lbR], 1)
+// hiddenBearCond =  priceLH and neartermHH and phFound
+
+// plot(show_hiddendivergence and show_divergencelines and phFound ? nearterm[lbR] : na, offset=-lbR, title="Hidden Bearish", linewidth=2, color=(hiddenBearCond ? hiddenBearColor : noneColor))
+
+
+plot(50, title = 'Middle Line', color = color.gray)
+
+overbought_plot = plot(overbought, title = 'Oversold', color = color.new(#000000,100))
+oversold_plot = plot(oversold, title = 'Overbought', color = color.new(#000000,100))
+hundred_plot = plot(100, title = 'Hundred', color = color.new(#000000,100))
+zero_plot = plot(0, title = 'Zero', color = color.new(#000000,100))
+
+fill(overbought_plot, hundred_plot, color = color.new(color.green,70), title = 'Overbought Fill')
+fill(oversold_plot, zero_plot, color = color.new(color.red,70), title = 'Oversold Fill')
+
+
+//DIVERGENCE DOTS
+plotshape(bearCond ? nearterm[lbR] : na, title = 'Bearish Divergence Dots', style = shape.circle, color = bearColor, location = location.absolute, size = size.tiny, offset = -lbR)
+plotshape(bullCond ? nearterm[lbR] : na, title = 'Bullish Divergence Dots', style = shape.circle, color = bullColor , location = location.absolute, size = size.tiny, offset = -lbR)
+
+// plotshape(show_hiddendivergence and bearCond ? nearterm[lbR] : na, title = 'Bearish Hidden Divergence Dots', style = shape.circle, color = hiddenBearColor, location = location.absolute, size = size.tiny, offset = -lbR)
+// plotshape(show_hiddendivergence and bullCond ? nearterm[lbR] : na, title = 'Bullish Hidden Divergence Dots', style = shape.circle, color = hiddenBullColor , location = location.absolute, size = size.tiny, offset = -lbR)
+
+
+//LABELS
+var table = table.new(position = position.bottom_left, columns = 5, rows = 1, bgcolor = color.black, border_width = 1)
+if barstate.islast
+
+    if show_informationlabels
+        table.cell(table_id = table, column = 0, row = 0, text = "MOM: " + str.tostring(math.round(momentum,1)) + 
+             (momentum > momentum[1] ? " Rising" : " Falling"), bgcolor = color.orange)
+        table.cell(table_id = table, column = 1, row = 0, text = "NEAR: " + str.tostring(math.round(nearterm,1)) + 
+             (nearterm > nearterm[1] ? " Rising" : " Falling"), bgcolor = color.aqua)
+        table.cell(table_id = table, column = 2, row = 0, text = "INTER: " + str.tostring(math.round(intermediate,1)) + 
+             (intermediate > intermediate[1] ? " Rising" : " Falling"), bgcolor = color.green)
+
+
+    if show_strengthlabel
+        table.cell(table_id = table, column = 3, row = 0, text = (posture == "bullish" ? "Bullish " : "Bearish ")
+             + (strength == 3 ? "Strong" : strength == 2 ? "Strengthening" : "Weak"), bgcolor = posture == "bullish" ? color.new(#91ef90,0) : color.red)
+             
+
+

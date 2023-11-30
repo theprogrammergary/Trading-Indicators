@@ -1,0 +1,7 @@
+Please read the disclaimer.
+
+Let me know what bugs you may find or if you want anything changed.
+
+In the radarscreen please see the attached pic to edit decimal places, turn on alerts and $ to risk columns.
+
+If radarscreen is not working correctly make sure that load additiona data for accumulative calculations is on. (pic 3)

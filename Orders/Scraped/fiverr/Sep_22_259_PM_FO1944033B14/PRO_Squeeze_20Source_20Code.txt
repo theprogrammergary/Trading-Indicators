@@ -1,0 +1,33 @@
+#PRO SQUEEZE SOURCE CODE
+def nBB = 2.0;
+def Length = 20.0;
+def nK_High = 1.0;
+def nK_Mid = 1.5;
+def nK_Low = 2.0;
+def price = close;
+def momentum = TTM_Squeeze(price = price, length = length, nk = nk_Mid, nbb = nbb)."Histogram";
+def oscillator = momentum;
+def BolKelDelta_Mid = reference BollingerBands("num_dev_up" = nBB, "length" = Length )."upperband" - KeltnerChannels("factor" = nK_Mid, "length" = Length)."Upper_Band";
+def BolKelDelta_Low = reference BollingerBands("num_dev_up" = nBB, "length" = Length )."upperband" - KeltnerChannels("factor" = nK_Low, "length" = Length)."Upper_Band";
+def BolKelDelta_High = reference BollingerBands("num_dev_up" = nBB, "length" = Length )."upperband" - KeltnerChannels("factor" = nK_High, "length" = Length)."Upper_Band";
+
+#COLOR CODING
+#3 = orange or "gold"
+#2 = red
+#1 = black
+#0 = green
+def color = if BolKelDelta_High <= 0 then 3 else if BolKelDelta_Mid <= 0 then 2 else if BolKelDelta_Low <= 0 then 1 else 0;
+
+#counting
+def count = if color == color[1] then count[1] + 1 else 1;
+
+
+#is oscillator above or below 0
+def above0 = if oscillator[1] > 0 then 1 else 0;
+
+
+
+#VISUALS
+#label for text
+addlabel(yes, if color == 0 and above0 then "F:" + count + " L" else if  color == 0 and !above0 then "F:" + count + " S" else if color == 1 then "Sq:" + count  else if color == 2 then "Sq: " + count  else if color ==3 then "Sq:" +count  else "Loading" ,if color == 1 or color == 2 then color.white else color.black);
+assignBackgroundColor(if color == 3 then color.orange else if color == 2 then color.red else if color == 1 then color.black else if color == 0 and count > 5 then color.black else color.green);

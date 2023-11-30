@@ -1,0 +1,112 @@
+//@version=5
+indicator("STRSIBB Indicator Middle Upper Lower", overlay=true)
+
+
+//
+//SUPERTREND
+//
+atrPeriod = input(10, "ATR Length", group = "Supertrend Settings")
+factor = input.float(3.0, "Factor", step = 0.01, group = "Supertrend Settings")
+timeframe = input.timeframe('30', title = 'Timeframe', group = "Supertrend Settings")
+
+pine_supertrend(factor, atrPeriod, timeframe) =>
+	src = request.security(syminfo.tickerid, timeframe, hl2[1], lookahead = barmerge.lookahead_on)
+	close_src = request.security(syminfo.tickerid, timeframe, close[1], lookahead = barmerge.lookahead_on)
+	close_src2 = request.security(syminfo.tickerid, timeframe, close[2], lookahead = barmerge.lookahead_on)
+	atr = request.security(syminfo.tickerid, timeframe, ta.atr(atrPeriod)[1], lookahead = barmerge.lookahead_on)
+	upperBand = src + factor * atr
+	lowerBand = src - factor * atr
+	prevLowerBand = nz(lowerBand[1])
+	prevUpperBand = nz(upperBand[1])
+
+	lowerBand := lowerBand > prevLowerBand or close_src2 < prevLowerBand ? lowerBand : prevLowerBand
+	upperBand := upperBand < prevUpperBand or close_src2 > prevUpperBand ? upperBand : prevUpperBand
+	int direction = na
+	float superTrend = na
+	prevSuperTrend = superTrend[1]
+	if na(atr[1])
+		direction := 1
+	else if prevSuperTrend == prevUpperBand
+		direction := close_src > upperBand ? -1 : 1
+	else
+		direction := close_src < lowerBand ? 1 : -1
+	superTrend := direction == -1 ? lowerBand : upperBand
+	[superTrend, direction]
+
+[supertrend, direction] = pine_supertrend(factor, atrPeriod, timeframe)
+
+
+st_long = direction < 0
+st_short = direction >= 0 
+bodyMiddle = plot((open + close) / 2, display=display.none)
+upTrend = plot(st_long ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend = plot(st_short ? supertrend : na, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false)
+
+
+//
+//RSI_BB
+//
+
+ma(source, length, type) => 
+    return_value = switch type
+        "SMA" => ta.sma(source, length)
+        "Bollinger Bands" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+    return_value
+    
+f_bb(src, basis, length, mult) =>
+    float dev = mult * ta.stdev(src, length)
+    [basis, basis + dev, basis - dev]
+
+rsiLengthInput = input.int(50, minval=1, title="RSI Length", group="RSI/MA Settings")
+rsiSourceInput = input.source(hlc3, "Source", group="RSI/MA Settings")
+maTypeInput = input.string("EMA", title="MA Type", options=["SMA", "Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="RSI/MA Settings")
+maLengthInput = input.int(100, title="MA Length", group="RSI/MA Settings")
+bbMultInput = input.float(2.0, minval=0.001, maxval=50, title="BB StdDev", group="RSI/MA Settings")
+
+rsi = ta.rsi(rsiSourceInput,rsiLengthInput)
+rsi_ma = ma(rsi, maLengthInput, maTypeInput)
+[pineMiddle, pineUpper, pineLower] = f_bb(rsi, rsi_ma, maLengthInput, bbMultInput)
+
+// plot(rsi_value, color = color.new(#7e57c2,0))
+// plot(pineLower, color = color.yellow)
+// plot(pineUpper)
+// plot(pineLower)
+
+
+rsi_long = ta.crossunder(rsi, pineLower) and st_long
+rsi_short = ta.crossover(rsi, pineUpper) and st_short
+rsi_long_confirm = ta.crossover(rsi, pineLower) and st_long
+rsi_short_confirm = ta.crossunder(rsi, pineUpper) and st_short
+rsi_long_middle = ta.crossover(rsi, pineMiddle) and st_long
+rsi_short_middle = ta.crossunder(rsi, pineMiddle) and st_short
+
+
+
+
+//
+//MA EXIT
+//
+ma_exit_length = input.int(26, title = 'MA Length', group = 'MA Exit Settings')
+ma_exit_type = input.string("EMA", title="MA Type", options=["SMA", "Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="MA Exit Settings")
+
+ma_exit = ma(close, ma_exit_length, ma_exit_type)
+ma_long_exit = ta.crossover(close, ma_exit)
+ma_short_exit = ta.crossunder(close, ma_exit)
+
+//plot long - entry
+plotshape(rsi_long, title="Long-Watch", style=shape.circle, location=location.belowbar, color = #00ea3d, size=size.tiny)
+plotshape(rsi_long_confirm, title="Long-Cross Down", style=shape.triangleup, location=location.belowbar, color = #00ea3d, size=size.tiny)
+plotshape(rsi_long_middle, title="Long-Middle Cross", style=shape.xcross, location=location.belowbar, color = #00ea3d, size=size.tiny)
+alertcondition(rsi_long, title="Long", message="Turbo Nuke Long")
+//plot short - entry
+plotshape(rsi_short, title="Short-Watch", style=shape.circle, location=location.abovebar, color=#ffffff, size=size.tiny)
+plotshape(rsi_short_confirm, title="Short-Cross Down", style=shape.triangledown, location=location.abovebar, color=#ffffff, size=size.tiny)
+plotshape(rsi_short_middle, title="Short-Middle Cross", style=shape.xcross, location=location.abovebar, color = #ffffff, size=size.tiny)
+alertcondition(rsi_short, title="Short", message="Turbo Nuke Short")

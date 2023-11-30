@@ -1,0 +1,1 @@
+Ah yes sorry I sent the wrong code for tradingview. The reason thinkorswim looks like that is the plot scans. I have hide those by default with the detached link, but you could also click the top right of the chart > uncheck fit chart studies.LINK:https://tos.mx/OkXx4Yh

@@ -1,0 +1,322 @@
+//@version=5
+// ORIGINAL SCRIPTS ARE THANKS TO RIPSTER47, COLINMCK, & SPDOINKAL. CREDIT TO THEM AS MOST OF THE LOGIC COMES FROM THEM <3 THE LINES IN THIS SCRIPT ARE WHAT I FIND NECESSARY. BELOW ARE ADDITIONS.
+// ADDED NEW COLORS TO QQE SIGNALS TO PROVIDE MORE CLARITY AND A MORE CLEAN LOOK ON CHARTS.
+// ADDED DIFFERENT SHADES TO EMA CLOUDS FOR BETTER CLARITY.
+// ADDED NEW COLORS TO SIMPLIFIED TD 8 & 9s FOR MORE CLARITY.
+// ADDED NEW COLORS TO EMA CLOUDS TO PROVIDE MORE ORGANIZATION AND CLARITY .
+// THERE ARE ONLY FOUR EMA CLOUDS, THE FIFTH EMA CLOUD WAS REMOVED AS IT IS UNNECESSARY AND TOOK UP TOO MUCH SPACE.
+// THE INPUTS AND VALUES HAVE BEEN CHANGED FOR THE EMA CLOUDS TO BE MORE PRECISE AND ACCURATE.
+// ADDED ONLY THE MOST IMPORTANT AND VALUABLE INPUTS. THIS HELPS REMOVE NOISE.
+
+
+indicator(title="Bankai ES TREND", overlay=true, max_bars_back=4999, max_lines_count=500, max_labels_count=10)
+
+// QQE SIGNALS - CRDIT TO COLINMCK FOR LINES BELOW. THANK YOU FOR YOUR SERVICE, YOU ARE APPRECIATED <3 ///
+
+
+// 
+// TREND BACKGROUND by DTT
+// 
+UseMATrendFilter = input.bool(true, 'Use MA Trend Filter')
+MAType = input.string("SMA","MA Type", options = ["SMA", "EMA", "VWMA", "RMA" , "Hull"])
+MASource = input.source(close,"MA Source")
+MATrendPeriod = input.int(200, 'MA Trend Filter Period', minval=1)
+UseMASlopeTrendFilter = input(true, 'Use SMA Slope Trend Filter')
+SMATrendLevel = input.int(5, 'Trend Level %', minval=0, maxval=100, step=5)
+
+UseAroonTrendFilter = input.bool(false, 'Use Aroon Trend Filter')
+AroonTFLen = input.int(50, 'Aroon Trend Filter Period', minval=1)
+AroonTFLevel = input.float(50.0, 'Aroon Trend Level', minval=1, maxval=100, step=5)
+
+
+// SMA Trend Function
+MATrend(MAType, Source, MALength, UseSlope, Percentile) =>
+    MAValue = MAType == "SMA" ? ta.sma(Source, MALength) : MAType == "EMA" ? ta.ema(Source, MALength) : MAType == "VWMA" ? ta.vwma(Source, MALength) : MAType == "RMA" ? ta.rma(Source, MALength) : MAType == "Hull" ? ta.wma(2*ta.wma(Source, MALength/2)-ta.wma(Source, MALength), math.floor(math.sqrt(MALength))) :na
+    
+    MASlope = ta.change(MAValue)
+    MAPercentRankOK = ta.percentrank(math.abs(MASlope), 200) > Percentile
+
+    MA_Uptrend = UseSlope ? MAPercentRankOK and MASlope > 0 : close > MAValue
+    MA_Downtrend = UseSlope ? MAPercentRankOK and MASlope < 0 : close < MAValue
+
+    if MA_Uptrend and MA_Downtrend
+        MA_Uptrend := false
+        MA_Downtrend := false
+        MA_Downtrend
+    [MA_Uptrend, MA_Downtrend,MAValue]
+
+[MAUptrend, MADowntrend,MAValue] = MATrend(MAType,MASource,MATrendPeriod, UseMASlopeTrendFilter, SMATrendLevel)
+
+// Aroon Trend Function
+AroonTrend(AroonLength, AroonTrendLevel) =>
+    upper = 100 * (ta.highestbars(high, AroonLength + 1) + AroonLength) / AroonLength
+    lower = 100 * (ta.lowestbars(low, AroonLength + 1) + AroonLength) / AroonLength
+
+    Aroon_Uptrend = upper >= AroonTrendLevel
+    Aroon_Downtrend = lower >= AroonTrendLevel
+
+    if Aroon_Uptrend and Aroon_Downtrend
+        Aroon_Uptrend := false
+        Aroon_Downtrend := false
+        Aroon_Downtrend
+    [Aroon_Uptrend, Aroon_Downtrend]
+
+[AroonUptrend, AroonDowntrend] = AroonTrend(AroonTFLen, AroonTFLevel)
+// Define Trend
+Uptrend = UseMATrendFilter and UseAroonTrendFilter ? AroonUptrend and MAUptrend : (AroonUptrend or not UseAroonTrendFilter) and (MAUptrend or not UseMATrendFilter)
+Downtrend = UseMATrendFilter and UseAroonTrendFilter ? AroonDowntrend and MADowntrend : (AroonDowntrend or not UseAroonTrendFilter) and (MADowntrend or not UseMATrendFilter)
+bgcolor(Uptrend ? color.new(color.green, 80) : na, title='Up Trend')
+bgcolor(Downtrend ? color.new(color.red, 80) : na, title='Down Trend')
+plot(UseMATrendFilter?MAValue:na)
+
+// 
+// TREND BACKGROUND by DTT
+// 
+
+
+RSI_Period = input(14, title='RSI Length')
+SF = input(5, title='RSI Smoothing')
+QQE = input(4.238, title='Fast QQE Factor')
+ThreshHold = input(10, title='Thresh-hold')
+
+src = close
+Wilders_Period = RSI_Period * 2 - 1
+
+Rsi = ta.rsi(src, RSI_Period)
+RsiMa = ta.ema(Rsi, SF)
+AtrRsi = math.abs(RsiMa[1] - RsiMa)
+MaAtrRsi = ta.ema(AtrRsi, Wilders_Period)
+dar = ta.ema(MaAtrRsi, Wilders_Period) * QQE
+
+longband = 0.0
+shortband = 0.0
+trend = 0
+
+DeltaFastAtrRsi = dar
+RSIndex = RsiMa
+newshortband = RSIndex + DeltaFastAtrRsi
+newlongband = RSIndex - DeltaFastAtrRsi
+longband := RSIndex[1] > longband[1] and RSIndex > longband[1] ? math.max(longband[1], newlongband) : newlongband
+shortband := RSIndex[1] < shortband[1] and RSIndex < shortband[1] ? math.min(shortband[1], newshortband) : newshortband
+cross_1 = ta.cross(longband[1], RSIndex)
+trend := ta.cross(RSIndex, shortband[1]) ? 1 : cross_1 ? -1 : nz(trend[1], 1)
+FastAtrRsiTL = trend == 1 ? longband : shortband
+
+// FINDING QQE CROSSES
+
+QQExlong = 0
+QQExlong := nz(QQExlong[1])
+QQExshort = 0
+QQExshort := nz(QQExshort[1])
+QQExlong := FastAtrRsiTL < RSIndex ? QQExlong + 1 : 0
+QQExshort := FastAtrRsiTL > RSIndex ? QQExshort + 1 : 0
+
+
+// DTEK CANDLES
+getMA(src, len, type) =>
+    ma_value = type == 'SMA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : ta.sma(src, len)
+    ma_value
+
+ST_Atr_Mult = input.float(1.0, title = 'ST ATR Mult')
+ST_Length = input.int(4, title = 'ST Length')
+ST_AvgType = input.string('HMA', title = 'ST AvgType', options = ['SMA', 'WMA','VWMA', 'EMA', 'HMA'])
+
+ATR = getMA( ta.tr(false), ST_Length, ST_AvgType )
+UP = hl2 + (ST_Atr_Mult* ATR) 
+DN = hl2 + (-ST_Atr_Mult * ATR) 
+var float ST = na
+ST := close < ST[1] ? UP : DN 
+
+SuperTrend = ST 
+
+lengthCCI = input.int(50, title = 'CCI Length')
+lengthATR = input.int(21, title = 'CCI ATR Length')
+AtrFactor = input.float(1.0, title = 'CCI ATR Factor')
+
+ATRcci = ta.sma( ta.tr(false), lengthATR) * AtrFactor
+price = close + low + high
+pricedata = hl2
+CCI = (price - ta.sma(price, lengthCCI)) / (0.015 * ta.dev(price, lengthCCI))
+
+var float MT1 = 0
+MT1 := CCI > 0 ? math.max(nz(MT1[1],0), pricedata - ATRcci) : math.min(nz(MT1[1],0), pricedata + ATRcci)
+CCI_ATR_TREND = MT1
+
+green_candles =  close > MT1 and close > ST
+red_candles =  close < MT1 and close < ST
+
+barcolor(green_candles ? color.green : red_candles ? color.red : color.gray)
+// DTEK CANDLES
+
+
+// atr levels settings
+
+day_trading = 'Day'
+multiday_trading = 'Multiday'
+swing_trading = 'Swing'
+position_trading = 'Position'
+longterm_trading = 'Long-term'
+trading_type = input.string(day_trading, 'Trading Type', options=[day_trading, multiday_trading, swing_trading, position_trading, longterm_trading])
+timeframe_func() =>
+    timeframe = 'D'
+    if trading_type == day_trading
+        timeframe := 'D'
+    else if trading_type == multiday_trading
+        timeframe := 'W'
+    else if trading_type == swing_trading
+        timeframe := 'M'
+    else if trading_type == position_trading
+        timeframe := '3M'
+    else if trading_type == longterm_trading
+        timeframe := '12M'
+    else
+        timeframe := 'D'
+atr_length = input(14, 'ATR Length')
+trigger_percentage = input(0.236, 'Trigger Percentage')
+period_index = 1
+ticker = ticker.new(syminfo.prefix, syminfo.ticker, session=session.regular)
+previous_close = request.security(ticker, timeframe_func(), close[period_index], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+atr = request.security(ticker, timeframe_func(), ta.atr(atr_length)[period_index], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+period_high = request.security(ticker, timeframe_func(), high, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+period_low = request.security(ticker, timeframe_func(), low, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+lower_trigger = previous_close - trigger_percentage * atr
+upper_trigger = previous_close + trigger_percentage * atr
+plot(upper_trigger, color=color.new(color.green, 40), linewidth=1, title='Upper Trigger', style=plot.style_circles)
+plot(lower_trigger, color=color.new(color.red, 40), linewidth=1, title='Lower Trigger', style=plot.style_circles)
+plot(previous_close, color=color.new(color.gray, 40), linewidth=1, title='Previous Close', style=plot.style_circles)
+
+
+//QQE CONDITIONS
+qqeLong = QQExlong == 1 and green_candles and Uptrend and close > upper_trigger
+qqeShort = QQExshort == 1 and red_candles and Downtrend and close < lower_trigger
+
+// QQE PLOTTING
+plotshape(qqeLong, title='QQE long', text='CALL', textcolor=color.new(color.white, 0), style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), size=size.large)
+plotshape(qqeShort, title='QQE short', text='PUT', textcolor=color.new(color.white, 0), style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), size=size.large)
+
+// QQE ALERTS
+alertcondition(qqeLong, title='Long', message='Long')
+alertcondition(qqeShort, title='Short', message='Short')
+
+
+// RIPSTER EMA CLOUDS - TINKERED TO MY PREFERNCE - THANK YOU TO RIPSTER47 FOR THE LINES BELOW. THANK YOU FOR YOUR SERVICE. YOU ARE APPRECIATED <3
+// MY PERSONAL FAVORITE SETTINGS FOR EMA CLOUDS BELOW 
+matype = input.string(title='MA Type', defval='EMA', options=['EMA', 'SMA'])
+ma_len1 = input(title='Short EMA1 Length', defval=8)
+ma_len2 = input(title='Long EMA1 Length', defval=9)
+ma_len3 = input(title='Short EMA2 Length', defval=5)
+ma_len4 = input(title='Long EMA2 Length', defval=13)
+ma_len5 = input(title='Short EMA3 Length', defval=34)
+ma_len6 = input(title='Long EMA3 Length', defval=50)
+ma_len7 = input(title='Short EMA4 Length', defval=20)
+ma_len8 = input(title='Long EMA4 Length', defval=21)
+
+ma_offset = input(title='Offset', defval=0)
+//res = input(title="Resolution", type=resolution, defval="240")
+f_ma(malen) =>
+    float result = 0
+    if matype == 'EMA'
+        result := ta.ema(src, malen)
+        result
+    if matype == 'SMA'
+        result := ta.sma(src, malen)
+        result
+    result
+
+htf_ma1 = f_ma(ma_len1)
+htf_ma2 = f_ma(ma_len2)
+htf_ma3 = f_ma(ma_len3)
+htf_ma4 = f_ma(ma_len4)
+htf_ma5 = f_ma(ma_len5)
+htf_ma6 = f_ma(ma_len6)
+htf_ma7 = f_ma(ma_len7)
+htf_ma8 = f_ma(ma_len8)
+
+//plot(out1, color=green, offset=ma_offset)
+//plot(out2, color=red, offset=ma_offset)
+
+//lengthshort = input(8, minval = 1, title = "Short EMA Length")
+//lengthlong = input(200, minval = 2, title = "Long EMA Length")
+//emacloudleading = input(50, minval = 0, title = "Leading Period For EMA Cloud")
+//src = input(hl2, title = "Source")
+showlong = input(false, title='Show Long Alerts')
+showshort = input(false, title='Show Short Alerts')
+showLine = input(false, title='Display EMA Line')
+ema1 = input(true, title='Show EMA Cloud-1')
+ema2 = input(true, title='Show EMA Cloud-2')
+ema3 = input(true, title='Show EMA Cloud-3')
+ema4 = input(true, title='Show EMA Cloud-4')
+
+emacloudleading = input.int(0, minval=0, title='Leading Period For EMA Cloud')
+mashort1 = htf_ma1
+malong1 = htf_ma2
+mashort2 = htf_ma3
+malong2 = htf_ma4
+mashort3 = htf_ma5
+malong3 = htf_ma6
+mashort4 = htf_ma7
+malong4 = htf_ma8
+
+cloudcolour1 = mashort1 >= malong1 ? #036103 : #880e4f
+cloudcolour2 = mashort2 >= malong2 ? #4caf50 : #f44336
+cloudcolour3 = mashort3 >= malong3 ? #61b9ff : #ffb300
+cloudcolour4 = mashort4 >= malong4 ? #0fdb31 : #ff0000
+
+mashortcolor1 = mashort1 >= mashort1[1] ? color.purple : color.black
+mashortcolor2 = mashort2 >= mashort2[1] ? color.purple : color.black
+mashortcolor3 = mashort3 >= mashort3[1] ? color.purple : color.black
+mashortcolor4 = mashort4 >= mashort4[1] ? color.purple : color.black
+
+mashortline1 = plot(ema1 ? mashort1 : na, color=showLine ? mashortcolor1 : na, linewidth=1, offset=emacloudleading, title='Short Leading EMA1')
+mashortline2 = plot(ema2 ? mashort2 : na, color=showLine ? mashortcolor2 : na, linewidth=1, offset=emacloudleading, title='Short Leading EMA2')
+mashortline3 = plot(ema3 ? mashort3 : na, color=showLine ? mashortcolor3 : na, linewidth=1, offset=emacloudleading, title='Short Leading EMA3')
+mashortline4 = plot(ema4 ? mashort4 : na, color=showLine ? mashortcolor4 : na, linewidth=1, offset=emacloudleading, title='Short Leading EMA4')
+
+malongcolor1 = malong1 >= malong1[1] ? color.green : color.red
+malongcolor2 = malong2 >= malong2[1] ? color.green : color.red
+malongcolor3 = malong3 >= malong3[1] ? color.green : color.red
+malongcolor4 = malong4 >= malong4[1] ? color.green : color.red
+
+malongline1 = plot(ema1 ? malong1 : na, color=showLine ? malongcolor1 : na, linewidth=3, offset=emacloudleading, title='Long Leading EMA1')
+malongline2 = plot(ema2 ? malong2 : na, color=showLine ? malongcolor2 : na, linewidth=3, offset=emacloudleading, title='Long Leading EMA2')
+malongline3 = plot(ema3 ? malong3 : na, color=showLine ? malongcolor3 : na, linewidth=3, offset=emacloudleading, title='Long Leading EMA3')
+malongline4 = plot(ema4 ? malong4 : na, color=showLine ? malongcolor4 : na, linewidth=3, offset=emacloudleading, title='Long Leading EMA4')
+
+fill(mashortline1, malongline1, color=color.new(cloudcolour1,45), title='MA Cloud1')
+fill(mashortline2, malongline2, color=color.new(cloudcolour2,65), title='MA Cloud2')
+fill(mashortline3, malongline3, color=color.new(cloudcolour3,70), title='MA Cloud3')
+fill(mashortline4, malongline4, color=color.new(cloudcolour4,65), title='MA Cloud4')
+
+// TD SEQUENTIAL SIMPLIFIED - CREDIT TO SPDOINKAL FOR THE LINES BELOW. THANK YOU FOR YOUR SERVICE, YOU ARE APPRECIATED <3 ///
+//ON AND OFF SETTINGS
+showBuyTDs = input(true, title='Show TD Buy')
+showSellTDs = input(true, title='Show TD Sell')
+
+
+// TD SIGNAL CALCULATIONS
+buySignals = 0
+buySignals := close < close[4] ? buySignals[1] == 9 ? 1 : buySignals[1] + 1 : 0
+
+sellSignals = 0
+sellSignals := close > close[4] ? sellSignals[1] == 9 ? 1 : sellSignals[1] + 1 : 0
+BuyOrSell = math.max(buySignals, sellSignals)
+
+TD8buy = showBuyTDs and buySignals and BuyOrSell == 8
+TD9buy = showBuyTDs and buySignals and BuyOrSell == 9
+TD8sell = showSellTDs and sellSignals and BuyOrSell == 8
+TD9sell = showSellTDs and sellSignals and BuyOrSell == 9
+
+// TD LABELS 
+plotshape(TD8buy, style=shape.labelup, text='8', color=color.new(color.teal, 0), textcolor=color.new(color.white, 0), size=size.tiny, location=location.belowbar)
+plotshape(TD9buy, style=shape.labelup, text='9', color=color.new(color.teal, 0), textcolor=color.new(color.white, 0), size=size.tiny, location=location.belowbar)
+plotshape(TD8sell, style=shape.labeldown, text='8', color=color.new(color.maroon, 0), textcolor=color.new(color.white, 0), size=size.tiny, location=location.abovebar)
+plotshape(TD9sell, style=shape.labeldown, text='9', color=color.new(color.maroon, 0), textcolor=color.new(color.white, 0), size=size.tiny, location=location.abovebar)
+
+// TD ALERTS 
+alertcondition(TD8buy, 'TD 8 Buy', 'TD 8 Buy')  // Once per bar close
+alertcondition(TD9buy, 'TD 9 Buy', 'TD 9 Buy')  // Once per bar close
+alertcondition(TD8sell, 'TD 8 Sell', 'TD 8 Sell')  // Once per bar close
+alertcondition(TD9sell, 'TD 9 Sell', 'TD 9 Sell')  // Once per bar close
+
+
+

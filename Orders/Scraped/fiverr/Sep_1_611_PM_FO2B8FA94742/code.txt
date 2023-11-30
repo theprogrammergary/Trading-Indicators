@@ -1,0 +1,203 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("adr_unlocked", overlay = true, max_lines_count=500)
+
+
+// @error catching
+if (timeframe.in_seconds() >= timeframe.in_seconds('D'))
+    runtime.error('Timeframe cannot be greater than Daily')
+// @error catching end
+
+
+// @inputs
+auto_color  = input.bool(true, title = 'Auto Color', group = 'General Settings', inline = '1')
+
+adr_days    = input.int(5, title = 'Days', group = 'ADR Settings', inline = '1', maxval=20)
+reset_time  = input.string("00:00", title = 'Reset Time (EST)', group = 'ADR Settings', inline = '2')
+show_hist   = input.bool(false, title = 'Show Historical ADR Levels', group = 'ADR Settings', inline = '3')
+show_table  = input.bool(false, title = 'Show Previous Daily Ranges Table', group = 'ADR Settings', inline = '4')
+table_size  = input.string('Small', title = '', options = ['Small', 'Medium', 'Large'], group = 'ADR Settings', inline = '5')
+table_x     = input.string('Center', title = '', options = ['Left', 'Center', 'Right'], group = 'ADR Settings', inline = '5')
+table_y     = input.string('Bottom', title = '', options = ['Top', 'Middle', 'Bottom'], group = 'ADR Settings', inline = '5')
+
+show_text   = input.bool(true, title = 'Show Text', group = 'Plot Settings', inline = '1')
+txt_size    = input.string('Small', title = '', options = ['Small', 'Medium', 'Large'], group = 'Plot Settings', inline = '1')
+offset      = input.int(50, title = 'Offset', group = 'Plot Settings', inline = '2', maxval = 100)
+
+adr_style   = input.string('Solid', title = 'ADR​​​  ​ ', options = ['Solid', 'Dotted', 'Dashed'], group = 'Plot Settings', inline ='3')
+adr_css     = input.color(color.new(#000000, 0), title = '', group = 'Plot Settings', inline ='3')
+adr_show    = input.bool(false, title = 'Hide', group = 'Plot Settings', inline = '3')
+
+third_style     = input.string('Dotted', title = '1/3 ADR', options = ['Solid', 'Dotted', 'Dashed'], group = 'Plot Settings', inline ='4')
+third_css       = input.color(color.new(#000000, 0), title = '', group = 'Plot Settings', inline ='4')
+third_show      = input.bool(false, title = 'Hide', group = 'Plot Settings', inline = '4')
+
+anchor_style    = input.string('Dotted', title = 'Anchor ', options = ['Solid', 'Dotted', 'Dashed'], group = 'Plot Settings', inline ='5')
+anchor_css      = input.color(color.new(#000000, 0), title = '', group = 'Plot Settings', inline ='5')
+anchor_show     = input.bool(false, title = 'Hide', group = 'Plot Settings', inline = '5')
+// @inputs end
+
+
+// @function manage array
+f_array_add_pop(array, new_value) =>
+    array.unshift(array, new_value)
+    array.pop(array)
+
+
+// @function line styler
+f_line_style(style) =>
+    style == 'Solid' ? line.style_solid 
+     : style == 'Dotted' ? line.style_dotted 
+     : style == 'Dashed' ? line.style_dashed 
+     : line.style_solid
+
+
+// @function line color
+f_line_color(_color) =>
+    auto_color ? chart.fg_color : _color
+
+
+
+// @calculate adr values
+reset = str.format_time(time, "HH:mm", "America/New_York") == reset_time
+// bgcolor(reset ? color.yellow : na)
+
+var float track_highs   = 0.00
+var float track_lows    = 0.00
+var float today_adr     = 0.00
+
+var adrs    = array.new_float(adr_days, 0.00)
+
+var line adr_pos         = na
+var line adr_third_pos   = na
+var line adr_anchor      = na
+var line adr_third_neg   = na
+var line adr_neg         = na
+
+var label adr_pos_lbl         = na
+var label adr_third_pos_lbl   = na
+var label adr_anchor_lbl      = na
+var label adr_third_neg_lbl   = na
+var label adr_neg_lbl         = na
+
+
+track_highs := reset ? high : math.max(high, track_highs[1])
+track_lows  := reset ? low : math.min(low, track_lows[1])
+
+
+lbl_size    = txt_size == 'Small' ? size.tiny : txt_size == 'Medium' ? size.small : size.normal
+tablesize   = table_size == 'Small' ? size.tiny : table_size == 'Medium' ? size.small : size.normal
+
+
+if reset
+    // shift values
+    f_array_add_pop(adrs, math.round_to_mintick(track_highs[1] - track_lows[1]))
+    today_adr := array.avg(adrs)
+
+    // delete history
+    if not show_hist
+        line.delete(adr_pos[1])
+        line.delete(adr_third_pos[1])
+        line.delete(adr_anchor[1])
+        line.delete(adr_third_neg[1])
+        line.delete(adr_neg[1])
+
+        label.delete(adr_pos_lbl[1])
+        label.delete(adr_third_pos_lbl[1])
+        label.delete(adr_anchor_lbl[1])
+        label.delete(adr_third_neg_lbl[1])
+        label.delete(adr_neg_lbl[1])
+    else
+        line.set_x2(adr_pos, bar_index)
+        line.set_x2(adr_neg, bar_index)
+        line.set_x2(adr_third_pos, bar_index)
+        line.set_x2(adr_third_neg, bar_index)
+
+        label.delete(adr_pos_lbl)
+        label.delete(adr_neg_lbl)
+        label.delete(adr_third_pos_lbl)
+        label.delete(adr_third_neg_lbl)
+
+
+    // draw new lines
+    if not adr_show
+        adr_pos := line.new(bar_index, open + today_adr, bar_index+offset, open + today_adr,
+         xloc = xloc.bar_index, extend = extend.none,
+         color = f_line_color(adr_css), style = f_line_style(adr_style))
+
+        adr_neg := line.new(bar_index, open - today_adr, bar_index+offset, open - today_adr,
+         xloc = xloc.bar_index, extend = extend.none,
+         color = f_line_color(adr_css), style = f_line_style(adr_style))
+
+        if show_text
+            adr_pos_lbl := label.new(bar_index+offset, open + today_adr, text = str.tostring(adr_days) + 'ADR+',
+             xloc = xloc.bar_index, size = lbl_size, textalign = text.align_left,
+             textcolor = chart.fg_color, color = color.new(#000000,100), style = label.style_label_left)
+
+            adr_neg_lbl := label.new(bar_index+offset, open - today_adr, text = str.tostring(adr_days) + 'ADR-',
+             xloc = xloc.bar_index, size = lbl_size, textalign = text.align_left,
+             textcolor = chart.fg_color, color = color.new(#000000,100), style = label.style_label_left)
+
+
+    if not third_show
+        adr_third_pos := line.new(bar_index, math.round_to_mintick(open + today_adr*.33), bar_index+offset, math.round_to_mintick(open + today_adr*.33),
+         xloc = xloc.bar_index, extend = extend.none,
+         color = f_line_color(third_css), style = f_line_style(third_style))
+
+        adr_third_neg := line.new(bar_index, math.round_to_mintick(open - today_adr*.33), bar_index+offset, math.round_to_mintick(open - today_adr*.33),
+         xloc = xloc.bar_index, extend = extend.none,
+         color = f_line_color(third_css), style = f_line_style(third_style))
+
+        if show_text
+            adr_third_pos_lbl := label.new(bar_index+offset, math.round_to_mintick(open + today_adr*.33), text = '1/3ADR+',
+             xloc = xloc.bar_index, size = lbl_size, textalign = text.align_left,
+             textcolor = chart.fg_color, color = color.new(#000000,100), style = label.style_label_left)
+
+            adr_third_neg_lbl := label.new(bar_index+offset, math.round_to_mintick(open - today_adr*.33), text = '1/3ADR-',
+             xloc = xloc.bar_index, size = lbl_size, textalign = text.align_left,
+             textcolor = chart.fg_color, color = color.new(#000000,100), style = label.style_label_left)
+
+
+    if not anchor_show
+        line.delete(adr_anchor)
+        adr_anchor := line.new(bar_index, 1e20, bar_index, -1e20,
+         xloc = xloc.bar_index, extend = extend.none,
+         color = f_line_color(anchor_css), style = f_line_style(anchor_style))
+    
+else
+    today_adr := today_adr[1]
+
+
+    // update lines
+    line.set_x2(adr_pos, bar_index+offset)
+    line.set_x2(adr_neg, bar_index+offset)
+    line.set_x2(adr_third_pos, bar_index+offset)
+    line.set_x2(adr_third_neg, bar_index+offset)
+
+
+    // update labels
+    label.set_x(adr_pos_lbl, bar_index+offset)
+    label.set_x(adr_neg_lbl, bar_index+offset)
+    label.set_x(adr_third_pos_lbl, bar_index+offset)
+    label.set_x(adr_third_neg_lbl, bar_index+offset)
+// @calculate adr values end
+
+
+// @table 
+var table = table.new(position = position.bottom_center,
+     columns = adr_days+1, rows = 1, bgcolor = chart.bg_color,
+     frame_color = color.new(chart.fg_color,0), border_color = color.new(chart.fg_color,80),
+     frame_width = 2, border_width = 1)
+
+
+if barstate.islast and show_table
+    // For the sake of this example, setting cell content
+    for i = 0 to adr_days - 1
+        table.cell(table, i, 0, text = str.tostring(array.get(adrs, i)), text_size = tablesize,
+         text_color = chart.fg_color, bgcolor = chart.bg_color)
+
+    // Setting the ADR cell content
+    table.cell(table, adr_days, 0, text = str.tostring(adr_days)+'ADR = ' + str.tostring(today_adr), 
+         text_size = tablesize, bgcolor = color.new(chart.fg_color, 00), text_color = chart.bg_color)

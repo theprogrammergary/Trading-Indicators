@@ -1,0 +1,189 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("for justinanthon339 1221", overlay=true, default_qty_value = 100)
+
+//Strategy 
+useTradingHours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "Additional Trade Settings", inline = '1')
+trading_time = input.session("0930-1600", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Additional Trade Settings", inline = '2')
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Additional Trade Settings", inline = '3')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to trade both sides of the market?" , group = "Additional Trade Settings", inline = '3')
+use_ao_filter = input.bool(true, title = "AO FIlter", tooltip = "Only enter short trades when AO is red and above 0. And only enter long trades when AO is green and below 0. This will help to remove show chop / buying top of range and shorting bottom of range.", inline = '4')
+profit_amount = input.int(300, minval = 1, title = "Profit Target Amount", group = "Additional Trade Settings", tooltip = 'In ticks', inline = '5')
+stop_type = input.string("Recent Low/High", title = "Stop Type", options = ['Recent Low/High', 'Ticks'], group = "Additional Trade Settings", inline = '6')
+stop_amount = input.int(5, minval = 1, title = "Stop Amount",group = "Additional Trade Settings", inline = '6', tooltip = 'If Stop Type is set to recent high/low and the stop amount is 5 we use the highest high or lowest low from the past 5 bars from entry. 
+     \n\nIf Stop Type is set to Ticks then the stop amount is in ticks')
+
+//AO
+ao = ta.sma(hl2,5) - ta.sma(hl2,34)
+ao_trend = ta.change(ao) <= 0 ? -1 : 1
+
+//BSVP
+signal = input.int(title="Base for FastMA Periods:", defval=3, group = "BSVP")
+long = input.int(title="Buy to Sell Conv/Div Lookback:", defval=27, group = "BSVP")
+vmacd = input.bool(true, title="Buy to Sell Convergence/Div OSC:", group = "BSVP")
+vinv = input.bool(false, title="Buy to Sell Conv/Div as cummulative:", group = "BSVP")
+
+vol = volume > 0 ? volume : 1
+TR = ta.atr(1)
+
+var BP = 0.00
+if close < open 
+    if close[1] < open 
+        BP := math.max(high - close[1], close - low)
+    else
+        BP := math.max(high - open, close - low)
+else if close > open
+    if close[1] > open 
+        BP := high - low
+    else
+        BP := math.max(open - close[1], high - low)
+else
+    if high - close > close - low 
+        if close[1]< open 
+            BP := math.max( high -  close[1],close - low )
+        else
+            BP := high - open
+    else if high - close < close - low 
+        if close[1] > open
+            BP := high - low
+        else
+            BP := math.max(open - close[1],high - low )
+    else
+        if close[1] > open
+            BP := math.max( high - open, close - low )
+        else if close[1] < open
+            BP := math.max( open - close[1], high - low )
+        else 
+            BP := high - low
+
+var SP = 0.00
+if close < open 
+    if close[1] > open 
+        SP := math.max(close[1] - open, high - low)
+    else
+        SP := high - low
+else if close > open
+    if close[1] > open 
+        SP := math.max(close[1] - low, high - close)
+    else
+        SP := math.max(open - low, high - close)
+else
+    if high - close > close - low 
+        if close[1] > open 
+            SP := math.max(close[1] - open, high -low)
+        else
+            SP := high - low
+    else if high - close < close - low 
+        if close[1] > open
+            SP := math.max(close[1] - low, high - close)
+        else
+            SP := open - low
+    else
+        if close[1] > open
+            SP := math.max( close[1] - open, high - low)
+        else if close[1] < open
+            SP := math.max(open - low, high - close)
+        else 
+            SP := high - low
+TP = BP+SP
+
+// RAW Pressure Volume Calculations
+BPV = (BP/TP)*vol
+SPV = (SP/TP)*vol
+TPV = BPV+SPV
+BPVavg = ta.ema(ta.ema(BPV,signal),signal)
+SPVavg = ta.ema(ta.ema(SPV,signal),signal)
+TPVavg = ta.ema(ta.wma(TPV,signal),signal)
+
+// Karthik Marar's Pressure Volume Normalized Version (XeL-MOD.)
+VN = vol/ta.ema(vol,long)
+BPN = ((BP/ta.ema(BP,long))*VN)*100
+SPN = ((SP/ta.ema(SP,long))*VN)*100
+TPN = BPN+SPN
+nbf = ta.ema(ta.wma(BPN,signal),signal)
+nsf = ta.ema(ta.wma(SPN,signal),signal)
+tpf = ta.ema(ta.wma(TPN,signal),signal)
+ndif = nbf-nsf
+
+
+// Volume Pressure Convergence Divergence by XeL_Arjona
+vpo1 = vinv ? (( math.sum(BPVavg,long)-math.sum(SPVavg,long))/math.sum(TPVavg,long))*100 : ((BPVavg-SPVavg)/TPVavg)*100
+vpo2 = vinv ? (( math.sum(nbf,long)-math.sum(nsf,long))/math.sum(tpf,long))*100 : ((nbf-nsf)/tpf)*100
+vph = nz((vpo1 - vpo2),0)
+
+// Plot Indicator
+bsvp_trend = vpo1 > 0 ? 1 : -1
+
+main_signal = ao_trend == 1 and bsvp_trend == 1 ? 1 : ao_trend == -1 and bsvp_trend == -1 ? -1 : 0
+main_signal_color = main_signal == 1 ? color.teal : main_signal == -1  ? color.red : color.gray
+
+//Visual Settings
+color_candles = input.bool(true, title = "Color Candles based on AO and BSVP", group = 'Visual Settings')
+plotcandle(color_candles ? open : na, color_candles ? high : na, color_candles ? low : na, color_candles ? close : na, color = main_signal_color, wickcolor = main_signal_color, bordercolor = main_signal_color)
+
+ao_long = not use_ao_filter or use_ao_filter and ao < 0
+ao_short = not use_ao_filter or use_ao_filter and ao > 0
+
+long_entry = long_trades and ao_long and trading_hours_cond and main_signal == 1 and main_signal[1] != 1 
+long_exit = long_trades and trading_hours_cond and main_signal[1] == 1 and main_signal != 1
+
+short_entry = short_trades and ao_short and  trading_hours_cond and main_signal == -1 and main_signal[1] != -1
+short_exit = short_trades and trading_hours_cond and main_signal[1] == -1 and main_signal != -1
+
+//stops and profit targets
+var short_StopPrice = 0.00
+var long_StopPrice = 0.00
+
+var swing_high_for_stop = 0.00
+var swing_low_for_stop = 0.00
+
+high_tracker = ta.highest(high, stop_amount)
+low_tracker = ta.lowest(low, stop_amount)
+
+new_pos = strategy.position_size
+
+if stop_type == "Recent Low/High"
+    if new_pos != new_pos[1] and strategy.position_size != 0 
+        swing_high_for_stop := high_tracker
+        swing_low_for_stop := low_tracker
+    else
+        swing_high_for_stop == swing_high_for_stop[1]
+        swing_low_for_stop == swing_low_for_stop[1]
+        
+    short_StopPrice := swing_high_for_stop
+    long_StopPrice := swing_low_for_stop
+
+if stop_type == "Ticks"
+    short_StopPrice := strategy.position_avg_price + (syminfo.mintick * stop_amount) 
+    long_StopPrice := strategy.position_avg_price - (syminfo.mintick * stop_amount) 
+    
+if (strategy.position_size > 0)
+    strategy.exit(id="Buy", profit=profit_amount, stop=long_StopPrice, comment = " ")
+     
+if (strategy.position_size < 0)
+    strategy.exit(id="Sell", profit=profit_amount, stop=short_StopPrice,  comment = " ")
+
+
+//entries
+strategy.entry("Buy", strategy.long,when = long_entry) 
+strategy.entry("Sell", strategy.short, when = short_entry) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

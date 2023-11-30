@@ -1,0 +1,127 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GM_Trades
+
+//@version=4
+study("Jerry Romine PE Ratio & Percent Change Labels", overlay = true)
+LabelSize = input(defval="medium", options=["small", "medium", "large"])
+
+okToCalculateFund = syminfo.type == "stock"  ?  true : false
+symbol = okToCalculateFund ? syminfo.tickerid : "BATS:SPY"
+
+//PE RATIO
+EPS = okToCalculateFund ? (financial(symbol, "EARNINGS_PER_SHARE_BASIC", "TTM")) : na
+PE = round(close / EPS,0)
+pe_text = not na(PE) ? "PE " + tostring(PE) : ""
+pe_color1 = input(#e09203, "EPS <= 0", group = "PE Colors")
+pe_color2 = input(#94ec94, "EPS <= 20", group = "PE Colors")
+pe_color3 = input(#33cc00, "EPS <= 100", group = "PE Colors")
+pe_color4 = input(#e6d200, "EPS > 100", group = "PE Colors")
+pe_color5 = input(#00dee6, "ELSE", group = "PE Colors")
+
+pe_color = PE <= 0 ? pe_color1 : PE <= 20 ? pe_color2 : PE <= 100 ? pe_color3 : PE > 100 ? pe_color4 : pe_color5
+
+//PRICE CHANGE
+daily_close = (security(syminfo.tickerid,"D",close, lookahead=barmerge.lookahead_on))
+weekChange = round((daily_close - (security(syminfo.tickerid,"D",close[5], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[5], lookahead=barmerge.lookahead_on)) * 100,1)
+monthChange = round((daily_close - (security(syminfo.tickerid,"D",close[21], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[21], lookahead=barmerge.lookahead_on)) * 100,1)
+twomonthChange = round((daily_close - (security(syminfo.tickerid,"D",close[42], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[42], lookahead=barmerge.lookahead_on)) * 100,0)
+threemonthChange = round((daily_close - (security(syminfo.tickerid,"D",close[63], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[63], lookahead=barmerge.lookahead_on)) * 100,0)
+sixmonthChange = round((daily_close - (security(syminfo.tickerid,"D",close[126], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[126], lookahead=barmerge.lookahead_on)) * 100,0)
+oneyearChange = round((daily_close - (security(syminfo.tickerid,"D",close[252], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[252], lookahead=barmerge.lookahead_on)) * 100,0)
+twoyearChange = round((daily_close - (security(syminfo.tickerid,"D",close[504], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[504], lookahead=barmerge.lookahead_on)) * 100,0)
+//threeyearChange = round((daily_close - (security(syminfo.tickerid,"D",close[756], lookahead=barmerge.lookahead_on))) / (security(syminfo.tickerid,"D",close[756], lookahead=barmerge.lookahead_on)) * 100,0)
+
+valuecolor1 = input(#bfbfbf, "Value 1 Color", group = "% Chg Colors")
+valuecolor2 = input(#33cc00, "Value 2 Color", group = "% Chg Colors")
+valuecolor3 = input(#94ec94, "Value 3 Color", group = "% Chg Colors")
+valuecolor4 = input(#dd0504, "Value 4 Color", group = "% Chg Colors")
+valuecolor5 = input(#910303, "Value 5 Color", group = "% Chg Colors")
+
+weekColor = weekChange == 0 ? valuecolor1 : weekChange > 0 and weekChange < 2.5 ? valuecolor2 : weekChange > 2.5 ? valuecolor3 : weekChange > 0 ? valuecolor2 : weekChange <= 0 and weekChange <=-2.5 ? valuecolor5 : valuecolor4
+monthColor =  monthChange == 0 ? valuecolor1 :  monthChange > 0 and monthChange < 10 ? valuecolor2 :  monthChange > 10 and monthChange > weekChange ? valuecolor3 :  monthChange > 0 ? valuecolor2 :  monthChange <= -10 and monthChange < weekChange ? valuecolor5 : valuecolor4
+twomonthColor =  twomonthChange == 0 ? valuecolor1 :  twomonthChange > 0 and twomonthChange < 30 and twomonthChange > monthChange ? valuecolor2 :  twomonthChange > 30 and twomonthChange > monthChange ? valuecolor3 :  twomonthChange > 0 ? valuecolor2 :  twomonthChange < -30 and twomonthChange < monthChange ? valuecolor5 : valuecolor4
+threemonthColor = threemonthChange == 0 ? valuecolor1 :  threemonthChange > 0 and threemonthChange < 30 and threemonthChange > twomonthChange ? valuecolor2 :  threemonthChange > 30 and threemonthChange > twomonthChange ? valuecolor3 :  threemonthChange > 0 ? valuecolor2 :  threemonthChange < -30 and threemonthChange < twomonthChange ? valuecolor5 : valuecolor4
+sixmonthColor = sixmonthChange == 0 ? valuecolor1 :  sixmonthChange > 0 and sixmonthChange < 50  and sixmonthChange > threemonthChange ? valuecolor2 :  sixmonthChange > 50 and sixmonthChange > threemonthChange? valuecolor3 :  sixmonthChange > 0 ? valuecolor2 :  sixmonthChange < -50 and sixmonthChange < threemonthChange? valuecolor5 : valuecolor4
+oneyearColor =  oneyearChange== 0 ? valuecolor1 :  oneyearChange> 0 and oneyearChange< 100  and oneyearChange> sixmonthChange? valuecolor2 :  oneyearChange> 100 and oneyearChange> sixmonthChange? valuecolor3 :  oneyearChange> 0 ? valuecolor2 :  oneyearChange< -100 and oneyearChange< sixmonthChange? valuecolor5 : valuecolor4
+twoyearColor = twoyearChange== 0 ? valuecolor1 :  twoyearChange> 0 and twoyearChange< 100  and twoyearChange> oneyearChange? valuecolor2 :  twoyearChange> 200 and twoyearChange> oneyearChange? valuecolor3 :  twoyearChange> 0 ? valuecolor2 :  twoyearChange< -100 and twoyearChange< oneyearChange? valuecolor5 : valuecolor4
+
+
+//ATR
+ATR_label = input(true, "ATR Label", type = input.bool, group = "ATR")
+ATR_Multiple = input(2.5, "ATR Multiple", type = input.float, group = "ATR")
+ATR_length = input(14, "ATR Length", type = input.integer, group = "ATR")
+ATR_color = input(#feff01, "ATR Color", group = "ATR")
+ATR = atr(ATR_length) 
+ATRP = ATR / close * 100
+atr_label_text = ATR_label ? "ATR " + tostring(round(ATR,1)) + " " + tostring(round(ATRP,0)) + "%" : ""
+
+
+//TS
+TS_label = input(true, "TS Label", type = input.bool, group = "TS")
+TS_color = input(#9898f4, "TS Color", group = "TS")
+TS = ATRP * ATR_Multiple
+ts_label_text = TS_label ? "TS " + tostring(round(TS,0)) + "%" : ""
+
+
+//Volume
+Volume_label = input(true, "Volume Label", type = input.bool, group = "Volume")
+Long_Length = input(30, "Long Length", type = input.integer, group = "Volume")
+Short_Length = input(3, "Short Length", type = input.integer, group = "Volume")
+
+lookbackVolume = sma(volume[Short_Length] / 10000, Long_Length)
+recentVolume = sma(volume / 10000, Short_Length)
+volpct = round((recentVolume - lookbackVolume) / lookbackVolume * 100,0)
+volume_label_text = Volume_label ? "V " + tostring(volpct) + "%" : ""
+volume_color1 = input(#33cc00, "Volume Color 1", group = "Volume")
+volume_color2 = input(#ffffff, "Volume Color 2", group = "Volume")
+volume_color = volpct >= 10 ? volume_color1 : volume_color2
+
+//Dividends 
+esdSymbolTemplate ="ESD_FACTSET:" + syminfo.prefix + ";" + syminfo.ticker
+dividendsValue = (security(esdSymbolTemplate + ";DIVIDENDS", "D", close, lookahead=true))
+DivA = dividendsValue != 0 ? dividendsValue * 4 : na
+yield = DivA / close * 100
+
+Dividend_label = input(true, "Dividend Label", type = input.bool, group = "Dividend")
+Dividend_label_text = Dividend_label and not na(yield) ? tostring(round(yield,1)) + "% D.Yield" : ""
+Dividend_color1 = input(#00dee6, "Dividend Color 1", group = "Dividend")
+Dividend_color2 = input(#000000, "Dividend Color 2", group = "Dividend")
+Dividend_color = yield ? Dividend_color1 : Dividend_color2
+
+
+//NIM
+NIM = okToCalculateFund ? (financial(symbol, "NET_MARGIN", "FY")) : na
+	
+NIM_label = input(true, "NIM Label", type = input.bool, group = "NIM")
+NIM_label_text = NIM_label and not na(NIM) ? "NIM " + tostring(round(NIM,1)) + "%" : ""
+NIM_color1 = input(#00dee6, "NIM Color 1", group = "NIM")
+NIM_color2 = input(#94ec94, "NIM Color 2", group = "NIM")
+NIM_color3 = input(#33cc00, "NIM Color 3", group = "NIM")
+NIM_color4 = input(#e09203, "NIM Color 4", group = "NIM")
+NIM_color = NIM >= 25 ? NIM_color1 : NIM >= 15 ? NIM_color2 : NIM > 0 ? NIM_color3 : NIM_color4
+
+
+//TABLE
+label_size = LabelSize == "small" ? size.small : LabelSize == "medium" ? size.normal : LabelSize == "large" ? size.large : size.small
+var table t = table.new(position.bottom_right, 15, 1, border_width = 1, frame_color = #000000)
+if (barstate.islast)          
+    table.cell(t, 0, 0, text = "Jerry Romine", width = 0, bgcolor = color.white ,text_color = #000000, text_size = label_size)
+    table.cell(t, 1, 0, text = pe_text, width = 0, bgcolor = pe_color ,text_color = #000000, text_size = label_size)
+    table.cell(t, 2, 0, text = "1W " + tostring(weekChange)+"%", width = 0, bgcolor = weekColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 3, 0, text = "1M " + tostring(monthChange)+"%", width = 0, bgcolor = monthColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 4, 0, text = "2M " + tostring(twomonthChange)+"%", width = 0, bgcolor = twomonthColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 5, 0, text = "3M " + tostring(threemonthChange)+"%", width = 0, bgcolor = threemonthColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 6, 0, text = "6M " + tostring(sixmonthChange)+"%", width = 0, bgcolor = sixmonthColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 7, 0, text = "1Y " + tostring(oneyearChange)+"%", width = 0, bgcolor = oneyearColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 8, 0, text = "2Y " + tostring(twoyearChange)+"%", width = 0, bgcolor = twoyearColor ,text_color = #000000, text_size = label_size)
+    table.cell(t, 9, 0, text = atr_label_text, width = 0, bgcolor = ATR_color ,text_color = #000000, text_size = label_size)
+    table.cell(t, 10, 0, text = ts_label_text, width = 0, bgcolor = TS_color ,text_color = #000000, text_size = label_size)
+    table.cell(t, 11, 0, text = volume_label_text, width = 0, bgcolor = volume_color ,text_color = #000000, text_size = label_size)    
+    table.cell(t, 12, 0, text = Dividend_label_text, width = 0, bgcolor = Dividend_color ,text_color = #000000, text_size = label_size)
+    table.cell(t, 13, 0, text = NIM_label_text, width = 0, bgcolor = NIM_color ,text_color = #000000, text_size = label_size)
+    //table.cell(t, 14, 0, text = tostring(symbol), width = 0, bgcolor = NIM_color ,text_color = #000000, text_size = label_size)
+
+
+
+
+

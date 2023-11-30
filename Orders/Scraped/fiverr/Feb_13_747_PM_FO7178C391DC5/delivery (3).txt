@@ -1,0 +1,8 @@
+Please read the disclaimer.
+
+Watch the video for how to use.
+
+Import .eld file first
+Then open v2.tsw workspace.
+
+Also the TOS code is attached for Real Body Strength.

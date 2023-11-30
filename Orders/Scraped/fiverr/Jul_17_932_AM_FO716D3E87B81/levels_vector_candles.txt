@@ -1,0 +1,131 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("Level Theory + Vector Candles",overlay = true, max_lines_count = 500)
+
+import TradersReality/Traders_Reality_Lib/1 as trLib
+
+// --LEVEL SETTINGS-- //
+rounding_value = input.float(100, title = 'Rounding Value ', group = 'Level Settings', inline = '1')
+use_qtr_levels = input.bool(true, title = 'Quarter Levels', group = 'Level Settings', inline = '3')
+css_qtr = input.color(color.new(color.yellow,70), title = '', group = 'Level Settings', inline = '3')
+style_qtr = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '3')
+width_qtr = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '3')
+
+use_half_levels = input.bool(true, title = 'Half Levels   ', group = 'Level Settings', inline = '4')
+css_half = input.color(color.new(color.yellow,35), title = '', group = 'Level Settings', inline = '4')
+style_half = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '4')
+width_half = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '4')
+
+use_whole_levels = input.bool(true, title = 'Whole Levels ', group = 'Level Settings', inline = '5')
+css_whole = input.color(color.yellow, title = '', group = 'Level Settings', inline = '5')
+style_whole = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '5')
+width_whole = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '5')
+// --LEVEL SETTINGS-- //
+
+
+// --VECTOR SETTINGS-- //
+color redVectorColor = input.color(title='Vector: Red', group='PVSRA Colors', defval=color.red, inline='vectors')
+color greenVectorColor = input.color(title='Green', group='PVSRA Colors', defval=color.lime, inline='vectors')
+color violetVectorColor = input.color(title='Violet', group='PVSRA Colors', defval=color.fuchsia, inline='vectors')
+color blueVectorColor = input.color(title='Blue', group='PVSRA Colors', defval=color.blue, inline='vectors', tooltip='Bull bars are green and bear bars are red when the bar is with volume >= 200% of the average volume of the 10 previous bars, or bars where the product of candle spread x candle volume is >= the highest for the 10 previous bars.\n Bull bars are blue and bear are violet when the bar is with with volume >= 150% of the average volume of the 10 previous bars.')
+color regularCandleUpColor = input.color(title='Regular: Up Candle', group='PVSRA Colors', defval=#999999, inline='nonVectors')
+color regularCandleDownColor = input.color(title='Down Candle', group='PVSRA Colors', defval=#4d4d4d, inline='nonVectors', tooltip='Bull bars are light gray and bear are dark gray when none of the red/green/blue/violet vector conditions are met.')
+bool setcandlecolors = input.bool(false, title='Set PVSRA candle colors?', group='PVSRA Colors', inline='setCandle')
+
+int zonesMax = input.int(500, 'Maximum zones to draw', group='Vector Candle Zones')
+string zoneType = input.string(group='Vector Candle Zones', defval='Body only', title='Zone top/bottom is defined with: ', options=['Body only', 'Body with wicks'])
+string zoneUpdateType = input.string(group='Vector Candle Zones', defval='Body with wicks', title='Zones are cleared using candle: ', options=['Body only', 'Body with wicks'])
+int borderWidth = input.int(0, 'Zone border width', group='Vector Candle Zones')
+bool colorOverride = input.bool(true, 'Override color?' , group='Vector Candle Zones', inline="vcz1")
+color zoneColor = input.color(title='Color', group='Vector Candle Zones', defval=color.rgb(255, 230, 75, 90), inline="vcz1", tooltip='the vector candle zones color to use if you dont not want to use the PVSRA Candle Colors.')
+int transperancy = input.int(90, 'Zone Transperancy', minval = 0, maxval = 100, group='Vector Candle Zones', tooltip='If the vector candle zones color is not overriden, then we want to set the transparancy of the vector candle colors as defined by the PBSRA candle colors. This setting only affects the candle zone colors not the candle colors themselves.')
+
+bool overrideSym = input.bool(group='PVSRA Override', title='Override chart symbol?', defval=false, inline='pvsra')
+string pvsraSym = input.string(group='PVSRA Override', title='', defval='INDEX:BTCUSD', tooltip='You can use INDEX:BTCUSD or you can combine multiple feeds, for example BINANCE:BTCUSDT+COINBASE:BTCUSD. Note that adding too many will slow things down.', inline='pvsra')
+
+
+
+
+
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+f_draw_lines(lines, baseline, half_value, qtr_value) =>
+    
+    // clear
+    array_size = array.size(lines) 
+    if array_size > 0
+        for i = 0 to array_size- 1
+            line.delete(array.get(lines, i))
+        array.clear(lines)
+
+
+    for i = 0 to 10
+
+        if use_whole_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+(i*rounding_value), x2 = bar_index + 1, y2 = baseline+(i*rounding_value), extend = extend.both, width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-(i*rounding_value), x2 = bar_index + 1, y2 = baseline-(i*rounding_value), extend = extend.both,  width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+
+        if use_half_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+half_value+(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline+half_value+(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-half_value-(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline-half_value-(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+
+        if use_qtr_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+qtr_value+(i*(half_value)), x2 = bar_index + 1, y2 = baseline+qtr_value+(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-qtr_value-(i*(half_value)), x2 = bar_index + 1, y2 = baseline-qtr_value-(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+
+
+
+// --DRAW LINES-- //
+var lines = array.new_line(100, na)
+baseline = math.round( close / rounding_value) * rounding_value
+whole_value = rounding_value
+half_value = (rounding_value/2)
+qtr_value = (half_value/2)
+min_increment = use_qtr_levels ? qtr_value : use_half_levels ? half_value : use_whole_levels ? whole_value : na
+if barstate.islast or baseline != baseline[1]
+    f_draw_lines(lines, baseline, half_value, qtr_value) 
+// --DRAW LINES-- //
+
+
+
+
+// --VECTOR CANDLES-- //
+pvsraVolume(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    request.security(overrideSymbolX ? pvsraSymbolX : tickerIdX, '', volume, barmerge.gaps_off, barmerge.lookahead_off)
+pvsraHigh(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    request.security(overrideSymbolX ? pvsraSymbolX : tickerIdX, '', high, barmerge.gaps_off, barmerge.lookahead_off)
+pvsraLow(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    request.security(overrideSymbolX ? pvsraSymbolX : tickerIdX, '', low, barmerge.gaps_off, barmerge.lookahead_off)
+pvsraClose(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    request.security(overrideSymbolX ? pvsraSymbolX : tickerIdX, '', close, barmerge.gaps_off, barmerge.lookahead_off)
+pvsraOpen(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    request.security(overrideSymbolX ? pvsraSymbolX : tickerIdX, '', open, barmerge.gaps_off, barmerge.lookahead_off)
+
+
+pvsraVolume = pvsraVolume(overrideSym, pvsraSym, syminfo.tickerid)
+pvsraHigh = pvsraHigh(overrideSym, pvsraSym, syminfo.tickerid)
+pvsraLow = pvsraLow(overrideSym, pvsraSym, syminfo.tickerid)
+pvsraClose = pvsraClose(overrideSym, pvsraSym, syminfo.tickerid)
+pvsraOpen = pvsraOpen(overrideSym, pvsraSym, syminfo.tickerid)
+[pvsraColor, alertFlag, averageVolume, volumeSpread, highestVolumeSpread] = trLib.calcPvsra(pvsraVolume, pvsraHigh, pvsraLow, pvsraClose, pvsraOpen, redVectorColor, greenVectorColor, violetVectorColor, blueVectorColor, regularCandleDownColor, regularCandleUpColor)
+
+
+var zoneBoxesAbove = array.new_box()
+var zoneBoxesBelow = array.new_box()
+
+
+barcolor(setcandlecolors ? pvsraColor : na)
+pvsra = trLib.getPvsraFlagByColor(pvsraColor, redVectorColor, greenVectorColor, violetVectorColor, blueVectorColor, regularCandleUpColor)
+trLib.updateZones(pvsra, 0, zoneBoxesBelow, zonesMax, pvsraHigh, pvsraLow, pvsraOpen, pvsraClose, transperancy, zoneUpdateType, zoneColor, zoneType, borderWidth, colorOverride, redVectorColor, greenVectorColor, violetVectorColor, blueVectorColor)
+trLib.updateZones(pvsra, 1, zoneBoxesAbove, zonesMax, pvsraHigh, pvsraLow, pvsraOpen, pvsraClose, transperancy, zoneUpdateType, zoneColor, zoneType, borderWidth, colorOverride, redVectorColor, greenVectorColor, violetVectorColor, blueVectorColor)
+trLib.cleanarr(zoneBoxesAbove)
+trLib.cleanarr(zoneBoxesBelow)
+// --VECTOR CANDLES-- //

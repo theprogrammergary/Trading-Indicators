@@ -1,0 +1,1 @@
+For the STOCH RSI which line do you want to be below 10. Fullk or Fulld?

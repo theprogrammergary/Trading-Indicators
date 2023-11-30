@@ -1,0 +1,13 @@
+Please read the disclaimer. 
+
+Okay I was able to make a work around so all datas (1-5)work include weekly. The strategy and indicator will need to be applied to the chart at the same time if you want to see the indicator. However, if you just apply the strategy it will still take trades, but the indicator portion will not show.
+
+Updates to Indicator
+1. Should update now correctly.
+2. Length input to change the sensitivity of trend.
+3. All signal plot that shows you when all the timeframes align long or short
+
+Notes
+-If you change a setting on the indicator or strategy you will need to make sure that the settings match on both. For example, you change the length on the indicator to 50. You will then need to change the length on the strategy to 50.
+
+Let me know if you have any questions. I also shared a chart layout with you so you dont have to add all the datas yourself. You should just be able to copy and paste a chart to make a new one. That can be found on tradestation under edit > copy window

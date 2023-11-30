@@ -1,0 +1,170 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("Simple Sentiment Strategy", overlay=true, margin_long=100, margin_short=100)
+
+//DASHBOARD
+panelbull_color = input.color(#27a69b, title='Bull Color', inline='1', group='Visual Settings')
+panelbear_color = input.color(#b63632, title='Bear Color', inline='1', group='Visual Settings')
+panelneutral_color = input.color(color.gray, title='Neutral Color', inline='1', group='Visual Settings')
+
+//INPUTS
+LabelSize = input.string(defval='Medium', options=['Small', 'Medium', 'Large'], title='Dashboard Size', inline='2', group='Visual Settings')
+label_size = LabelSize == 'Small' ? size.small : LabelSize == 'Medium' ? size.normal : LabelSize == 'Large' ? size.large : size.small
+positioning = position.top_right 
+dashboard_color = input.color(color.new(#131722, 0), title='BG Color', inline='2', group='Visual Settings')
+dashboard_text = input.color(#ffffff, title='Text Color', inline='2', group='Visual Settings')
+dashboard_bull = color.new(panelbull_color,40)
+dashboard_bear = color.new(panelbear_color,40)
+// label_offset = input.int(25, minval = 1, title='Label Offset', inline='3', group='Visual Settings')
+
+// use_symbol1 = input.bool(false, ' ', group='Scanner Settings', inline = '1')
+// symbol1 = input.symbol("BTCUSD", title = 'Symbol 1', group='Scanner Settings', inline = '1')
+real_symbol1 = syminfo.tickerid
+
+tf1 = input.timeframe("1", title = "Timeframe 1", group='Scanner Settings', inline = '2')
+tf2 = input.timeframe("5", title = "Timeframe 2", group='Scanner Settings', inline = '3')
+tf3 = input.timeframe("15", title = "Timeframe 3", group='Scanner Settings', inline = '4')
+tf4 = input.timeframe("30", title = "Timeframe 4", group='Scanner Settings', inline = '5')
+tf5 = input.timeframe("60", title = "Timeframe 5", group='Scanner Settings', inline = '6')
+tf6 = input.timeframe("240", title = "Timeframe 6", group='Scanner Settings', inline = '7')
+
+tf1_bars_back = input.int(100, minval = 1, title = ' ', group='Scanner Settings' , inline = '2')
+tf2_bars_back = input.int(12, minval = 1, title = ' ', group='Scanner Settings' , inline = '3')
+tf3_bars_back = input.int(4, minval = 1, title = ' ', group='Scanner Settings' , inline = '4')
+tf4_bars_back = input.int(2, minval = 1, title = ' ', group='Scanner Settings' , inline = '5')
+tf5_bars_back = input.int(1, minval = 1, title = ' ', group='Scanner Settings' , inline = '6')
+tf6_bars_back = input.int(1, minval = 1, title = ' ', group='Scanner Settings' , inline = '7')
+
+
+get_count_function(symbol, tf, bars_back) =>
+
+    bull_count = request.security(symbol, tf , math.sum(close[1] >= open[1] ? 1 : 0,bars_back), lookahead = barmerge.lookahead_off)
+    bear_count = bars_back - bull_count
+    
+    what_color = bull_count > bear_count ? panelbull_color : bear_count > bull_count ? panelbear_color : panelneutral_color
+
+    [bull_count, bear_count, what_color]
+    
+[sym1_tf1_bull, sym1_tf1_bear, color_sym1_tf1] = get_count_function(real_symbol1, tf1, tf1_bars_back)
+[sym1_tf2_bull, sym1_tf2_bear, color_sym1_tf2] = get_count_function(real_symbol1, tf2, tf2_bars_back)
+[sym1_tf3_bull, sym1_tf3_bear, color_sym1_tf3] = get_count_function(real_symbol1, tf3, tf3_bars_back)
+[sym1_tf4_bull, sym1_tf4_bear, color_sym1_tf4] = get_count_function(real_symbol1, tf4, tf4_bars_back)
+[sym1_tf5_bull, sym1_tf5_bear, color_sym1_tf5] = get_count_function(real_symbol1, tf5, tf5_bars_back)
+[sym1_tf6_bull, sym1_tf6_bear, color_sym1_tf6] = get_count_function(real_symbol1, tf6, tf6_bars_back)
+
+all_green = color_sym1_tf1 == panelbull_color and
+     color_sym1_tf2 == panelbull_color and
+     color_sym1_tf3 == panelbull_color and
+     color_sym1_tf4 == panelbull_color and
+     color_sym1_tf5 == panelbull_color and
+     color_sym1_tf6 == panelbull_color
+
+all_red = color_sym1_tf1 == panelbear_color and
+     color_sym1_tf2 == panelbear_color and
+     color_sym1_tf3 == panelbear_color and
+     color_sym1_tf4 == panelbear_color and
+     color_sym1_tf5 == panelbear_color and
+     color_sym1_tf6 == panelbear_color
+    
+var last_signal = 0
+last_signal := all_green and not all_green[1] ? 1 : all_red and not all_red[1] ? -1 : last_signal[1]
+
+color_bg = input.bool(true, title = 'Color BG', inline='3', group='Visual Settings')
+bgcolor(not color_bg ? na : last_signal == 1 ? color.new(panelbull_color,80) : last_signal == -1 ? color.new(panelbear_color,80) : na)
+
+// show_signals = input.bool(true, title = 'Show Signals', inline='3', group='Visual Settings')
+// plotshape(show_signals and last_signal == 1 and last_signal[1] != 1 and barstate.isconfirmed ? low - (syminfo.mintick * label_offset) : na, style=shape.labelup, editable=false, text= "Buy", textcolor=dashboard_text, location= location.absolute, color=color.new(panelbull_color, 30), size=size.tiny)
+// plotshape(show_signals and last_signal == -1 and last_signal[1] != -1 and barstate.isconfirmed ? high + (syminfo.mintick * label_offset) : na, style=shape.labeldown, editable=false, text='Sell', textcolor=dashboard_text, location=location.absolute, color=color.new(panelbear_color, 30), size=size.tiny)
+
+
+useStrategyStart = input.bool(false, title = " ", group = "Trade Settings", inline = '1')
+strategy_start = input.time(timestamp("01 January 2021 00:00:00 UTC-5"), "Strategy Start Date", group = "Trade Settings", inline = '1')
+
+useStrategyEnd = input.bool(false, title = " ", group = "Trade Settings", inline = '2')
+strategy_end = input.time(timestamp("01 January 2022 00:00:00 UTC-5"), "Strategy End Date", group = "Trade Settings", inline = '2')
+
+useTradingHours = input.bool(false, title = " ", group = "Trade Settings", inline = '3')
+trading_time = input.session("0930-1600", title = "Trading Time", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Trade Settings", inline = '3')
+trading_hours_cond = not useTradingHours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Trade Settings", inline = '5')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Trade Settings", inline = '6')
+
+long_entry = long_trades and trading_hours_cond and (all_green and not all_green[1])
+long_exit = not short_trades and (all_red or not trading_hours_cond)
+
+short_entry = short_trades and trading_hours_cond and (all_red and not all_red[1])
+short_exit = not long_trades and (all_green or not trading_hours_cond)
+
+use_profit_target = input.bool(true, title = " ", group = "Trade Settings", inline = '5')
+pt_amount = input.float(2.00, minval = 0.00, maxval = 99.0, step = 0.25, title = "Profit Target %", group = "Trade Settings", inline = '7')
+
+use__stop = input.bool(true, title = " ", group = "Trade Settings", inline = '8')
+stop_amount = input.float(1.50, minval = 0.00, maxval = 99.0, step = 0.25, title = "Stop %", group = "Trade Settings", inline = '9')
+
+var long_target = 99999999.99
+var short_target = 0.000000
+
+var long_stop = 0.000000
+var short_stop = 99999999.99
+
+if use_profit_target
+    long_target := strategy.position_avg_price + (strategy.position_avg_price * (pt_amount/100))
+    short_target := strategy.position_avg_price - (strategy.position_avg_price * (pt_amount/100))  
+    
+if use__stop    
+    long_stop := strategy.position_avg_price - (strategy.position_avg_price * (stop_amount/100))   
+    short_stop := strategy.position_avg_price + (strategy.position_avg_price * (stop_amount/100))
+    
+time_to_backtest = ((useStrategyStart and time >= strategy_start) or not useStrategyStart) and ((useStrategyEnd and time < strategy_end) or not useStrategyEnd) ? true : false
+
+if time_to_backtest
+    //ORDERS
+    if (strategy.position_size > 0)
+        strategy.exit(id="LE", limit=long_target, stop=long_stop , comment = "TP/SL")
+            
+    if (strategy.position_size < 0)
+        strategy.exit(id="SS_E", limit=short_target, stop=short_stop , comment = "TP/SL")
+        
+    strategy.close("LE",when = long_exit, comment = "LX")
+    strategy.close("SS_E",when = short_exit, comment = "SS_X")
+    
+    strategy.entry("LE", strategy.long,when = long_entry) 
+    strategy.entry("SS_E", strategy.short, when = short_entry) 
+else
+    strategy.close_all(comment = 'T_X')
+
+// plot(short_target)
+// plot(short_stop)
+// plot(strategy.position_avg_price)
+
+//TABLE
+var table t = table.new(positioning, 7, 3, frame_color=color.new(dashboard_color, 100), frame_width=1, border_color=color.new(dashboard_color, 100), border_width=1)
+if true
+
+    //Column 1
+    table.cell(t, 0, 0, text='Simple Sentiment', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 1, text=' ', width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 0, 2, text=str.substring(real_symbol1, str.pos(real_symbol1, ":") + 1), width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.cell(t, 1, 1, text= tf1, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 1, text= tf2, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 3, 1, text= tf3, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 4, 1, text= tf4, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)       
+    table.cell(t, 5, 1, text= tf5, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 6, 1, text= tf6, width=0, bgcolor=dashboard_color, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)  
+    
+    table.cell(t, 1, 2, text= "   ", width=2, bgcolor=color_sym1_tf1, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 2, 2, text= "   ", width=2, bgcolor=color_sym1_tf2, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)   
+    table.cell(t, 3, 2, text= "   ", width=2, bgcolor=color_sym1_tf3, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 4, 2, text= "   ", width=2, bgcolor=color_sym1_tf4, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)    
+    table.cell(t, 5, 2, text= "   ", width=2, bgcolor=color_sym1_tf5, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    table.cell(t, 6, 2, text= "   ", width=2, bgcolor=color_sym1_tf6, text_color=dashboard_text, text_size=label_size, text_halign=text.align_center)
+    
+    table.merge_cells(t, 0, 0, 6, 0)
+
+
+
+
+

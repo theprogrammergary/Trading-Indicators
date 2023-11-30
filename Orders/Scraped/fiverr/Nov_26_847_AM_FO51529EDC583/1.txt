@@ -1,0 +1,137 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_jlirano_111622_1", overlay=true, margin_long=100, margin_short=100)
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "Bollinger Bands" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+// CHART rsi
+rsiLengthInput = input.int(14, minval=1, title="RSI Length", group="Chart RSI Settings")
+rsiSourceInput = input.source(close, "RSI Source", group="Chart RSI Settings")
+maTypeInput = input.string("SMA", title="RSI MA Type", options=["SMA", "Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Chart RSI Settings")
+maLengthInput = input.int(14, title="RSI MA Length", group="Chart RSI Settings")
+bbMultInput = input.float(2.0, minval=0.001, maxval=50, title="BB StdDev", group="Chart RSI Settings")
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+rsiMA = ma(rsi, maLengthInput, maTypeInput)
+
+chartrsi_bull = rsi > rsiMA
+chartrsi_bear = rsi < rsiMA
+// CHART rsi
+
+// CHART Heikin-ashi
+len=input.int(10, title = "Length 1", group = 'Chart HA Settings')
+o=ta.ema(open,len)
+c=ta.ema(close,len)
+h=ta.ema(high,len)
+l=ta.ema(low,len)
+
+var float haopen = 0.00
+haclose = (o+h+l+c)/4
+haopen := na(haopen[1]) ? (o + c)/2 : (haopen[1] + haclose[1]) / 2
+hahigh = math.max(h, math.max(haopen,haclose))
+halow = math.min(l, math.min(haopen,haclose))
+
+len2=input(10,  title = "Length 2", group = 'Chart HA Settings')
+o2=ta.ema(haopen, len2)
+c2=ta.ema(haclose, len2)
+h2=ta.ema(hahigh, len2)
+l2=ta.ema(halow, len2)
+
+col= o2>c2 ? color.red : color.green
+chartha_bull = c2 >= o2
+chartha_bear = c2 < o2
+plotcandle(o2, h2, l2, c2, title="heikin smoothed", color=col)
+// CHART Heikin-ashi
+
+
+// VIX inverse
+symbol = input.symbol('VIX', title = 'Symbol to Use', group = 'VIX Inverse Settings')
+symbol_tf = input.timeframe('', title = 'Timeframe to Use', group = 'VIX Inverse Settings')
+
+inverse_open = request.security(symbol, symbol_tf, symbol_tf == '' ? open : open[1], lookahead = barmerge.lookahead_on)
+inverse_high = request.security(symbol, symbol_tf, symbol_tf == '' ? high : high[1], lookahead = barmerge.lookahead_on)
+inverse_low = request.security(symbol, symbol_tf, symbol_tf == '' ? low : low[1], lookahead = barmerge.lookahead_on)
+inverse_close = request.security(symbol, symbol_tf, symbol_tf == '' ? close : close[1], lookahead = barmerge.lookahead_on)
+
+// RSI
+inverse_rsiLengthInput = input.int(14, minval=1, title="RSI Length", group = 'VIX Inverse Settings')
+inverse_rsiSourceInput = inverse_close
+inverse_maTypeInput = input.string("SMA", title="RSI MA Type", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = 'VIX Inverse Settings')
+inverse_maLengthInput = input.int(14, title="RSI MA Length", group = 'VIX Inverse Settings')
+
+inverse_up = ta.rma(math.max(ta.change(inverse_rsiSourceInput), 0), inverse_rsiLengthInput)
+inverse_down = ta.rma(-math.min(ta.change(inverse_rsiSourceInput), 0), inverse_rsiLengthInput)
+inverse_rsi = inverse_down == 0 ? 100 : inverse_up == 0 ? 0 : 100 - (100 / (1 + inverse_up / inverse_down))
+inverse_rsiMA = ma(inverse_rsi, inverse_maLengthInput, inverse_maTypeInput)
+
+inversersi_bull = inverse_rsi > inverse_rsiMA
+inversersi_bear = inverse_rsi < inverse_rsiMA
+
+// HA
+inverse_len = input.int(10, minval=1, maxval=500, title="HA Length", group = 'VIX Inverse Settings')
+inverse_haClose = (inverse_open + inverse_high + inverse_low + inverse_close) / 4
+inverse_haOpen = float(na)
+inverse_haOpen := na(inverse_haOpen[1]) ? (inverse_open + inverse_close) / 2 : (nz(inverse_haOpen[1]) + nz(inverse_haClose[1])) / 2
+inverse_haHigh = math.max(inverse_high, math.max(inverse_haOpen, inverse_haClose))
+inverse_haLow = math.min(inverse_low, math.min(inverse_haOpen, inverse_haClose))
+
+// STOCH
+inverse_periodK = input.int(14, title="Stoch %K Length", minval=1, group = 'VIX Inverse Settings')
+inverse_smoothK = input.int(3, title="Stock %K Smoothing", minval=1, group = 'VIX Inverse Settings')
+inverse_periodD = input.int(3, title="Stock %D Smoothing", minval=1, group = 'VIX Inverse Settings')
+inverse_k = ta.sma(ta.stoch(inverse_close, inverse_high, inverse_low, inverse_periodK), inverse_smoothK)
+inverse_d = ta.sma(inverse_k, inverse_periodD)
+
+// // //
+inverse_avg = math.avg(inverse_haOpen,inverse_haHigh,inverse_haLow,inverse_haClose)
+inverse_HA_movingAverage = ta.wma(inverse_avg, inverse_len)
+
+inverse_bull = inverse_HA_movingAverage <= inverse_HA_movingAverage[1] and inverse_rsi < inverse_rsiMA and inverse_k < inverse_d
+inverse_bear = inverse_HA_movingAverage > inverse_HA_movingAverage[1] and inverse_rsi > inverse_rsiMA and inverse_k > inverse_d
+// VIX inverse
+
+
+// --STRATEGY INPUTS-- //
+strategy_start = input.time(timestamp("01 January 2020 00:00:00 UTC-5"), "Strategy Start Date", group = "Strategy Settings", inline = '1')
+use_trading_hours = input.bool(false, title = "Use Trading Hours", tooltip = "This is ignored if the chart timeframe is greater than or equal to the daily timeframe.", group = "Strategy Settings", inline = '2')
+trading_time = input.session("0930-1600", title = " ", tooltip = "This uses Eastern Time Zone or U.S. NY Market Hours.", group = "Strategy Settings", inline = '2')
+trading_hours_cond = not use_trading_hours or time("",trading_time, "America/New_York")
+
+long_trades = input.bool(true, title = "Long Trades", tooltip = "Do we want to take long trades?" , group = "Strategy Settings", inline = '3')
+short_trades = input.bool(true, title = "Short Trades", tooltip = "Do we want to take short trades?" , group = "Strategy Settings", inline = '4')
+
+long_entry = long_trades and trading_hours_cond and chartrsi_bull and chartha_bull and inverse_bull
+long_exit = long_trades and chartha_bull[1] and not chartha_bull
+
+short_entry = short_trades and trading_hours_cond and chartrsi_bear and chartha_bear and inverse_bear
+short_exit = short_trades and chartha_bear[1] and not chartha_bear
+
+past_strategy_start_date = time >= strategy_start ? true : false
+// --STRATEGY INPUTS-- //
+
+
+// --ORDERS-- //
+if past_strategy_start_date
+    if long_exit
+        strategy.close("LE", comment = 'LX')
+
+    if short_exit
+        strategy.close("SS_E", comment = 'SS_X')
+
+    if long_entry
+        strategy.entry("LE", strategy.long)
+
+    if short_entry
+        strategy.entry("SS_E", strategy.short)
+// --ORDERS-- //

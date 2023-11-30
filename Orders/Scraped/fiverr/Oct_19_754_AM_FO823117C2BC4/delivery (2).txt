@@ -1,0 +1,1 @@
+Here it adds the timeframes to the alert text even though every alert already tells you timeframe.

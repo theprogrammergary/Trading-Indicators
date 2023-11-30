@@ -1,0 +1,194 @@
+//DeMark_9_Indicator_Vic
+//@version=5
+indicator("DeMark 9", overlay=true)
+
+
+send_updates_every_bar_close = input.bool(false, title = 'Send Updates on Every Bar Close')
+
+
+//ALERT NUMBER
+use_alert_number_1 = input.bool(true, title = '',  group = 'Number To Alert ON', inline = '1')
+use_alert_number_2 = input.bool(true, title = '',  group = 'Number To Alert ON', inline = '2')
+use_alert_number_3 = input.bool(true, title = '',  group = 'Number To Alert ON', inline = '3')
+alert_higher_than_number_3 = input.bool(true, title = 'Alert when greater than Alert Number 3',  group = 'Number To Alert ON', inline = '4')
+
+alert_number_1 = input.int(7, title = 'Alert Number ONE', group = 'Number To Alert ON', inline = '1')
+alert_number_2 = input.int(8, title = 'Alert Number TWO', group = 'Number To Alert ON', inline = '2')
+alert_number_3 = input.int(9, title = 'Alert Number THREE', group = 'Number To Alert ON', inline = '3')
+
+
+
+//TIMEFRAMES
+use_tf_1 = input.bool(true, title = '',  group = 'Timeframes', inline = '1')
+use_tf_2 = input.bool(true, title = '',  group = 'Timeframes', inline = '2')
+use_tf_3 = input.bool(true, title = '',  group = 'Timeframes', inline = '3')
+use_tf_4 = input.bool(true, title = '',  group = 'Timeframes', inline = '4')
+use_tf_5 = input.bool(true, title = '',  group = 'Timeframes', inline = '5')
+use_tf_6 = input.bool(true, title = '',  group = 'Timeframes', inline = '6')
+
+alert_tf_1 = input.timeframe('5', title = 'Timeframe Number ONE', group = 'Timeframes', inline = '1')
+alert_tf_2 = input.timeframe('30', title = 'Timeframe Number TWO', group = 'Timeframes', inline = '2')
+alert_tf_3 = input.timeframe('60', title = 'Timeframe Number THREE', group = 'Timeframes', inline = '3')
+alert_tf_4 = input.timeframe('120', title = 'Timeframe Number FOUR', group = 'Timeframes', inline = '4')
+alert_tf_5 = input.timeframe('240', title = 'Timeframe Number FIVE', group = 'Timeframes', inline = '5')
+alert_tf_6 = input.timeframe('D', title = 'Timeframe Number SIX', group = 'Timeframes', inline = '6')
+
+
+
+
+
+//TD FUNCTION
+function_td(use_timeframe) =>
+
+    varip TD = 0
+    varip TS = 0
+
+    TD := close > close[4] ? nz(TD[1])+1 : 0
+    TDUp = use_timeframe ? TD - ta.valuewhen(TD < TD[1], TD, 1 ) : na
+
+    TS := close < close[4] ? nz(TS[1])+1 : 0
+    TDDn = use_timeframe ? TS - ta.valuewhen(TS < TS[1], TS, 1 ) : na
+
+
+    up_alert = use_timeframe and (use_alert_number_1 and TDUp == alert_number_1) or (use_alert_number_2 and TDUp == alert_number_2) or (use_alert_number_3 and TDUp == alert_number_3) or (alert_higher_than_number_3 and TDUp >= alert_number_3)
+    down_alert = use_timeframe and (use_alert_number_1 and TDDn == alert_number_1) or (use_alert_number_2 and TDDn == alert_number_2) or (use_alert_number_3 and TDDn == alert_number_3) or (alert_higher_than_number_3 and TDDn >= alert_number_3)
+
+    [TDUp, TDDn, up_alert, down_alert]
+
+//END TD FUNCTION
+
+[tf_1_up, tf_1_down, tf_1_alertup, tf_1_alertdown] = request.security(syminfo.tickerid, alert_tf_1, function_td(use_tf_1))
+[tf_2_up, tf_2_down, tf_2_alertup, tf_2_alertdown] = request.security(syminfo.tickerid, alert_tf_2, function_td(use_tf_2))
+[tf_3_up, tf_3_down, tf_3_alertup, tf_3_alertdown] = request.security(syminfo.tickerid, alert_tf_3, function_td(use_tf_3))
+[tf_4_up, tf_4_down, tf_4_alertup, tf_4_alertdown] = request.security(syminfo.tickerid, alert_tf_4, function_td(use_tf_4))
+[tf_5_up, tf_5_down, tf_5_alertup, tf_5_alertdown] = request.security(syminfo.tickerid, alert_tf_5, function_td(use_tf_5))
+[tf_6_up, tf_6_down, tf_6_alertup, tf_6_alertdown] = request.security(syminfo.tickerid, alert_tf_6, function_td(use_tf_6))
+
+
+var new_alert = false
+
+var tf_1_alertup_text = ''
+var tf_2_alertup_text = ''
+var tf_3_alertup_text = ''
+var tf_4_alertup_text = ''
+var tf_5_alertup_text = ''
+var tf_6_alertup_text = ''
+
+var tf_1_alertdown_text = ''
+var tf_2_alertdown_text = ''
+var tf_3_alertdown_text = ''
+var tf_4_alertdown_text = ''
+var tf_5_alertdown_text = ''
+var tf_6_alertdown_text = ''
+
+
+
+//MAIN CHART PLOTS
+TD = 0
+TD := close > close[4] ? nz(TD[1])+1 : 0
+TDUp = TD - ta.valuewhen(TD < TD[1], TD, 1 )
+
+plotshape(TDUp==7?true:na,style=shape.triangledown, color=color.red, text="7",textcolor=color.red, location=location.abovebar)
+plotshape(TDUp==8?true:na,style=shape.triangledown, color=color.red, text="8",textcolor=color.red, location=location.abovebar)
+plotshape(TDUp==9?true:na,style=shape.triangledown, color=color.red, text="⛔️",textcolor=color.red, location=location.abovebar)
+
+
+TS = 0
+TS := close < close[4] ? nz(TS[1])+1 : 0
+TDDn = TS - ta.valuewhen(TS < TS[1], TS, 1 )
+
+plotshape(TDDn==7?true:na,style=shape.triangleup, color=color.green, text="7",textcolor=color.green, location=location.belowbar)
+plotshape(TDDn==8?true:na,style=shape.triangleup, color=color.green, text="8",textcolor=color.green, location=location.belowbar)
+plotshape(TDDn==9?true:na,style=shape.triangleup, color=color.green,text="✅",textcolor=color.green, location=location.belowbar)
+
+
+//DEBUG
+// plot(TD, color = color.red)
+// plot(TS, color = color.teal)
+
+
+//WORK
+var table = table.new(position = position.top_right, columns = 2, rows = 7, bgcolor = color.new(#000000,0), border_width = 1)
+if barstate.islast
+
+
+
+    //ALERTS
+    new_alert := tf_1_alertup or
+     tf_2_alertup or
+     tf_3_alertup or
+     tf_4_alertup or
+     tf_5_alertup or
+     tf_6_alertup or
+     tf_1_alertdown or
+     tf_2_alertdown or
+     tf_3_alertdown or
+     tf_4_alertdown or
+     tf_5_alertdown or
+     tf_6_alertdown
+
+    tf_1_alertup_text := tf_1_alertup ? '\nTF ' + str.tostring(alert_tf_1) + '    |    Count is +' + str.tostring(tf_1_up) : na
+    tf_2_alertup_text := tf_2_alertup ? '\nTF ' + str.tostring(alert_tf_2) + '    |    Count is +' + str.tostring(tf_2_up) : na
+    tf_3_alertup_text := tf_3_alertup ? '\nTF ' + str.tostring(alert_tf_3) + '    |    Count is +' + str.tostring(tf_3_up) : na
+    tf_4_alertup_text := tf_4_alertup ? '\nTF ' + str.tostring(alert_tf_4) + '    |    Count is +' + str.tostring(tf_4_up) : na
+    tf_5_alertup_text := tf_5_alertup ? '\nTF ' + str.tostring(alert_tf_5) + '    |    Count is +' + str.tostring(tf_5_up) : na
+    tf_6_alertup_text := tf_6_alertup ? '\nTF ' + str.tostring(alert_tf_6) + '    |    Count is +' + str.tostring(tf_6_up) : na
+
+    tf_1_alertdown_text := tf_1_alertdown ? '\nTF ' + str.tostring(alert_tf_1) + '    |    Count is -' + str.tostring(tf_1_down) : na
+    tf_2_alertdown_text := tf_2_alertdown ? '\nTF ' + str.tostring(alert_tf_2) + '    |    Count is -' + str.tostring(tf_2_down) : na
+    tf_3_alertdown_text := tf_3_alertdown ? '\nTF ' + str.tostring(alert_tf_3) + '    |    Count is -' + str.tostring(tf_3_down) : na
+    tf_4_alertdown_text := tf_4_alertdown ? '\nTF ' + str.tostring(alert_tf_4) + '    |    Count is -' + str.tostring(tf_4_down) : na
+    tf_5_alertdown_text := tf_5_alertdown ? '\nTF ' + str.tostring(alert_tf_5) + '    |    Count is -' + str.tostring(tf_5_down) : na
+    tf_6_alertdown_text := tf_6_alertdown ? '\nTF ' + str.tostring(alert_tf_6) + '    |    Count is -' + str.tostring(tf_6_down) : na
+
+
+    new_alert_text = tf_1_alertup_text +
+         tf_2_alertup_text +
+         tf_3_alertup_text +
+         tf_4_alertup_text +
+         tf_5_alertup_text +
+         tf_6_alertup_text +
+         '\n' +
+         tf_1_alertdown_text +
+         tf_2_alertdown_text +
+         tf_3_alertdown_text +
+         tf_4_alertdown_text +
+         tf_5_alertdown_text +
+         tf_6_alertdown_text
+
+
+    if (send_updates_every_bar_close and new_alert) or (not send_updates_every_bar_close and (new_alert and not new_alert[1]))
+        alert(new_alert_text, alert.freq_once_per_bar_close)
+
+
+    //TABLE
+    table.cell(table_id = table, column = 0, row = 0, text = 'TF', bgcolor = color.black, text_color = color.white)
+    table.cell(table_id = table, column = 1, row = 0, text = 'Count', bgcolor = color.black, text_color = color.white)
+
+    if use_tf_1
+        table.cell(table_id = table, column = 0, row = 1, text = use_tf_1 ? str.tostring(alert_tf_1) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 1, text = use_tf_1 ? (tf_1_up > tf_1_down ? '+' : tf_1_up < tf_1_down ? '-' : ' ') + str.tostring(math.max(tf_1_up,tf_1_down)) : '', bgcolor = tf_1_alertup ? color.red : tf_1_alertdown ? color.teal : color.black, text_color = color.white)
+
+    if use_tf_2
+        table.cell(table_id = table, column = 0, row = 2, text = use_tf_2 ? str.tostring(alert_tf_2) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 2, text = use_tf_2 ? (tf_2_up > tf_2_down ? '+' : tf_2_up < tf_2_down ? '-' : ' ') + str.tostring(math.max(tf_2_up,tf_2_down)) : '', bgcolor = tf_2_alertup ? color.red : tf_2_alertdown ? color.teal : color.black, text_color = color.white)
+
+    if use_tf_3
+        table.cell(table_id = table, column = 0, row = 3, text = use_tf_3 ? str.tostring(alert_tf_3) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 3, text = use_tf_3 ? (tf_3_up > tf_3_down ? '+' : tf_3_up < tf_3_down ? '-' : ' ') + str.tostring(math.max(tf_3_up,tf_3_down)) : '', bgcolor = tf_3_alertup ? color.red : tf_3_alertdown ? color.teal : color.black, text_color = color.white)
+
+    if use_tf_4
+        table.cell(table_id = table, column = 0, row = 4, text = use_tf_4 ? str.tostring(alert_tf_4) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 4, text = use_tf_4 ? (tf_4_up > tf_4_down ? '+' : tf_4_up < tf_4_down ? '-' : ' ') + str.tostring(math.max(tf_4_up,tf_4_down)) : '', bgcolor = tf_4_alertup ? color.red : tf_4_alertdown ? color.teal : color.black, text_color = color.white)
+
+    if use_tf_5
+        table.cell(table_id = table, column = 0, row = 5, text = use_tf_5 ? str.tostring(alert_tf_5) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 5, text = use_tf_5 ? (tf_5_up > tf_5_down ? '+' : tf_5_up < tf_5_down ? '-' : ' ') + str.tostring(math.max(tf_5_up,tf_5_down)) : '', bgcolor = tf_5_alertup ? color.red : tf_5_alertdown ? color.teal : color.black, text_color = color.white)
+
+    if use_tf_6
+        table.cell(table_id = table, column = 0, row = 6, text = use_tf_6 ? str.tostring(alert_tf_6) : '', bgcolor = color.black, text_color = color.white)
+        table.cell(table_id = table, column = 1, row = 6, text = use_tf_6 ? (tf_6_up > tf_6_down ? '+' : tf_6_up < tf_6_down ? '-' : ' ') + str.tostring(math.max(tf_6_up,tf_6_down)) : '', bgcolor = tf_6_alertup ? color.red : tf_6_alertdown ? color.teal : color.black, text_color = color.white)
+
+
+
+

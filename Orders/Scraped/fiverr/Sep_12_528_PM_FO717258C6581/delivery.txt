@@ -1,0 +1,1 @@
+Here you go. The new setting is SL Type and TP3 Type. You can switch between exiting if the close breaches a level or on the touch of a level.

@@ -1,0 +1,5 @@
+The formula I gave 
+
+(avg65 - avg7) / avg65 
+
+is how you actually express this in pct terms. You can see from the image attached. The very bottom one is the correct way and the one above is your way just not in % terms.

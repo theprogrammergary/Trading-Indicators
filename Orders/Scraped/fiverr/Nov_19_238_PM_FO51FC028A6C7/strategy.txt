@@ -1,0 +1,269 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+strategy("for_Roony515_111622 Strategy", overlay=true, margin_long=100, margin_short=100, max_lines_count = 500, max_labels_count = 500)
+
+// --INPUTS-- //
+// --MAIN SETTINGS -- //
+rounding_value = input.float(0.1, title = 'Rounding Value', group = 'Main Settings', inline = '1')
+sell_volume = input.int(7500, title = 'Sell Volume < ', group = 'Main Settings', inline = '2')
+buy_volume = input.int(7500, title = 'Buy Volume > ', group = 'Main Settings', inline = '3')
+
+price_offset = input.float(0.0021, title = 'Price Offset    ', minval = 0.000001, group = 'Main Settings', inline = '4')
+use_signal_delay = input.bool(true, title = 'Delay Between Signals', group = 'Main Settings', inline = '5')
+signal_delay = input.int(10, title = ' ', minval = 1, group = 'Main Settings', inline = '5')
+
+show_ma = input.bool(title='MA Filter', defval=true, group='Main Settings', inline = '6')
+ma_length = input.int(defval=50, title=' ', minval=1,  group='Main Settings', inline = '6')
+ma_type = input.string(title=' ', defval='EMA', options=['MA', 'WMA', 'VWMA', 'EMA', 'HMA'],  group='Main Settings', inline = '6')
+ma_tf = input.timeframe(title=' ', defval='', group='Main Settings', inline = '6')
+// --MAIN SETTINGS -- //
+
+// --LEVEL SETTINGS-- //
+use_qtr_levels = input.bool(true, title = 'Quarter Levels', group = 'Level Settings', inline = '1')
+css_qtr = input.color(color.new(color.yellow,70), title = '', group = 'Level Settings', inline = '1')
+style_qtr = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '1')
+width_qtr = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '1')
+
+use_half_levels = input.bool(true, title = 'Half Levels   ', group = 'Level Settings', inline = '2')
+css_half = input.color(color.new(color.yellow,35), title = '', group = 'Level Settings', inline = '2')
+style_half = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '2')
+width_half = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '2')
+
+use_whole_levels = input.bool(true, title = 'Whole Levels ', group = 'Level Settings', inline = '3')
+css_whole = input.color(color.yellow, title = '', group = 'Level Settings', inline = '3')
+style_whole = input.string('Solid', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Level Settings', inline = '3')
+width_whole = input.int(1, title = '', minval = 1, maxval = 5, group = 'Level Settings', inline = '3')
+// --LEVEL SETTINGS-- //
+
+// --RISK MANAGEMENT -- //
+use_tp = input.bool(true, title = 'Target   ', group = 'Risk Management', inline = '1')
+tp_amount = input.float(0.02, title = '', group = 'Risk Management', inline = '1')
+tp_type = input.string('Price', title = '', options = ['Percent', 'Price'], group = 'Risk Management', inline = '1')
+
+use_sl = input.bool(true, title = 'Stop Loss', group = 'Risk Management', inline = '2')
+sl_amount = input.float(0.02, title = '', group = 'Risk Management', inline = '2')
+sl_type = input.string('Price', title = '', options = ['Percent', 'Price'], group = 'Risk Management', inline = '2')
+// --RISK MANAGEMENT -- //
+
+// --POSITION LINES-- // 
+line_showing = input.string('Current & Past', title = 'Position Lines to Show', options = ['Current', 'Current & Past'], group = 'Position Line Settings', inline = '1')
+
+use_entryline = input.bool(true, title = 'Entry Line ', group = 'Position Line Settings', inline = '2')
+css_entryline = input.color(color.blue, title = '', group = 'Position Line Settings', inline = '2')
+style_entryline = input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Position Line Settings', inline = '2')
+width_entryline = input.int(1, title = '', minval = 1, maxval = 5, group = 'Position Line Settings', inline = '2')
+
+use_targetline = input.bool(true, title = 'Target Line', group = 'Position Line Settings', inline = '3')
+css_targetline = input.color(color.green, title = '', group = 'Position Line Settings', inline = '3')
+style_targetline = input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Position Line Settings', inline = '3')
+width_targetline = input.int(1, title = '', minval = 1, maxval = 5, group = 'Position Line Settings', inline = '3')
+
+use_stopline = input.bool(true, title = 'Stop Line  ', group = 'Position Line Settings', inline = '4')
+css_stopline = input.color(color.red, title = '', group = 'Position Line Settings', inline = '4')
+style_stopline  = input.string('Dotted', title = '', options = ['Solid', 'Dotted', 'Dashed'], group = 'Position Line Settings', inline = '4')
+width_stopline = input.int(1, title = '', minval = 1, maxval = 5, group = 'Position Line Settings', inline = '4')
+// --POSITION LINES-- // 
+// --INPUTS-- //
+
+
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+f_draw_lines(lines, baseline) =>
+    
+    // clear
+    for i = 0 to array.size(lines) - 1
+        line.delete(array.get(lines, i))
+    array.clear(lines)
+
+    half_value = (rounding_value/2)
+    qtr_value = (half_value/2)
+
+    for i = 0 to 10
+
+        if use_whole_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+(i*rounding_value), x2 = bar_index + 1, y2 = baseline+(i*rounding_value), extend = extend.both, width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-(i*rounding_value), x2 = bar_index + 1, y2 = baseline-(i*rounding_value), extend = extend.both,  width = width_whole,
+             style = (style_whole == 'Solid' ? line.style_solid : style_whole == 'Dashed' ? line.style_dashed : style_whole == 'Dotted' ? line.style_dotted : line.style_solid), color = css_whole))
+
+        if use_half_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+half_value+(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline+half_value+(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-half_value-(i*(rounding_value)), x2 = bar_index + 1, y2 = baseline-half_value-(i*(rounding_value)), extend = extend.both, width = width_half,
+             style = (style_half == 'Solid' ? line.style_solid : style_half == 'Dashed' ? line.style_dashed : style_half == 'Dotted' ? line.style_dotted : line.style_solid), color = css_half))
+
+        if use_qtr_levels
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline+qtr_value+(i*(half_value)), x2 = bar_index + 1, y2 = baseline+qtr_value+(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+            array.unshift(lines, line.new(x1 = bar_index, y1 = baseline-qtr_value-(i*(half_value)), x2 = bar_index + 1, y2 = baseline-qtr_value-(i*(half_value)), extend = extend.both, width = width_qtr,
+             style = (style_qtr == 'Solid' ? line.style_solid : style_qtr == 'Dashed' ? line.style_dashed : style_qtr == 'Dotted' ? line.style_dotted : line.style_solid), color = css_qtr))
+// --FUNCTION TO DRAW PSYCH THEORY LINES -- //
+
+
+// --FUNCTION TO LOOP THROUGH LINES TO CHECK FOR NEW SIGNAL -- //
+f_newsignals(lines) =>
+    
+    var bool new_buy = false
+    var bool new_sell = false
+
+    for i = 0 to array.size(lines) - 1
+        line_value = line.get_y2( array.get(lines, i) )
+        new_buy := math.abs(close - line_value) <= price_offset and volume >= buy_volume
+        new_sell := math.abs(close - line_value) <= price_offset and volume <= sell_volume
+
+        if new_buy or new_sell
+            break
+    
+    [new_buy, new_sell]
+// --FUNCTION TO LOOP THROUGH LINES TO CHECK FOR NEW SIGNAL -- //
+
+
+// --FUNCTION TO CALCULATE MA-- //
+getMA(src, len, type) =>
+    ma_value = type == 'MA' ? ta.sma(src, len) : type == 'WMA' ? ta.wma(src, len) : type == 'VWMA' ? ta.vwma(src, len) : type == 'EMA' ? ta.ema(src, len) : type == 'HMA' ? ta.hma(src, len) : na
+    ma_value
+// --FUNCTION TO CALCULATE MA-- //
+
+
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+f_array_add_pop(array, new_value_to_add) =>
+    array.unshift(array, new_value_to_add)
+    array.pop(array)
+//--FUNCTION TO ADD NEW AND REMOVE LAST IN ARRAY--//
+
+
+// draw lines
+var lines = array.new_line(100, na)
+baseline = math.round( close / rounding_value) * rounding_value
+if barstate.isfirst or baseline != baseline[1]
+    f_draw_lines(lines, baseline) 
+
+// look for new signals
+[new_buy, new_sell] = f_newsignals(lines)
+
+//calculate ma
+ma_value = request.security(syminfo.tickerid, ma_tf, getMA(close[1], ma_length, ma_type), lookahead=barmerge.lookahead_on)
+ma_buy = (close >= ma_value) or not show_ma
+ma_sell = (close < ma_value) or not show_ma
+
+plot(ma_value, title = 'Filter MA', color = color.white, display = display.none)
+
+
+// --MAIN CODE-- //
+var in_trade = false
+var trade_side = 0
+
+var target = 99999999.99
+var stop = 0.000000
+var entry_price = 0.00
+
+var long_entry = false
+var short_entry = false
+
+var tgt_hit = false
+var stop_hit = false
+
+var long_exit = false
+var short_exit = false
+
+var bars_since_last_entry = 100
+
+long_entry := new_buy and ma_buy and ( (bars_since_last_entry > signal_delay) or not use_signal_delay) and trade_side != 1
+short_entry := new_sell and ma_sell and ( (bars_since_last_entry > signal_delay) or not use_signal_delay) and trade_side != -1
+bars_since_last_entry := long_entry or short_entry ? 0 : nz(bars_since_last_entry[1]) + 1
+
+entry_price := long_entry[1] or short_entry[1] ? open :  in_trade == true ? entry_price[1] : na
+trade_side := long_entry[1] ? 1 : short_entry[1] ? -1 : in_trade == false ? 0 : trade_side[1]
+
+if use_tp
+    target := trade_side == 1 ? ( tp_type == 'Percent' ? (entry_price + (entry_price * (tp_amount/100))) : entry_price + tp_amount ) : trade_side == -1 ? ( tp_type == 'Percent' ? (entry_price - (entry_price * (tp_amount/100))) : entry_price - tp_amount ) : na
+else
+    target := na
+    
+if use_sl    
+    stop := trade_side == 1 ?  ( tp_type == 'Percent' ? (entry_price - (entry_price * (sl_amount/100))) : entry_price - sl_amount ) : trade_side == -1 ? ( tp_type == 'Percent' ? (entry_price + (entry_price * (sl_amount/100))) : entry_price + sl_amount ) : na
+else    
+    stop := na
+
+tgt_hit := trade_side == 1 and high >= target or trade_side == -1 and low <= target
+stop_hit := trade_side == 1 and low <= stop or trade_side == -1 and high >= stop
+
+long_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == 1
+short_exit := ( (tgt_hit or stop_hit) ) and in_trade[1] == true and trade_side[1] == -1   
+
+in_trade := long_entry or short_entry ? true : long_exit or short_exit ?  false : in_trade[1]
+// --MAIN CODE-- //
+
+
+// --TRADE POSIITION LINES-- //
+var line current_entryline = na
+var line current_targetline = na
+var line current_stopline = na
+
+previous_entrylines = array.new_line(50, na)
+previous_targetlines = array.new_line(50, na)
+previous_stoplines = array.new_line(50, na)
+
+show_previous = line_showing == 'Past' or line_showing == 'Current & Past'
+
+// --FUNCTION TO COPY LINE TO STORED ARRAY-- //
+f_copy_n_store(current_line, storing_array) =>
+
+    if show_previous
+        copied_line = line.copy(current_line)
+        line.set_extend(copied_line, extend.none)
+        line.set_x2(copied_line, bar_index)
+        f_array_add_pop(storing_array, copied_line)
+    line.delete(current_line)
+// --FUNCTION TO COPY LINE TO STORED ARRAY-- //
+
+// new lines
+if long_entry[1] or short_entry[1]
+
+    // if we were in a trade and flipped side
+    if entry_price[1] != 0
+        f_copy_n_store(current_entryline, previous_entrylines)
+        f_copy_n_store(current_targetline, previous_targetlines)
+        f_copy_n_store(current_stopline, previous_stoplines)
+
+    if use_entryline
+        current_entryline := line.new(x1 = bar_index-1, y1 = entry_price, x2 = bar_index + 1, y2 =entry_price, extend = extend.right, width = width_entryline,
+         style = (style_entryline == 'Solid' ? line.style_solid : style_entryline == 'Dashed' ? line.style_dashed : style_entryline == 'Dotted' ? line.style_dotted : line.style_solid), color = css_entryline)
+        
+    if use_targetline
+        current_targetline := line.new(x1 = bar_index-1, y1 = target, x2 = bar_index + 1, y2 =target, extend = extend.right, width = width_targetline,
+         style = (style_targetline == 'Solid' ? line.style_solid : style_targetline == 'Dashed' ? line.style_dashed : style_targetline == 'Dotted' ? line.style_dotted : line.style_solid), color = css_targetline)
+    
+    if use_stopline
+        current_stopline := line.new(x1 = bar_index-1, y1 = stop, x2 = bar_index + 1, y2 =stop, extend = extend.right, width = width_stopline,
+         style = (style_stopline == 'Solid' ? line.style_solid : style_stopline == 'Dashed' ? line.style_dashed : style_stopline == 'Dotted' ? line.style_dotted : line.style_solid), color = css_stopline)
+
+// manage lines
+if long_exit or short_exit
+    f_copy_n_store(current_entryline, previous_entrylines)
+    f_copy_n_store(current_targetline, previous_targetlines)
+    f_copy_n_store(current_stopline, previous_stoplines)
+// --TRADE POSIITION LINES-- //
+
+
+// --ORDERS-- //
+if (strategy.position_size > 0)
+    strategy.exit(id="LE", limit=target, stop=stop , comment = "TP/SL")
+        
+if (strategy.position_size < 0)
+    strategy.exit(id="SS_E", limit=target, stop=stop , comment = "TP/SL")
+    
+if long_exit
+    strategy.close("LE", comment = "LX")
+else if short_exit
+    strategy.close("SS_E", comment = "SS_X")
+
+if long_entry
+    strategy.entry("LE", strategy.long)
+else if short_entry
+    strategy.entry("SS_E", strategy.short)
+// --ORDERS-- //
+
+// debug
+// barcolor(long_entry[1] ? color.new(color.green,0) : short_entry[1] ? color.new(color.red,0) : long_exit ? color.blue : short_exit ? color.fuchsia : color.black)
+

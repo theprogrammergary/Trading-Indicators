@@ -1,0 +1,267 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © kriswaters
+
+//@version=5
+indicator(title='MCF and Trendy Pipsy', format=format.price, precision=0, overlay=true, max_bars_back=300, max_labels_count = 500, max_lines_count = 500)
+
+_time_sess = input.session('0930-1300', title = 'Signals Only During This Time')
+length = input.int(20, minval=1)
+src = input(close, title='Source')
+mult = input.float(2.0, minval=0.001, maxval=50)
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+is_session = time(timeframe.period, _time_sess, 'America/New_York')
+bgcolor(is_session ? color.rgb(37, 40, 48, 60) : na)
+
+
+filterBW = input(false, title='filter Bill Williams Fractals:')
+isRegularFractal(mode) =>
+    ret = mode == 1 ? high[4] < high[3] and high[3] < high[2] and high[2] > high[1] and high[1] > high[0] : mode == -1 ? low[4] > low[3] and low[3] > low[2] and low[2] < low[1] and low[1] < low[0] : false
+    ret
+isBWFractal(mode) =>
+    ret = mode == 1 ? high[4] < high[2] and high[3] <= high[2] and high[2] >= high[1] and high[2] > high[0] : mode == -1 ? low[4] > low[2] and low[3] >= low[2] and low[2] <= low[1] and low[2] < low[0] : false
+    ret
+
+
+filteredtopf = filterBW ? is_session and isRegularFractal(1) : is_session and isBWFractal(1)
+filteredbotf = filterBW ? is_session and isRegularFractal(-1) : is_session and isBWFractal(-1)
+
+
+plotshape(filteredtopf, title='Filtered Top Fractals', style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 90), offset=-2)
+plotshape(filteredbotf, title='Filtered Bottom Fractals', style=shape.triangleup, location=location.belowbar, color=color.new(color.lime, 90), offset=-2)
+
+short = filteredtopf and high[2] > upper[2]
+long = filteredbotf and low[2] < lower[2]
+
+plotshape(short, title='Signaled Top Fractals', style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), offset=-2)
+plotshape(long, title='Signaled Bottom Fractals', style=shape.triangleup, location=location.belowbar, color=color.new(color.lime, 0), offset=-2)
+
+
+// RSI Settings for user
+rsiSource = input(title='RSI Source', defval=close)
+rsiLength = input(title='RSI Length', defval=7)
+rsiOverbought = input.int(title='RSI Overbought', defval=70, minval=51, maxval=100)
+rsiOvesold = input.int(title='RSI Oversold', defval=30, minval=1, maxval=49)
+
+// RSI value based on inbuilt RSI
+rsiValue = ta.rsi(rsiSource, rsiLength)
+
+// Get the current state
+isOverbought = rsiValue >= rsiOverbought
+isOversold = rsiValue <= rsiOvesold
+
+// State of the last extreme 0 for initialization, 1 = overbought, 2 = oversold
+var laststate = 0
+
+// Highest and Lowest prices since the last state change
+var hh = low
+var ll = high
+
+// Labels
+var label labelll = na
+var label labelhh = na
+
+// Swing lines
+var line line_up = na
+var line line_down = na
+
+var last_actual_label_hh_price = 0.0
+var last_actual_label_ll_price = 0.0
+
+
+// FUNCTIONS
+obLabelText() =>
+    if last_actual_label_hh_price < high
+        'HH'
+    else
+        'LH'
+//plot(last_actual_label_hh_price)
+osLabelText() =>
+    if last_actual_label_ll_price < low
+        'HL'
+    else
+        'LL'
+
+pos_top = high + ta.atr(30) * 0.5
+pos_bottom = low - ta.atr(30) * 0.5
+
+// Create oversold or overbought label
+createOverBoughtLabel(isIt) =>
+    if isIt
+        label.new(x=bar_index, y=pos_top, style=label.style_label_down, color=is_session ? color.new(color.red, 0) : color.black, size=size.small, text=obLabelText(), textcolor=color.new(color.white, 0))
+    else
+        label.new(x=bar_index, y=pos_bottom, style=label.style_label_up, color=is_session ? color.new(color.green, 0) : color.black, size=size.small, text=osLabelText(), textcolor=color.new(color.white, 0))
+
+
+// Move the oversold swing and label
+moveOversoldLabel() =>
+    label.set_x(labelll, bar_index)
+    label.set_y(labelll, low)
+    label.set_text(labelll, osLabelText())
+    line.set_x1(line_down, bar_index)
+    line.set_y1(line_down, low)
+
+moveOverBoughtLabel() =>
+    label.set_x(labelhh, bar_index)
+    label.set_y(labelhh, high)
+    label.set_text(labelhh, obLabelText())
+    line.set_x1(line_up, bar_index)
+    line.set_y1(line_up, high)
+
+// We go from oversold straight to overbought NEW DRAWINGS CREATED HERE
+if laststate == 2 and isOverbought
+    hh := high
+    labelhh := createOverBoughtLabel(true)
+    last_actual_label_ll_price := label.get_y(labelll)
+    labelll_ts = label.get_x(labelll)
+    labelll_price = label.get_y(labelll)
+    line_up := line.new(x1=bar_index, y1=high, x2=labelll_ts, y2=labelll_price, width=1)
+    line_up
+
+// We go from overbought straight to oversold  NEW DRAWINGS CREATED HERE
+if laststate == 1 and isOversold
+    ll := low
+    labelll := createOverBoughtLabel(false)
+    last_actual_label_hh_price := label.get_y(labelhh)
+    labelhh_ts = label.get_x(labelhh)
+    labelhh_price = label.get_y(labelhh)
+    line_down := line.new(x1=bar_index, y1=high, x2=labelhh_ts, y2=labelhh_price, width=1)
+    line_down
+
+
+// If we are overbought
+if isOverbought
+    if high >= hh
+        hh := high
+        moveOverBoughtLabel()
+    laststate := 1
+    laststate
+
+
+// If we are oversold
+if isOversold
+    if low <= ll
+        ll := low
+        moveOversoldLabel()
+    laststate := 2
+    laststate
+
+
+// If last state was overbought and we are overbought
+if laststate == 1 and isOverbought
+    if hh <= high
+        hh := high
+        moveOverBoughtLabel()
+
+//If we are oversold and the last state was oversold, move the drawings to the lowest price
+if laststate == 2 and isOversold
+    if low <= ll
+        ll := low
+        moveOversoldLabel()
+
+
+// If last state was overbought
+if laststate == 1
+    if hh <= high
+        hh := high
+        moveOverBoughtLabel()
+
+// If last stare was oversold
+if laststate == 2
+    if ll >= low
+        ll := low
+        moveOversoldLabel()
+
+sz = isOverbought and hh != hh[1]
+bz = isOversold and ll != ll[1]
+
+
+n = 2
+upFractal = is_session and high[n + 2] < high[n] and high[n + 1] < high[n] and high[n - 1] < high[n] and high[n - 2] < high[n] or high[n + 3] < high[n] and high[n + 2] < high[n] and high[n + 1] == high[n] and high[n - 1] < high[n] and high[n - 2] < high[n] or high[n + 4] < high[n] and high[n + 3] < high[n] and high[n + 2] == high[n] and high[n + 1] <= high[n] and high[n - 1] < high[n] and high[n - 2] < high[n] or high[n + 5] < high[n] and high[n + 4] < high[n] and high[n + 3] == high[n] and high[n + 2] == high[n] and high[n + 1] <= high[n] and high[n - 1] < high[n] and high[n - 2] < high[n] or high[n + 6] < high[n] and high[n + 5] < high[n] and high[n + 4] == high[n] and high[n + 3] <= high[n] and high[n + 2] == high[n] and high[n + 1] <= high[n] and high[n - 1] < high[n] and high[n - 2] < high[n]
+
+dnFractal = is_session and low[n + 2] > low[n] and low[n + 1] > low[n] and low[n - 1] > low[n] and low[n - 2] > low[n] or low[n + 3] > low[n] and low[n + 2] > low[n] and low[n + 1] == low[n] and low[n - 1] > low[n] and low[n - 2] > low[n] or low[n + 4] > low[n] and low[n + 3] > low[n] and low[n + 2] == low[n] and low[n + 1] >= low[n] and low[n - 1] > low[n] and low[n - 2] > low[n] or low[n + 5] > low[n] and low[n + 4] > low[n] and low[n + 3] == low[n] and low[n + 2] == low[n] and low[n + 1] >= low[n] and low[n - 1] > low[n] and low[n - 2] > low[n] or low[n + 6] > low[n] and low[n + 5] > low[n] and low[n + 4] == low[n] and low[n + 3] >= low[n] and low[n + 2] == low[n] and low[n + 1] >= low[n] and low[n - 1] > low[n] and low[n - 2] > low[n]
+
+Depth = input.int(24, 'Depth', minval=1, step=1)
+Deviation = input.int(5, 'Deviation', minval=1, step=1)
+
+var lastlow = 0.0
+var lasthigh = 0.0
+data(x) =>
+    request.security(syminfo.tickerid, timeframe.period, x)
+cc(x) =>
+    x == 'Red' ? color.red : x == 'Lime' ? color.lime : x == 'Orange' ? color.orange : x == 'Teal' ? color.teal : x == 'Yellow' ? color.yellow : x == 'Black' ? color.black : color.white
+
+
+getLow(x, y, z, a) =>
+    temp_ll = y
+    v = data(x)
+    m = v == temp_ll or data(z) - v > a * syminfo.mintick
+    if v != temp_ll
+        temp_ll := v
+    if m
+        v := 0.0
+    [v, temp_ll]
+
+getHigh(x, y, z, a) =>
+    temp_lh = y
+    v = data(x)
+    m = v == temp_lh or v - data(z) > a * syminfo.mintick
+    if v != temp_lh
+        temp_lh := v
+    if m
+        v := 0.0
+    [v, temp_lh]
+
+
+[v, e] = getLow(ta.lowest(Depth), lastlow, low, Deviation)
+lastlow := e
+zBB = v != 0.0
+[v1, e1] = getHigh(ta.highest(Depth), lasthigh, high, Deviation)
+lasthigh := e1
+zSS = v1 != 0.0
+d = 0
+zigzagHigh = 0
+zigzagLow = 0
+d := zBB ? 1 : zSS ? -1 : nz(d[1], 0)
+virtualLow = zigzagLow[1] + 1
+if not zBB or zBB and d == d[1] and low > low[virtualLow]
+    zigzagLow := nz(zigzagLow[1]) + 1
+    zigzagLow
+virtualHigh = zigzagHigh[1] + 1
+if not zSS or zSS and d == d[1] and high < high[virtualHigh]
+    zigzagHigh := nz(zigzagHigh[1]) + 1
+    zigzagHigh
+direction_changed = d != d[1]
+
+x1 = bar_index - zigzagLow
+x2 = bar_index - zigzagHigh
+y1 = low[zigzagLow]
+y2 = high[zigzagHigh]
+
+buy = ta.barssince(dnFractal and zBB[2] and is_session)
+label buy_label = label.new(bar_index[buy + 2], 0, 'BUY', xloc.bar_index, yloc.belowbar, color.lime, label.style_triangleup)
+sell = ta.barssince(upFractal and zSS[2] and is_session)
+label sell_label = label.new(bar_index[sell + 2], 0, 'SELL', xloc.bar_index, yloc.abovebar, color.red, label.style_triangledown)
+
+if d == d[1]
+    label.delete(buy_label[1])
+    label.delete(sell_label[1])
+
+//ALERT
+//TrendPipsy
+alertcondition(dnFractal and zBB[2], 'TrendPipsy BUY')
+alertcondition(upFractal and zSS[2], 'TrendPipsy SELL')
+
+//MCF
+alertcondition(sz[2] and short, 'SELL Fractal Tag')
+alertcondition(bz[2] and long, 'BUY Fractal Tag')
+
+// alertcondition(long, "Buy Alert", "Buy")
+// alertcondition(short, "Sell Alert", "Sell")
+
+alertcondition(dnFractal and zBB[2] and bz[2] and long, 'COMBINED BUY')
+alertcondition(upFractal and zSS[2] and sz[2] and short, 'COMBINED SELL')
+

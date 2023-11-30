@@ -1,0 +1,1 @@
+So I think I have it done. Just testing now. Just so you know you will have to manage this around holidays. There is no efficient way to handle the friday exit if the market does not trade on friday. See the image below. The stop loss is not on in the image because I am testing time based entry and exit.

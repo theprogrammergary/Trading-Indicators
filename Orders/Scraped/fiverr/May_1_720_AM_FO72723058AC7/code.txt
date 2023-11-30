@@ -1,0 +1,92 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+strategy("for_marksanch", overlay=true, margin_long=100, margin_short=100)
+
+
+
+// input settings
+ma_type = input.string("SMA", title = 'Moving Average Type',
+ options = ['SMA', 'EMA', 'WMA', 'HMA', 'VWMA'], group = 'Strategy Settings')
+ma_length = input.int(20, title = 'Moving Average Length', group = 'Strategy Settings')
+
+strategy_start = input.time(timestamp("01 January 2020 00:00:00 UTC-5"), "Strategy Start Date", group = "Strategy Settings")
+long_trades = input.bool(true, title = "Long Trades    |    ", group = "Strategy Settings", inline = '1')
+short_trades = input.bool(true, title = "Short Trades", group = "Strategy Settings", inline = '1')
+
+alt_target = input.bool(false, title = '% Target',  group = "Strategy Settings", inline = '2')
+_tp_pct = input.float(1.05, title = ' ',  group = "Strategy Settings", inline = '2')
+
+alt_stop = input.bool(false, title = '% Stop  ',  group = "Strategy Settings", inline = '3')
+_sl_pct = input.float(1.05, title = ' ',  group = "Strategy Settings", inline = '3')
+
+past_startdate = time > strategy_start
+
+// calc ma
+float ma_value = switch ma_type
+    "EMA" => ta.ema(close, ma_length)
+    "SMA" => ta.sma(close, ma_length)
+    "WMA" => ta.wma(close, ma_length)
+    "VWMA" => ta.vwma(close, ma_length)
+    "HMA" => ta.hma(close, ma_length)
+    => ta.sma(close, ma_length)
+
+plot(ma_value, title = 'MA', color = close > ma_value ? color.rgb(0, 206, 185) : color.rgb(255, 0, 0),
+ linewidth = 2)
+
+
+// calc normal entry/exit
+long_cross = ta.crossover(close, ma_value)
+short_cross = ta.crossunder(close, ma_value)
+
+long_entry = long_trades and long_cross
+short_entry = short_trades and short_cross
+
+long_exit = not short_trades and short_cross
+short_exit = not long_trades and long_cross
+
+
+// calc target/stop S
+var float tgt_price = na
+var float sl_price = na
+
+if alt_target
+    tgt_price := strategy.position_size > 0 ? (strategy.position_avg_price + (strategy.position_avg_price * (_tp_pct/100))) 
+     : strategy.position_size < 0 ? (strategy.position_avg_price - (strategy.position_avg_price * (_tp_pct/100))) 
+     : na
+
+if alt_stop
+    sl_price := strategy.position_size > 0 ? (strategy.position_avg_price - (strategy.position_avg_price * (_sl_pct/100))) 
+     : strategy.position_size < 0 ? (strategy.position_avg_price + (strategy.position_avg_price * (_sl_pct/100))) 
+     : na
+
+
+p_entry = plot(strategy.position_avg_price, title = 'Entry', color = color.blue, style = plot.style_circles)
+p_tgt = plot(tgt_price, title = 'Target', color = color.lime, style = plot.style_circles)
+p_sl = plot(sl_price, title = 'Stop', color = color.fuchsia, style = plot.style_circles)
+
+
+fill(p_entry, p_tgt, title = 'Profit Background', color = alt_target ? color.new(color.teal, 80) : na)
+fill(p_entry, p_sl, title = 'Loss Background', color = alt_stop ? color.new(color.red, 80) : na)
+
+if past_startdate
+    // entry orders
+    if (long_entry)
+        strategy.entry("LE", strategy.long)
+
+    if (short_entry)
+        strategy.entry("SS_E", strategy.short)
+
+    // target/stop orders
+    if strategy.position_size > 0
+        strategy.exit("TP/SL", from_entry = "LE", limit = tgt_price, stop = sl_price, comment_profit = "TP", comment_loss = "SL")
+    if strategy.position_size < 0
+        strategy.exit("TP/SL", from_entry = "SS_E", limit = tgt_price, stop = sl_price, comment_profit = "TP", comment_loss = "SL")
+
+    // exit orders
+    if (long_exit)
+        strategy.close("LE", comment = "LX")
+
+    if (short_exit)
+        strategy.close("SS_E", comment = "SS_X")

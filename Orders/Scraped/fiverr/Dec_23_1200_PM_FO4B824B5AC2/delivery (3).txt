@@ -1,0 +1,5 @@
+I just went ahead and did it. You can choose which version you want. Going into holidays I might not be as quick to reply, but I will make sure that this is right. Merry Christmas!
+
+v3 - doesnt reset on new day
+v4- resets on new day
+   --so if longentryback =5, we cant take any long trades until the bar number of the day is greater than or equal to five. Same logic for shorts.

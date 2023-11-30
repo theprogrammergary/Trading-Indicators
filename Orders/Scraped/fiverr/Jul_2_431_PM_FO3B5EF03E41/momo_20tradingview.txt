@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("MicroQuant Momentum", overlay = false)
+
+indicator_line  = input.int(32, title = 'Indicator Line')
+smooth          = input.int(5, title = 'Smooth')
+signal_line     = input.int(5, title = 'Signal Line')
+
+
+tsi_fast = ta.tsi(close, smooth, indicator_line) * 100
+tsi_slow = ta.ema(tsi_fast, signal_line)
+
+
+plot(0, color = color.rgb(75, 75, 77))
+plot(tsi_fast, title = 'TSI Fast', color = color.rgb(121, 177, 222))
+plot(tsi_slow, title = 'TSI Slow', color = color.rgb(223, 168, 78))
+plot(25, title = 'High Lvl', color = color.new(#006400,0))
+plot(-25, title = 'Low Level', color = color.new(#800000, 0))
+plot( (tsi_fast-tsi_slow)*2, title = 'Hist', style = plot.style_columns,
+ color = tsi_fast >= tsi_slow ? color.green : color.red)
+
+
+var bool tradersPostBuy = na
+var bool tradersPostSell = na
+tradersPostBuy := tsi_fast > tsi_slow and tsi_fast[1] < tsi_slow[1]
+tradersPostSell := tsi_fast < tsi_slow and tsi_fast[1] > tsi_slow[1]
+
+alertcondition(tradersPostBuy, title="MicroQuant Momentum Buy")
+alertcondition(tradersPostSell, title="MicroQuant Momentum Sell")

@@ -1,0 +1,224 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © atraderstoolbox
+
+//@version=5
+indicator("MFI Divergences Lower v2", overlay = false, format=format.price, precision=2, max_lines_count = 500)
+
+bull_color1 = input.color(color.new(#1ecd25, 0), title = 'Bull 1', inline = '1')
+bull_color2 = input.color(color.new(#346836, 0), title = 'Bull 2', inline = '1')
+
+bear_color1 = input.color(color.new(#e31414, 0), title = 'Bear 1', inline = '1')
+bear_color2 = input.color(color.new(#6f2d2d, 0), title = 'Bear 2', inline = '1')
+
+
+
+// TRADE SIGNAL SETTINGS
+pivot_lookback  = input.int(5, title = 'Pivot Length            ', group = 'Trade Settings', inline = 'a')
+
+use_reg_div     = input.bool(true, title = 'Regular Div.  ', group = 'Trade Settings', inline = '1')
+use_hid_div     = input.bool(false, title = 'Hidden Div.', group = 'Trade Settings', inline = '1')
+
+use_trade_cond1 = input.bool(true, title = '1. MFI Above/Below    ', group = 'Trade Settings', inline = '2')
+mfi_below       = input.int(30, title = '', group = 'Trade Settings', inline = '2')
+mfi_above       = input.int(70, title = '', group = 'Trade Settings', inline = '2')
+
+use_trade_cond2 = input.bool(true, title = '2. Max Bars between dots ', group = 'Trade Settings', inline = '3')
+bn_buy          = input.int(25, title = '', group = 'Trade Settings', inline = '3')
+bn_sell         = input.int(25, title = '', group = 'Trade Settings', inline = '3')
+
+
+
+// MFI settings
+mfi_length = input.int(title="MFI Length", defval=14, minval=1, maxval=2000, group = 'MFI Settings', inline = '1')
+mfi_src = input.source(hlc3, title = 'MFI Source', group = 'MFI Settings', inline = '2')
+mfi_ob = input.int(70, title = 'OB', group = 'MFI Settings', inline = '3')
+mfi_os = input.int(30, title = 'OS', group = 'MFI Settings', inline = '3')
+
+
+
+// MFI calculate
+mfi = ta.mfi(mfi_src, mfi_length)
+overbought=hline(mfi_ob, title="Overbought", color=#787B86)
+oversold=hline(mfi_os, title="Oversold", color=#787B86)
+hline(math.floor((mfi_ob+mfi_os)/2), "Middle Band", color=color.new(#787B86, 50))
+fill(overbought, oversold, color=color.rgb(126, 87, 194, 90), title="Background")
+plot(mfi, "MFI", color=#7E57C2)
+
+
+
+// PIVOT Values calculate
+var bool swing_high = na
+var bool swing_low = na
+
+var float   csh = na
+var int     csh_bn = na
+var float   psh = na
+var int     psh_bn = na
+var float   csl = na
+var int     csl_bn = na
+var float   psl = na
+var int     psl_bn = na
+
+var float   mfi_csh = na
+var int     mfi_csh_bn = na
+var float   mfi_psh = na
+var int     mfi_psh_bn = na
+var float   mfi_csl = na
+var int     mfi_csl_bn = na
+var float   mfi_psl = na
+var int     mfi_psl_bn = na
+
+var int     bars_between_lows  = na
+var int     bars_between_highs = na
+
+
+swing_high := ta.pivothigh(high, pivot_lookback, pivot_lookback)
+swing_low  := ta.pivotlow(low, pivot_lookback, pivot_lookback)
+
+if swing_low
+    csl         := low[pivot_lookback]
+    csl_bn      := bar_index[pivot_lookback]
+    mfi_csl     := mfi[pivot_lookback]
+    mfi_csl_bn  := bar_index[pivot_lookback]
+
+    psl         := csl[1]
+    psl_bn      := psl_bn[1]
+    mfi_psl     := mfi_csl[1]
+    mfi_psl_bn  := mfi_csl_bn[1]
+
+if swing_high
+    csh         := high[pivot_lookback]
+    csh_bn      := bar_index[pivot_lookback]
+    mfi_csh     := mfi[pivot_lookback]
+    mfi_csh_bn  := bar_index[pivot_lookback]
+
+    psh         := csh[1]
+    psh_bn      := psh_bn[1]
+    mfi_psh     := mfi_csh[1]
+    mfi_psh_bn  := mfi_csh_bn[1]
+
+bars_between_highs := bar_index - csh_bn
+bars_between_lows  := bar_index - csl_bn
+
+
+
+// hh = 2
+// lh = -1
+// ll = -2
+// hl = 1
+f_get_trend(csh, csl, psh, psl) =>
+    var int trend = na
+    var int highs_last_signal = na
+    var int lows_last_signal = na
+
+    hh = csh >= psh
+    lh = csh < psh
+    ll = csl <= psl
+    hl = csl > psl
+
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    highs_last_signal := hh ? 1 : lh ? 0 : highs_last_signal[1]
+    lows_last_signal  := ll ? 1 : hl ? 0 : lows_last_signal[1]
+
+    [trend, highs_last_signal, lows_last_signal]
+
+
+
+
+f_buy_sell_signals(price_highs_last, price_lows_last,
+ osc_highs_last, osc_lows_last,
+ mfi_psh, mfi_psl, bn_highs, bn_lows) =>
+    var bool reg_b = na
+    var bool hid_b = na
+    var bool buy1 = na
+    var bool buy2 = na
+
+    var bool reg_s = na
+    var bool hid_s = na
+    var bool sell1 = na
+    var bool sell2 = na
+
+    var bool    buy_signal       = false
+    var bool    buy_hidd_signal  = false
+    var bool    sell_signal      = false
+    var bool    sell_hidd_signal = false
+
+
+    // buy signals (ll and hl) (hl and ll)
+    reg_b := price_lows_last == 1 and osc_lows_last == 0
+    hid_b := price_lows_last == 0 and osc_lows_last == 1
+
+    buy1 := (mfi_psl <= mfi_below) or not use_trade_cond1
+    buy2 := (bn_lows <= bn_buy) or not use_trade_cond2
+
+    buy_signal := (reg_b and use_reg_div) and (buy1 and buy2)
+    buy_hidd_signal := (hid_b and use_hid_div) and (buy1 and buy2)
+
+
+    // sell signals (hh and lh) (lh and hh)
+    reg_s := price_highs_last == 1 and osc_highs_last == 0
+    hid_s := price_highs_last == 0 and osc_highs_last == 1
+
+    sell1 := (mfi_psh >= mfi_above) or not use_trade_cond1
+    sell2 := (bn_highs <= bn_sell) or not use_trade_cond2
+
+    sell_signal := (reg_s and use_reg_div) and (sell1 and sell2)
+    sell_hidd_signal := (hid_s and use_hid_div) and (sell1 and sell2)
+
+    [buy_signal, buy_hidd_signal, sell_signal, sell_hidd_signal]
+
+
+
+[price_trend, price_highs_last, price_lows_last] = f_get_trend(csh, csl, psh, psl)
+[osc_trend, osc_highs_last, osc_lows_last]       = f_get_trend(mfi_csh, mfi_csl, mfi_psh, mfi_psl)
+
+
+
+
+
+[f_buy_signal, f_buy_hide_signal, f_sell_signal, f_sell_hide_signal] = f_buy_sell_signals(
+ price_highs_last, price_lows_last,
+ osc_highs_last, osc_lows_last,
+ mfi_psh, mfi_psl,
+ bars_between_highs, bars_between_lows)
+
+var bool buy_signal = na
+var bool buy_hide_signal = na
+var bool sell_signal = na
+var bool sell_hide_signal = na
+
+buy_signal       := f_buy_signal and not f_buy_signal[1]
+buy_hide_signal  := f_buy_hide_signal and not f_buy_hide_signal[1]
+sell_signal      := f_sell_signal and not f_sell_signal[1]
+sell_hide_signal := f_sell_hide_signal and not f_sell_hide_signal[1]
+
+
+// {TRENDLINES
+f_draw_divs(x_1, x_2, y_1, y_2, color, hidden) =>
+    line.new(x1=x_1, y1=y_1, x2=x_2, y2=y_2, xloc = xloc.bar_index, extend = extend.none,
+     color = color, style = hidden ? line.style_dashed : line.style_solid)
+
+if buy_signal
+    f_draw_divs(mfi_psl_bn, mfi_csl_bn, mfi_psl, mfi_csl, bull_color1, false)
+if buy_hide_signal
+    f_draw_divs(mfi_psl_bn, mfi_csl_bn, mfi_psl, mfi_csl, bull_color1, true)
+
+
+if sell_signal
+    f_draw_divs(mfi_psh_bn, mfi_csh_bn, mfi_psh, mfi_csh, bear_color1, false)
+if sell_hide_signal
+    f_draw_divs(mfi_psh_bn, mfi_csh_bn, mfi_psh, mfi_csh, bear_color1, true)
+// TRENDLINES}
+
+
+
+plotshape(buy_signal or buy_hide_signal ? 0 : na,title='BUY Signal', style = shape.triangleup,location = location.absolute, color=bull_color1, size = size.tiny)
+plotshape(sell_signal or sell_hide_signal ? 100 : na,title='SELL Signal', style = shape.triangledown,location = location.absolute, color=bear_color1, size = size.tiny)
+bgcolor(buy_signal or buy_hide_signal ? color.new(bull_color1, 75) : sell_signal or sell_hide_signal ? color.new(bear_color1, 75) : na, title = 'Signal Background')
+
+
+// {ALERTS
+alertcondition(buy_signal or buy_hide_signal, "Buy Signal", "Buy Signal")
+alertcondition(sell_signal or sell_hide_signal, "Sell Signal", "Sell Signal")
+// ALERTS}

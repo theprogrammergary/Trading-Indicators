@@ -1,0 +1,1 @@
+Actually it can be like this. You can input a % chg it needs to be at least and then it will color a yellow dot. Then you can hover over the dot to see the true % change.

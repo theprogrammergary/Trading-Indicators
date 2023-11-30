@@ -1,0 +1,29 @@
+# BULLISH BEARISH TREND INDICATOR
+
+#################################################
+
+#Copyright © 2023 Lyftoff Trading LLC. All rights reserved.
+
+#DISCLAIMER Lyftoff Trading LLC are not financial advisors. Nothing in this study, scanner, related documents, or our correspondence is or should be considered financial advice. This study and scanner is a tool meant for educational purposes only. Any trading or investing done with this study and scanner is at your own risk. Study and scanner results may have errors due to changes made to thinkorswim® without our knowledge.
+
+#################################################
+
+
+input Trend_Length = 11;
+input Trend_Factor = 3;
+def atr = MovingAverage(averageType.WILDERS, TrueRange(high, close, low), Trend_Length) * Trend_Factor;
+
+def long_stop = if close[1] > long_stop[1] then max(hl2 - atr,long_stop[1]) else hl2 - atr;
+def short_stop = if close[1] < short_stop[1] then min(hl2 + atr, short_stop[1]) else hl2 + atr;
+
+def dir = if close > short_stop[1] then 1 else if close < long_stop[1] then -1 else dir[1];
+
+
+def bull_scan_cond = dir == 1 and dir[1] != 1;
+def bear_scan_cond = dir == -1 and dir[1] != -1;
+
+
+plot bull_scan = bull_scan_cond is true within 10 bars;
+#plot bear_scan = bear_scan_cond is true within 1 bars;
+
+# END TREND INDICATOR

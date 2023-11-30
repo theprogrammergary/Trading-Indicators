@@ -1,0 +1,55 @@
+input aggONE = AggregationPeriod.thirty_MIN;
+input aggTWO = AggregationPeriod.hour;
+input aggTHREE = aggregationPeriod.TWO_HOURS;
+input aggFOUR = aggregationperiod.day;
+input AtrMult = 1.0;
+input nATR = 4;
+input AvgType = AverageType.HULL;
+
+#ONE
+def ATRONE = MovingAverage(AvgType, TrueRange(high(period = aggONE), close(period = aggONE), low(period = aggONE)), nATR);
+def UPONE = hl2(period = aggONE) + (AtrMult * ATRONE);
+def DNONE = hl2(period = aggONE) + (-AtrMult * ATRONE);
+def STONE = if close(period=aggONE) < STONE[1] then UPONE else DNONE;
+def SuperTrendONE = STONE;
+
+def trendONE = close > stone;
+
+#TWO
+def ATRTWO = MovingAverage(AvgType, TrueRange(high(period = aggTWO), close(period = aggTWO), low(period = aggTWO)), nATR);
+def UPTWO = hl2(period = aggTWO) + (AtrMult * ATRTWO);
+def DNTWO = hl2(period = aggTWO) + (-AtrMult * ATRTWO);
+def STTWO = if close(period=aggTWO) < STTWO[1] then UPTWO else DNTWO;
+def SuperTrendTWO = STTWO;
+
+def trendTWO = close > stTWO;
+
+#THREE
+def ATRTHREE = MovingAverage(AvgType, TrueRange(high(period = aggTHREE), close(period = aggTHREE), low(period = aggTHREE)), nATR);
+def UPTHREE = hl2(period = aggTHREE) + (AtrMult * ATRTHREE);
+def DNTHREE = hl2(period = aggTHREE) + (-AtrMult * ATRTHREE);
+def STTHREE = if close(period=aggTHREE) < STTHREE[1] then UPTHREE else DNTHREE;
+def SuperTrendTHREE = STTHREE;
+
+def trendTHREE = close > stTHREE;
+
+#FOUR
+def ATRFOUR = MovingAverage(AvgType, TrueRange(high(period = aggFOUR), close(period = aggFOUR), low(period = aggFOUR)), nATR);
+def UPFOUR = hl2(period = aggFOUR) + (AtrMult * ATRFOUR);
+def DNFOUR = hl2(period = aggFOUR) + (-AtrMult * ATRFOUR);
+def STFOUR = if close(period=aggFOUR) < STFOUR[1] then UPFOUR else DNFOUR;
+def SuperTrendFOUR = STFOUR;
+
+def trendFOUR = close > stFOUR;
+
+def Long = trendONE and trendTWO and trendThree and trendFour;
+def Short = !trendONE and !trendTWO and !trendThree and !trendFour;
+
+#plot Long_Arrow = long and !long[1];
+#plot Short_Arrow = short and !short[1];
+#Long_Arrow.setpaintingStrategy(paintingStrategy.BOOLEAN_ARROW_UP);
+#Long_Arrow.setdefaultColor(color.green);
+#Short_Arrow.setpaintingStrategy(paintingstrategy.BOOLEAN_ARROW_DOWN);
+#Short_Arrow.setdefaultColor(color.pink);
+assignBACKgroundColor(if long then color.green else if short then color.pink else color.black);
+addlabel(yes, "  ");

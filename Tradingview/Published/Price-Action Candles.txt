@@ -1,0 +1,197 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © theGary
+
+//@version=5
+indicator("Price-Action Candles", overlay = true, max_bars_back = 100)
+
+// inputs
+sdLength    = input.int(10, title = 'Price-Action Length', minval = 2, maxval = 100)
+labelType   = input.string('Repaint', title = 'Label Type', options = ['Repaint', 'No-Repaint'])
+candleType  = input.string('Fill Only', title = 'Candle Color Type', options = ['Entire Candle', 'Fill Only'])
+
+bullCSS     = input.color(color.lime, title = 'Bull')
+bearCSS     = input.color(color.rgb(255, 0, 0), title = 'Bear')
+neutCSS     = input.color(color.yellow, title = 'Neutral')
+
+useTrendTable   = input.bool(true, title = 'Enabled', group = 'MTF Trend')
+
+use_mtf1        = input.bool(true, title = 'MTF 1', group = 'MTF Trend', inline = '1')
+mtf_1           = input.timeframe("1", title = '', group = 'MTF Trend', inline = '1')
+
+use_mtf2        = input.bool(true, title = 'MTF 2', group = 'MTF Trend', inline = '2')
+mtf_2           = input.timeframe("5", title = '', group = 'MTF Trend', inline = '2')
+
+use_mtf3        = input.bool(true, title = 'MTF 3', group = 'MTF Trend', inline = '3')
+mtf_3           = input.timeframe("15", title = '', group = 'MTF Trend', inline = '3')
+
+use_mtf4        = input.bool(true, title = 'MTF 4', group = 'MTF Trend', inline = '4')
+mtf_4           = input.timeframe("60", title = '', group = 'MTF Trend', inline = '4')
+
+use_mtf5        = input.bool(true, title = 'MTF 5', group = 'MTF Trend', inline = '5')
+mtf_5           = input.timeframe("D", title = '', group = 'MTF Trend', inline = '5')
+
+
+
+// functions
+f_getSwingValues(sdLength, offset) =>
+    sh = ta.pivothigh(high, sdLength, sdLength)
+    sl = ta.pivotlow(low, sdLength, sdLength)
+
+    csh = ta.valuewhen(not na(sh), high[sdLength], 0)
+    csl = ta.valuewhen(not na(sl), low[sdLength], 0)
+
+    psh = ta.valuewhen(not na(sh), high[sdLength], 1)
+    psl = ta.valuewhen(not na(sl), low[sdLength], 1)
+
+    hh = sh >= psh
+    lh = sh < psh
+    ll = sl <= psl
+    hl = sl > psl
+
+    var int trend = na
+    trend := ((hh and high >= psh) or close > csh) ? 1 : ((ll and low <= psl) or close < csl) ? -1 : lh or hl ? 0 : trend[1]
+
+    var int last_signal = na
+    last_signal := hh ? 2 : lh ? -1 : ll ? -2 : hl ? 1 : last_signal[1]
+
+    [sh[offset], sl[offset], psh[offset], psl[offset], csh[offset], csl[offset], hh[offset], lh[offset], ll[offset], hl[offset], trend[offset], last_signal[offset]]
+
+
+
+// calculate chart tf
+[sh, sl, psh, psl, csh, csl, hh, lh, ll, hl, trend, last_signal] =
+ request.security(syminfo.tickerid, "", f_getSwingValues(sdLength, 0))
+
+
+plotshape(ll and not na(sl), text="LL", title="Lower Low", style=shape.labelup, display = display.none,
+ color=bearCSS, textcolor=color.black, location=location.belowbar, offset = labelType == 'Repaint' ? -sdLength : 0)
+
+plotshape(hl and not na(sl), text="HL", title="Higher Low", style=shape.labelup, display = display.none,
+ color=neutCSS, textcolor=color.black, location=location.belowbar, offset = labelType == 'Repaint' ? -sdLength : 0)
+
+plotshape(hh and not na(sh), text="HH", title="Higher High", style=shape.labeldown, display = display.none,
+ color=bullCSS, textcolor=color.black, location=location.abovebar, offset = labelType == 'Repaint' ? -sdLength : 0)
+
+plotshape(lh and not na(sh), text="LH", title="Lower High", style=shape.labeldown, display = display.none,
+ color=neutCSS, textcolor=color.black, location=location.abovebar, offset = labelType == 'Repaint' ? -sdLength : 0)
+
+
+barCSS = trend == 1 ? bullCSS
+ : trend == -1 ? bearCSS
+ : neutCSS
+
+
+barcolor(candleType != 'Fill Only' ? na
+ : barCSS, editable = false)
+
+
+plotcandle(open, high, low, close, title = 'Price Action Candles',
+ color = barCSS, wickcolor = barCSS, bordercolor = barCSS,
+ display = candleType == 'Entire Candle' ? display.all : display.none, editable = false)
+
+
+
+// calculate mtf
+f_ltf_values(tf) =>
+    var int returnTrend = na
+
+    adjusted_timeframe = timeframe.in_seconds(tf) >= timeframe.in_seconds() ? '' : tf
+    [ltf_sh, ltf_sl, ltf_psh, ltf_psl, ltf_csh, ltf_csl, ltf_hh, ltf_lh, ltf_ll, ltf_hl, ltf_trend, ltf_last_signal] = 
+     request.security_lower_tf(syminfo.tickerid, adjusted_timeframe, f_getSwingValues(sdLength, 0))
+
+    if array.size(ltf_trend) > 0
+        returnTrend := array.last(ltf_trend)
+    else
+        returnTrend := 0
+
+    returnTrend
+
+
+
+f_htf_values(tf) =>
+    [htf_sh, htf_sl, htf_psh, htf_psl, htf_csh, htf_csl, htf_hh, htf_lh, htf_ll, htf_hl, htf_trend, htf_last_signal] = 
+     request.security(syminfo.tickerid, tf, f_getSwingValues(sdLength, 1), lookahead = barmerge.lookahead_on)
+
+    htf_trend
+
+
+f_sametf_values() =>
+    [sametf_sh, sametf_sl, sametf_psh, sametf_psl, sametf_csh, sametf_csl, sametf_hh, sametf_lh, sametf_ll, sametf_hl, sametf_trend, sametf_last_signal] =
+     f_getSwingValues(sdLength, 0)
+
+    sametf_trend
+
+
+var int mtf1_trend = na
+var int mtf2_trend = na
+var int mtf3_trend = na
+var int mtf4_trend = na
+var int mtf5_trend = na
+
+if barstate.islast
+    if use_mtf1
+        if timeframe.in_seconds() == timeframe.in_seconds(mtf_1)
+            mtf1_trend := f_sametf_values()
+        else if timeframe.in_seconds() > timeframe.in_seconds(mtf_1)
+            mtf1_trend := f_ltf_values(mtf_1)
+        else
+            mtf1_trend := f_htf_values(mtf_1)
+
+    if use_mtf2
+        if timeframe.in_seconds() == timeframe.in_seconds(mtf_2)
+            mtf2_trend := f_sametf_values()
+        else if timeframe.in_seconds() > timeframe.in_seconds(mtf_2)
+            mtf2_trend := f_ltf_values(mtf_2)
+        else
+            mtf2_trend := f_htf_values(mtf_2)
+
+    if use_mtf3
+        if timeframe.in_seconds() == timeframe.in_seconds(mtf_3)
+            mtf3_trend := f_sametf_values()
+        else if timeframe.in_seconds() > timeframe.in_seconds(mtf_3)
+            mtf3_trend := f_ltf_values(mtf_3)
+        else
+            mtf3_trend := f_htf_values(mtf_3)
+
+    if use_mtf4
+        if timeframe.in_seconds() == timeframe.in_seconds(mtf_4)
+            mtf4_trend := f_sametf_values()
+        else if timeframe.in_seconds() > timeframe.in_seconds(mtf_4)
+            mtf4_trend := f_ltf_values(mtf_4)
+        else
+            mtf4_trend := f_htf_values(mtf_4)
+
+    if use_mtf5
+        if timeframe.in_seconds() == timeframe.in_seconds(mtf_5)
+            mtf5_trend := f_sametf_values()
+        else if timeframe.in_seconds() > timeframe.in_seconds(mtf_5)
+            mtf5_trend := f_ltf_values(mtf_5)
+        else
+            mtf5_trend := f_htf_values(mtf_5)
+
+
+
+
+// table
+if barstate.islast and useTrendTable
+    var trendTable = table.new(position = position.bottom_center, columns = 5, rows = 1, border_width = 1, border_color = color.black, frame_width = 2, frame_color = color.black)
+    
+    if use_mtf1
+        table.cell(trendTable, 0, 0, text = str.tostring(mtf_1), text_color = color.black,
+         bgcolor = color.new(mtf1_trend == 1 ? bullCSS : mtf1_trend == -1 ? bearCSS : neutCSS, 0))
+        
+    if use_mtf2
+        table.cell(trendTable, 1, 0, text = str.tostring(mtf_2), text_color = color.black,
+         bgcolor = color.new(mtf2_trend == 1 ? bullCSS : mtf2_trend == -1 ? bearCSS : neutCSS, 0))
+
+    if use_mtf3
+        table.cell(trendTable, 2, 0, text = str.tostring(mtf_3), text_color = color.black,
+         bgcolor = color.new(mtf3_trend == 1 ? bullCSS : mtf3_trend == -1 ? bearCSS : neutCSS, 0))
+
+    if use_mtf4
+        table.cell(trendTable, 3, 0, text = str.tostring(mtf_4), text_color = color.black,
+         bgcolor = color.new(mtf4_trend == 1 ? bullCSS : mtf4_trend == -1 ? bearCSS : neutCSS, 0))
+
+    if use_mtf5
+        table.cell(trendTable, 4, 0, text = str.tostring(mtf_5), text_color = color.black,
+         bgcolor = color.new(mtf5_trend == 1 ? bullCSS : mtf5_trend == -1 ? bearCSS : neutCSS, 0))

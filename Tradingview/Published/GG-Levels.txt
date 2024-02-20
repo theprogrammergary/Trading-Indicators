@@ -1,0 +1,178 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GoodGains
+
+//@version=5
+indicator("GG - Levels", overlay = true, max_lines_count = 500, max_boxes_count = 500)
+
+
+// display settings
+show_lines  = input.bool(true, title = 'Show Lines', group = 'Display Settings')
+show_labels = input.bool(true, title = 'Show Labels', group = 'Display Settings')
+
+rth_color   = input.color(color.new(#5A6471, 0 ), title = 'RTH', group = 'Display Settings')
+on_color    = input.color(color.new(#5A6471, 0 ), title = 'ON', group = 'Display Settings')
+ibh_color   = input.color(color.new(#a5d6a7, 0), title = 'IBH', group = 'Display Settings')
+ibl_color   = input.color(color.new(#faa1a4, 0), title = 'IBL', group = 'Display Settings')
+
+// inputs
+rth_session = input.session('0930-1659', title='RTH Session (EST)', group = 'Symbol Settings')
+on_session = input.session('1700-0929', title='ON Session (EST)', group = 'Symbol Settings')
+ib_session = input.session('0930-1030', title='IB Session (EST)', group = 'Symbol Settings')
+
+
+// global vars
+var int label_extension = 0
+
+
+// functions
+f_calculate_sess_ohlc(is_sess) =>
+    var float sess_high     = na
+    var float sess_low      = na
+    var float sess_open     = na
+    var float sess_close    = na
+    sess_high     := is_sess and not is_sess[1] ? high : is_sess ? math.max(high, sess_high[1]) : sess_high[1]
+    sess_low      := is_sess and not is_sess[1] ? low : is_sess ? math.min(low, sess_low[1]) : sess_low[1]
+    sess_open     := is_sess and not is_sess[1] ? open : sess_open[1]
+    sess_close    := not is_sess and is_sess[1] ? close : sess_close[1]
+
+    [sess_high, sess_low, sess_open, sess_close]
+
+
+f_calculate_prior_ohlc(is_sess, h, l, o, c) =>
+    var float prior_high     = na
+    var float prior_low      = na
+    var float prior_open     = na
+    var float prior_close    = na
+    prior_high     := is_sess and not is_sess[1] ? h[1] : prior_high[1]
+    prior_low      := is_sess and not is_sess[1] ? l[1] : prior_low[1]
+    prior_open     := is_sess and not is_sess[1] ? o[1] : prior_open[1]
+    prior_close    := is_sess and not is_sess[1] ? c[1] : prior_close[1]
+
+    [prior_high, prior_low, prior_open, prior_close]
+ 
+
+
+f_draw_line(line_value, line_active, line_color, line_width) =>
+    var line line_object = na
+    var int line_start = na
+    
+    line_start := line_active and not line_active[1] ? time : line_start[1]
+
+    if line_active and not line_active[1]
+        line_object := line.new(x1 = line_start, x2 = line_start+1, y1=line_value, y2=line_value,
+         extend=extend.none, xloc = xloc.bar_time, color = line_color, width=line_width)
+
+    else if line_active
+        line.set_xy1(line_object, line_start, line_value)
+        line.set_xy2(line_object, time, line_value)
+
+    line_object
+
+
+f_draw_two_box(box_top, box_bot, box_active, top_color, bot_color) =>
+    var box top_box_object = na
+    var box bot_box_object = na
+    var int box_start = na
+    var float box_mid = na
+    
+    box_start := box_active and not box_active[1] ? time : box_start[1]
+    box_mid := math.round_to_mintick(box_top+box_bot) / 2
+
+    if box_active and not box_active[1]
+        top_box_object := box.new(left = box_start, right = box_start+1, top=box_top, bottom=box_mid,
+         extend=extend.none, xloc = xloc.bar_time, bgcolor=color.new(chart.fg_color,100), border_color = top_color, border_style=line.style_dotted)
+        bot_box_object := box.new(left = box_start, right = box_start+1, top=box_mid, bottom=box_bot,
+         extend=extend.none, xloc = xloc.bar_time, bgcolor=color.new(chart.fg_color,100), border_color = bot_color, border_style=line.style_dotted)
+
+    else if box_active
+        box.set_lefttop(top_box_object, box_start, box_top)
+        box.set_rightbottom(top_box_object, time, box_mid)
+
+        box.set_lefttop(bot_box_object, box_start, box_mid)
+        box.set_rightbottom(bot_box_object, time, box_bot)
+
+    top_box_object
+
+
+f_draw_label(label_value, label_prefix) =>
+    var label label_object = na
+
+    if na(label_object)
+        label_object := label.new(x=bar_index+label_extension, y=label_value, text = label_prefix+"="+str.tostring(label_value), xloc = xloc.bar_index,
+         textalign = text.align_right, style = label.style_label_center,
+         color = color.new(chart.fg_color,30), textcolor = chart.bg_color, size = size.small)
+
+    else if label_value != label_value[1]
+        label.set_text(label_object, label_prefix+"="+str.tostring(label_value))
+        label.set_xy(label_object, bar_index+label_extension, label_value)
+
+    else 
+        label.set_x(label_object, bar_index+label_extension)
+
+    label_object
+
+
+f_vwap(src) =>
+	var float sumSrcVol     = na
+	var float sumVol        = na
+    var float sumSrcSrcVol  = na
+
+    isNewPeriod     = timeframe.change("1D")
+	sumSrcVol       := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+	sumVol          := isNewPeriod ? volume : volume + sumVol[1]
+	sumSrcSrcVol    := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+	_vwap           = sumSrcVol / sumVol
+
+
+
+
+// Calculate Session Vars
+is_rth = time == time(timeframe.period, str.format('{0}:1234567', rth_session), 'America/New_York')
+[rth_h, rth_l, rth_o, rth_c] = f_calculate_sess_ohlc(is_rth)
+[p_rth_h, p_rth_l, p_rth_o, p_rth_c] = f_calculate_prior_ohlc(is_rth, rth_h, rth_l, rth_o, rth_c)
+
+is_on = time == time(timeframe.period, str.format('{0}:1234567', on_session), 'America/New_York')
+bgcolor(is_on ? color.new(#5A6471,82) : na)
+[onh, onl, ono, onc] = f_calculate_sess_ohlc(is_on)
+
+is_ib = time == time(timeframe.period, str.format('{0}:1234567', ib_session), 'America/New_York')
+[ibh, ibl, ibo, ibc] = f_calculate_sess_ohlc(is_ib)
+
+fs_vwap     = math.round_to_mintick(f_vwap(close))
+vwap_color  = fs_vwap > fs_vwap[3] ? color.rgb(0, 205, 89, 50) : color.rgb(255, 0, 0, 50)
+plot(fs_vwap, title = 'FS VWAP', style = plot.style_linebr, color = vwap_color)
+
+if show_lines
+    f_draw_line(rth_h, is_rth, rth_color,2)
+    f_draw_line(rth_l, is_rth, rth_color,2)
+
+    f_draw_line(onh, is_on, on_color,1)
+    f_draw_line(onl, is_on, on_color,1)
+
+    f_draw_two_box(ibh, ibl, is_ib, color.new(ibh_color,50), color.new(ibl_color,50))
+
+if barstate.islast and show_labels
+    visible_bars = math.round((chart.right_visible_bar_time-chart.left_visible_bar_time)/1000/timeframe.in_seconds())
+    label_extension := 
+     visible_bars > 1500 ? 200
+     : visible_bars > 750 ? 100
+     : visible_bars > 500 ? 55
+     : visible_bars > 200 ? 35
+     : 15
+
+    f_draw_label(rth_h, "RTH High")
+    f_draw_label(rth_l, "RTH Low")
+    f_draw_label(rth_o, "Open")
+    f_draw_label(p_rth_h, "YH")
+    f_draw_label(p_rth_l, "YL")
+
+    f_draw_label(onh, "ONH")
+    f_draw_label(onl, "ONL")
+
+    f_draw_label(ibh, "IBH")
+    f_draw_label(ibl, "IBL")
+
+    f_draw_label(fs_vwap, "VWAP")
+
+
+

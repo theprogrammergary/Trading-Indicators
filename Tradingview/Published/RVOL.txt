@@ -1,0 +1,71 @@
+//@version=5
+indicator(title= "RVOL++")
+
+import TradingView/ta/7
+import TradingView/RelativeValue/2 as rv
+
+// assertions
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast
+    if cumVol == 0
+        runtime.error("The data vendor doesn't provide volume data for this symbol.")
+
+    if timeframe.in_seconds() >= timeframe.in_seconds("60")
+        runtime.error("RVOL is meant to be used on small timeframes")
+
+
+// inputs
+rvol_type = input.string("Two Session", title = 'RVOL Type', options = ['Two Session', 'Daily'], group = 'RVOL Settings')
+rvol_days = input.int(20, title = 'RVOL Days', group = 'RVOL Settings', minval=5, maxval=50)
+rvol_time1 = input.session('0930-1700', title='RVOL Time (EST)', group = 'RVOL Settings')
+
+
+// global vars
+is_rvol_time1 = time == time(timeframe.period, str.format('{0}:1234567', rvol_time1), 'America/New_York')
+
+
+// functions
+f_calculate_rvol(is_time) =>
+    bool anchor = is_time and not is_time[1]
+    bool useCumulative = true
+    float currVol = rv.calcCumulativeSeries(volume, anchor, useCumulative)
+    float pastVol  = rv.averageAtTime(volume, rvol_days, anchor, useCumulative)
+    float volRatio = math.round(currVol / pastVol * 100, 0)
+    volRatio
+
+
+// calculate
+var float rvol_value1 = na
+var float rvol_value2 = na
+var float rvol_value = na
+
+if rvol_type == "Two Session"
+    rvol_value1 := f_calculate_rvol(bar_index != 0 and is_rvol_time1)
+    rvol_value2 := f_calculate_rvol(bar_index != 0 and not is_rvol_time1)
+    rvol_value := is_rvol_time1 ? rvol_value1 : rvol_value2
+else
+    rvol_value := f_calculate_rvol(timeframe.change("1D"))
+
+rvol_hist_color = color.from_gradient(rvol_value, ta.lowest(rvol_value[1], 2000), ta.highest(rvol_value[1], 2000), chart.bg_color, chart.fg_color)
+rvol_zone0 = color.from_gradient(rvol_value, 50, 80, color.rgb(86, 0, 0), color.rgb(235, 213, 18, 20))
+rvol_zone1 = color.from_gradient(rvol_value, 80, 120, color.rgb(0, 56, 226), color.rgb(13, 155, 231))
+rvol_zone2 = color.from_gradient(rvol_value, 120, 150, color.rgb(13, 231, 231), color.rgb(0, 255, 94))
+rvol_zone3 = color.from_gradient(rvol_value, 150, 250, color.rgb(30, 255, 0), color.rgb(179, 255, 0))
+
+rvol_color = 
+ rvol_value > 150 ? rvol_zone3 :
+ rvol_value > 120 ? rvol_zone2 :
+ rvol_value > 80 ? rvol_zone1:
+ rvol_zone0
+
+
+// plotting
+bgcolor(not is_rvol_time1 ? color.new(#5A6471,82) : na)
+plot(rvol_value, title = "RVOL Hist", style = plot.style_areabr, color = rvol_color, histbase = 80)
+plot(rvol_value, title = 'RVOL Outline',color = color.black, style = plot.style_steplinebr, linewidth = 5)
+plot(rvol_value, title = 'RVOL',color = rvol_color, style = plot.style_steplinebr, linewidth = 2)
+
+rvol_label = table.new(position = position.middle_right, columns = 1, rows = 1)
+if barstate.islast
+    table.cell(rvol_label, 0,0, text = "RVOL=" + str.tostring(rvol_value[1]), text_color = chart.bg_color, bgcolor = color.new(#5A6471, 0 ))
